@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#131722" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/assets/icon-128.png" />
+    <title>QuantVisor TradingView Pro Mobile</title>
+    <style>
+      :root {
+        --bg-main: #131722;
+        --bg-panel: #1e222d;
+        --bg-hover: #2a2e39;
+        --border-color: #2a2e39;
+        --border-subtle: #242838;
+        --text-primary: #d1d4dc;
+        --text-muted: #787b86;
+        --brand-blue: #2962ff;
+        --brand-hover: #1e4bd8;
+        --bull-green: #089981;
+        --bear-red: #f23645;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-main);
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 38px 1fr 24px;
+        height: 100vh;
+        width: 100vw;
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+        user-select: none;
+      }
+      
+      /* TOP BAR TRADINGVIEW */
+      #top-toolbar {
+        display: flex;
+        align-items: center;
+        background-color: var(--bg-panel);
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 8px;
+        gap: 6px;
+        z-index: 100;
+        height: 38px;
+      }
+      .tv-logo {
+        font-weight: 900;
+        font-size: 15px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-right: 8px;
+        border-right: 1px solid var(--border-color);
+        cursor: pointer;
+      }
+      .tv-logo span { color: var(--brand-blue); }
+      
+      #ticker-search {
+        background-color: #131722;
+        border: 1px solid var(--border-color);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        width: 110px;
+        border-radius: 4px;
+        outline: none;
+      }
+      #ticker-search:focus { border-color: var(--brand-blue); }
+
+      .toolbar-btn {
+        background: transparent;
+        color: var(--text-primary);
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+      }
+      .toolbar-btn:hover { background-color: var(--bg-hover); color: #fff; }
+      .toolbar-btn.active { color: var(--brand-blue); font-weight: 700; background-color: rgba(41, 98, 255, 0.12); }
+      
+      .toolbar-divider { width: 1px; height: 18px; background-color: var(--border-color); margin: 0 4px; }
+      .tf-group, .style-group { display: flex; gap: 2px; }
+      
+      #btn-indicadores, #btn-pine-modal-open {
+        background-color: rgba(41, 98, 255, 0.15);
+        color: #2962ff;
+        border: 1px solid rgba(41, 98, 255, 0.3);
+        font-weight: 600;
+      }
+      #btn-indicadores:hover, #btn-pine-modal-open:hover { background-color: var(--brand-hover); color: white; }
+
+      /* MAIN WORKSPACE */
+      #main-workspace {
+        display: flex;
+        flex-direction: row;
+        width: 100vw;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+      }
+      
+      #left-sidebar {
+        width: 44px;
+        background-color: var(--bg-panel);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 4px;
+        gap: 3px;
+        z-index: 90;
+        overflow-y: auto;
+      }
+      .sidebar-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text-muted);
+        font-size: 14px;
+        cursor: pointer;
+        width: 34px;
+        height: 32px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.15s ease;
+      }
+      .sidebar-btn:hover { background-color: var(--bg-hover); color: var(--text-primary); }
+      .sidebar-btn.active { background-color: var(--brand-blue); color: white; }
+
+      /* CHART CONTAINER & RESIZABLE SPLITTER */
+      #chart-container {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--bg-main);
+        height: 100%;
+        overflow: hidden;
+      }
+      #main-chart-container {
+        flex: 1 1 0%;
+        min-height: 120px;
+        position: relative;
+        width: 100%;
+      }
+      
+      #chart-resizer {
+        height: 5px;
+        min-height: 5px;
+        background-color: var(--border-color);
+        cursor: row-resize;
+        z-index: 100;
+        transition: background-color 0.15s ease;
+        display: none;
+        flex-shrink: 0;
+      }
+      #chart-resizer:hover, #chart-resizer.dragging {
+        background-color: var(--brand-blue);
+      }
+
+      #oscillator-chart-container {
+        height: 230px;
+        min-height: 90px;
+        max-height: 60%;
+        display: none;
+        width: 100%;
+        flex-shrink: 0;
+        position: relative;
+        border-top: 1px solid var(--border-color);
+        background-color: #131722;
+      }
+
+      /* WATCHLIST SIDEBAR */
+      #right-watchlist {
+        width: 240px;
+        background-color: var(--bg-panel);
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        z-index: 85;
+      }
+      .watchlist-header {
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .watchlist-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+      .watchlist-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-subtle);
+        cursor: pointer;
+        font-size: 12px;
+        transition: background 0.15s ease;
+      }
+      .watchlist-item:hover { background-color: var(--bg-hover); }
+      .watchlist-item.active { background-color: rgba(41, 98, 255, 0.15); border-left: 3px solid var(--brand-blue); }
+      .watchlist-symbol { font-weight: 700; color: #fff; }
+      .watchlist-price { font-family: monospace; font-size: 11px; }
+      .watchlist-change { font-size: 10px; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
+      .watchlist-change.up { color: var(--bull-green); background: rgba(8, 153, 129, 0.15); }
+      .watchlist-change.down { color: var(--bear-red); background: rgba(242, 54, 69, 0.15); }
+      .watchlist-add-btn {
+        background: #2962ff;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.15s ease, transform 0.1s ease;
+      }
+      .watchlist-add-btn:hover { background: #1e53e5; }
+      .watchlist-add-btn:active { transform: scale(0.96); }
+      .watchlist-remove-btn {
+        background: transparent;
+        border: none;
+        color: #787b86;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 2px 5px;
+        border-radius: 3px;
+        opacity: 0;
+        transition: all 0.15s ease;
+      }
+      .watchlist-item:hover .watchlist-remove-btn { opacity: 0.85; }
+      .watchlist-remove-btn:hover {
+        color: #f23645;
+        background: rgba(242, 54, 69, 0.18);
+        opacity: 1;
+      }
+      .wl-tab-btn {
+        background: #1e222d;
+        border: 1px solid #2a2e39;
+        color: #787b86;
+        padding: 5px 12px;
+        border-radius: 16px;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .wl-tab-btn:hover { background: #2a2e39; color: #d1d4dc; }
+      .wl-tab-btn.active { background: #2962ff; color: #ffffff; border-color: #2962ff; }
+      .wl-asset-card {
+        background: #131722;
+        border: 1px solid #2a2e39;
+        border-radius: 6px;
+        padding: 10px 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.15s ease;
+      }
+      .wl-asset-card:hover { border-color: #2962ff; background: #171b26; }
+      .wl-asset-card.in-watchlist {
+        border-color: rgba(8, 153, 129, 0.45);
+        background: rgba(8, 153, 129, 0.06);
+      }
+      .wl-btn-add {
+        background: #2962ff;
+        color: #fff;
+        border: none;
+        padding: 5px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .wl-btn-add:hover { background: #1e53e5; }
+      .wl-btn-add:disabled { background: #2a2e39; color: #787b86; cursor: not-allowed; }
+      .wl-btn-remove {
+        background: rgba(242, 54, 69, 0.15);
+        color: #f23645;
+        border: 1px solid rgba(242, 54, 69, 0.35);
+        padding: 5px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .wl-btn-remove:hover { background: #f23645; color: #ffffff; }
+
+      /* OVERLAYS & LEGEND */
+      #chart-legend {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 40;
+        font-size: 12px;
+        color: var(--text-primary);
+        font-family: Consolas, Monaco, monospace;
+        pointer-events: none;
+        background: rgba(19, 23, 34, 0.85);
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(42, 46, 57, 0.6);
+      }
+      #indicators-legend {
+        position: absolute;
+        top: 38px;
+        left: 8px;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .indicator-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 11px;
+        color: var(--text-muted);
+        background: rgba(30, 34, 45, 0.9);
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(42, 46, 57, 0.6);
+      }
+      .indicator-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 11px;
+        padding: 0 3px;
+        border-radius: 2px;
+      }
+      .indicator-btn:hover { color: #fff; background-color: var(--bg-hover); }
+
+      #order-overlay {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 50;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        display: flex;
+        padding: 3px;
+        gap: 3px;
+      }
+      .order-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 75px;
+        height: 36px;
+        border: none;
+        border-radius: 3px;
+        color: white;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .order-btn span { font-size: 9px; opacity: 0.9; font-weight: bold; }
+      .order-btn strong { font-size: 11px; font-family: monospace; margin-top: 1px; }
+      #btn-sell { background-color: var(--bear-red); }
+      #btn-buy { background-color: var(--bull-green); }
+
+      /* BOTTOM TOOLBAR */
+      #bottom-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background-color: var(--bg-panel);
+        border-top: 1px solid var(--border-color);
+        padding: 0 12px;
+        font-size: 11px;
+        z-index: 90;
+      }
+      .bottom-btn {
+        background: transparent;
+        color: var(--text-muted);
+        border: none;
+        font-size: 11px;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 2px;
+      }
+      .bottom-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+      /* MODALES OVERLAY */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(4px);
+        z-index: 200000;
+        justify-content: center;
+        align-items: center;
+      }
+      .modal-content {
+        background-color: var(--bg-panel);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        width: 620px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+        overflow: hidden;
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+        background-color: #181c27;
+      }
+      .modal-header h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+      .close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+      .close-btn:hover { color: #fff; }
+
+      /* MODAL PESTAÑAS DE CONFIGURACIÓN DE INDICADOR */
+      .tv-modal-tabs {
+        display: flex;
+        gap: 16px;
+        padding: 0 16px;
+        background-color: #181c27;
+        border-bottom: 1px solid var(--border-color);
+      }
+      .tv-modal-tab {
+        background: transparent;
+        color: var(--text-muted);
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 10px 4px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .tv-modal-tab.active { color: #fff; border-bottom-color: #fff; }
+
+      .tv-tab-pane { display: none; padding: 16px; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 450px; }
+      .tv-tab-pane.active { display: flex; }
+
+      .setting-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 6px; }
+      .setting-row label { color: var(--text-primary); font-weight: 500; display: flex; align-items: center; gap: 8px; }
+      .setting-row input[type="number"], .setting-row select {
+        background: var(--bg-main);
+        border: 1px solid var(--border-color);
+        color: #fff;
+        padding: 5px 8px;
+        border-radius: 4px;
+        width: 110px;
+        outline: none;
+        text-align: right;
+      }
+      .setting-row input[type="color"] { border: none; background: none; width: 32px; height: 28px; cursor: pointer; }
+      .setting-section-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-top: 10px; }
+
+      .modal-footer {
+        padding: 12px 16px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #181c27;
+      }
+
+      /* FLOATING PINE EDITOR MODAL */
+      .pine-modal-content {
+        width: 820px;
+        height: 560px;
+      }
+      #pine-code-editor {
+        flex: 1;
+        background-color: #131722;
+        color: #e0e4ed;
+        font-family: Consolas, Monaco, "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 12px;
+        border: none;
+        resize: none;
+        outline: none;
+      }
+      .editor-btn {
+        background-color: var(--brand-blue);
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .editor-btn:hover { background-color: var(--brand-hover); }
+      .editor-btn.secondary { background-color: #2a2e39; border: 1px solid var(--border-color); color: var(--text-primary); }
+      .editor-btn.secondary:hover { background-color: #363c4e; }
+
+      .modal-search-box { padding: 10px 16px; border-bottom: 1px solid var(--border-color); }
+      #indicator-search-input {
+        width: 100%;
+        padding: 8px 12px;
+        background-color: var(--bg-main);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: #fff;
+        font-size: 13px;
+        outline: none;
+      }
+      .catalog-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .catalog-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background-color: rgba(19, 23, 34, 0.6);
+        border: 1px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .catalog-item:hover { background-color: var(--bg-hover); border-color: var(--border-color); }
+      .catalog-item-title { font-size: 13px; font-weight: 700; color: #fff; }
+      .catalog-item-category { font-size: 10px; color: var(--brand-blue); font-weight: 700; text-transform: uppercase; }
+
+      .backtest-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        padding: 8px 12px;
+        background-color: var(--bg-main);
+        border-bottom: 1px solid var(--border-color);
+      }
+      .kpi-box { background-color: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px 10px; }
+      .kpi-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+      .kpi-val { font-size: 16px; font-weight: 800; font-family: monospace; margin-top: 2px; }
+      .kpi-val.pos { color: var(--bull-green); }
+      .kpi-val.neg { color: var(--bear-red); }
+
+      .trade-table-wrap { flex: 1; overflow-y: auto; padding: 8px 12px; }
+      .trade-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+      .trade-table th, .trade-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border-subtle); }
+      .trade-table th { background-color: var(--bg-panel); color: var(--text-muted); position: sticky; top: 0; }
+      .badge-buy { color: var(--bull-green); font-weight: bold; }
+      .badge-sell { color: var(--bear-red); font-weight: bold; }
+      .badge-close { color: var(--brand-blue); font-weight: bold; }
+
+      /* ==========================================================================
+         SISTEMA RESPONSIVO MÓVIL (TRADINGVIEW MOBILE PRO DESIGN)
+         ========================================================================== */
+      #mobile-bottom-nav {
+        display: none;
+      }
+      #mobile-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(2px);
+        z-index: 998;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+      #mobile-backdrop.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .mobile-only-close-btn,
+      .mobile-only-btn,
+      #btn-mobile-symbol-pill,
+      #mobile-more-sheet {
+        display: none;
+      }
+
+      /* Hoja de opciones móvil (bottom sheet) */
+      #mobile-more-sheet {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #181c27;
+        border-top: 1px solid #2a2e39;
+        border-radius: 14px 14px 0 0;
+        z-index: 1001;
+        transform: translateY(100%);
+        transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+        box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.7);
+        padding-bottom: env(safe-area-inset-bottom, 12px);
+      }
+      #mobile-more-sheet.active {
+        display: block !important;
+        transform: translateY(0);
+      }
+      .mobile-sheet-btn {
+        background: #131722;
+        border: 1px solid #2a2e39;
+        color: #d1d4dc;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.15s ease;
+      }
+      .mobile-sheet-btn:hover, .mobile-sheet-btn:active {
+        background: #2a2e39;
+        color: #fff;
+      }
+
+      @media (max-width: 768px) {
+        /* TOP TOOLBAR: UNA SOLA FILA ESTRICTA DE 42px SIN AGLOMERACIÓN */
+        #top-toolbar {
+          height: 42px !important;
+          min-height: 42px !important;
+          max-height: 42px !important;
+          padding: 0 8px !important;
+          flex-wrap: nowrap !important;
+          overflow: hidden !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          gap: 6px !important;
+          background: #131722 !important;
+          border-bottom: 1px solid #2a2e39 !important;
+          z-index: 920;
+        }
+
+        /* Ocultar botones de escritorio que saturan la cabecera móvil */
+        .tv-logo,
+        #ticker-search,
+        .style-group,
+        .toolbar-divider,
+        .desktop-only,
+        #btn-indicadores,
+        #btn-pine-modal-open,
+        #btn-cargar-csv {
+          display: none !important;
+        }
+
+        /* Botón Ticker / Selector de Símbolo */
+        #btn-mobile-symbol-pill {
+          display: flex !important;
+          align-items: center;
+          gap: 4px;
+          background: #1e222d;
+          border: 1px solid #2a2e39;
+          border-radius: 6px;
+          padding: 4px 8px;
+          color: #fff;
+          font-weight: 700;
+          font-size: 12px;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          height: 30px;
+        }
+        #btn-mobile-symbol-pill:active {
+          background: #2a2e39;
+        }
+
+        /* Barra horizontal de temporalidades: Desplazamiento táctil fluido sin saltos de línea */
+        .tf-group {
+          display: flex !important;
+          flex: 1 !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          white-space: nowrap !important;
+          -webkit-overflow-scrolling: touch !important;
+          scrollbar-width: none !important;
+          gap: 4px !important;
+          padding: 0 4px !important;
+          align-items: center !important;
+          height: 32px !important;
+        }
+        .tf-group::-webkit-scrollbar {
+          display: none !important;
+        }
+        .tf-btn {
+          flex-shrink: 0 !important;
+          padding: 3px 8px !important;
+          font-size: 11px !important;
+          min-width: 32px !important;
+          height: 26px !important;
+          border-radius: 4px !important;
+          background: #181b24 !important;
+          color: #787b86 !important;
+          border: 1px solid transparent !important;
+        }
+        .tf-btn.active {
+          background: rgba(41, 98, 255, 0.22) !important;
+          color: #2962ff !important;
+          font-weight: bold !important;
+          border-color: rgba(41, 98, 255, 0.45) !important;
+        }
+
+        /* Botones móviles de control a la derecha */
+        .mobile-only-btn {
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          padding: 0 !important;
+          font-size: 13px !important;
+          border-radius: 6px;
+          background: #1e222d;
+          border: 1px solid #2a2e39;
+          color: #d1d4dc;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+        .mobile-only-btn:active {
+          background: #2a2e39;
+        }
+
+        /* Sidebar izquierda (Dibujos): modo cajón deslizante suave */
+        #left-sidebar {
+          position: fixed !important;
+          left: -65px !important;
+          top: 42px !important;
+          bottom: 52px !important;
+          z-index: 990 !important;
+          transition: left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) !important;
+          background: rgba(19, 23, 34, 0.97) !important;
+          box-shadow: 2px 0 16px rgba(0, 0, 0, 0.7) !important;
+          border-right: 1px solid var(--border-color) !important;
+          width: 44px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow-y: auto !important;
+        }
+        #left-sidebar.mobile-open {
+          left: 0 !important;
+        }
+
+        /* Drawer derecho de Watchlist */
+        #right-watchlist {
+          position: fixed !important;
+          top: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          width: 88vw !important;
+          max-width: 340px !important;
+          z-index: 1000 !important;
+          transform: translateX(100%) !important;
+          transition: transform 0.28s cubic-bezier(0.1, 0.9, 0.2, 1) !important;
+          box-shadow: -4px 0 25px rgba(0, 0, 0, 0.7) !important;
+        }
+        #right-watchlist.mobile-open {
+          transform: translateX(0) !important;
+        }
+        .mobile-only-close-btn {
+          display: block !important;
+        }
+
+        /* Ocultar barra inferior desktop en móvil */
+        #bottom-toolbar {
+          display: none !important;
+        }
+
+        /* Ocultar overlay de comprar/vender que tapa el gráfico en móvil */
+        #order-overlay {
+          display: none !important;
+        }
+
+        /* Barra de Navegación Inferior para Celular */
+        #mobile-bottom-nav {
+          display: flex !important;
+          position: fixed !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          height: 52px !important;
+          background: #131722 !important;
+          border-top: 1px solid #2a2e39 !important;
+          z-index: 950 !important;
+          justify-content: space-around !important;
+          align-items: center !important;
+          padding: 0 4px !important;
+          padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+        }
+        .mob-nav-btn {
+          background: transparent;
+          border: none;
+          color: #787b86;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          flex: 1;
+          height: 100%;
+          cursor: pointer;
+          transition: color 0.15s ease;
+          outline: none;
+        }
+        .mob-nav-btn.active, .mob-nav-btn:hover {
+          color: #2962ff;
+        }
+        .mob-nav-icon {
+          font-size: 16px;
+          line-height: 1;
+        }
+        .mob-nav-lbl {
+          font-size: 10px;
+          font-weight: 600;
+        }
+
+        /* Dimensiones del gráfico en móvil */
+        #main-workspace {
+          width: 100vw !important;
+          height: calc(100vh - 42px - 52px) !important;
+        }
+        #chart-container {
+          width: 100vw !important;
+          height: 100% !important;
+        }
+        #main-chart-container {
+          width: 100vw !important;
+        }
+
+        /* Leyenda sobre el gráfico */
+        #chart-legend {
+          font-size: 10px !important;
+          padding: 2px 6px !important;
+          top: 4px !important;
+          left: 4px !important;
+          background: rgba(19, 23, 34, 0.85) !important;
+        }
+        #indicators-legend {
+          top: 26px !important;
+          left: 4px !important;
+          transform: scale(0.8) !important;
+          transform-origin: top left !important;
+        }
+
+        /* Modales */
+        .modal-content {
+          width: 95vw !important;
+          max-width: 95vw !important;
+          max-height: 90vh !important;
+          margin: 10px auto !important;
+        }
+        #wl-available-list {
+          grid-template-columns: 1fr !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- MODAL CONFIGURACIÓN PESTAÑAS DE INDICADOR (SQZMOM_LB & DMI/ADX - REPLICANDO IMÁGENES RECIENTES) -->
+    <div id="indicator-settings-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 460px;">
+        <div class="modal-header">
+          <h3 id="settings-modal-title">SQZMOM_LB</h3>
+          <button id="modal-settings-close" class="close-btn">&times;</button>
+        </div>
+        
+        <!-- PESTAÑAS TRADINGVIEW: Entradas de datos | Estilo | Visibilidad -->
+        <div class="tv-modal-tabs">
+          <button class="tv-modal-tab active" data-pane="pane-inputs">Entradas de datos</button>
+          <button class="tv-modal-tab" data-pane="pane-style">Estilo</button>
+          <button class="tv-modal-tab" data-pane="pane-visibility">Visibilidad</button>
+        </div>
+
+        <div id="pane-inputs" class="tv-tab-pane active"></div>
+        <div id="pane-style" class="tv-tab-pane"></div>
+        <div id="pane-visibility" class="tv-tab-pane">
+          <div class="setting-row"><label><input type="checkbox" checked> Segundos</label></div>
+          <div class="setting-row"><label><input type="checkbox" checked> Minutos (1-59)</label></div>
+          <div class="setting-row"><label><input type="checkbox" checked> Horas (1-24)</label></div>
+          <div class="setting-row"><label><input type="checkbox" checked> Días / Semanas</label></div>
+        </div>
+
+        <div class="modal-footer">
+          <select style="background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-muted); font-size:11px; padding:4px 6px; border-radius:4px;">
+            <option>Por defecto</option>
+          </select>
+          <div style="display:flex; gap:8px;">
+            <button id="btn-settings-cancel" class="editor-btn secondary">Cancelar</button>
+            <button id="btn-settings-apply" class="editor-btn">Aceptar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL VENTANA EMERGENTE PINE SCRIPT EDITOR -->
+    <div id="pine-editor-modal" class="modal-overlay">
+      <div class="modal-content pine-modal-content">
+        <div class="modal-header">
+          <h3>🌲 Editor de Código Pine Script v5 & Estrategias</h3>
+          <button id="modal-pine-close" class="close-btn">&times;</button>
+        </div>
+        <textarea id="pine-code-editor" spellcheck="false">// Script Pine Script v5 (Squeeze Momentum & Estrategias)
+//@version=5
+indicator("Squeeze Momentum Indicator", shorttitle="SQZMOM_LB", overlay=false)
+length = input(20, title="BB Length")
+mult = input(2.0, title="BB MultFactor")
+lengthKC = input(20, title="KC Length")
+multKC = input(1.5, title="KC MultFactor")
+
+// Estrategia de Prueba (Cruce de Médias)
+if (ta.crossover(ta.ema(close, 20), ta.sma(close, 50)))
+    strategy.entry("Long", true)
+if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
+    strategy.close("Long")</textarea>
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="text" id="pine-indicator-name" placeholder="Nombre del indicador..." value="Squeeze Momentum Indicator" style="background:#131722; border:1px solid #2a2e39; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; width:220px; outline:none;" />
+            <button id="btn-modal-save-pine" class="editor-btn" style="background:#089981; display:flex; align-items:center; gap:5px;" title="Guardar indicador con este nombre en la lista de indicadores">💾 Guardar Indicador</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="btn-modal-backtest" class="editor-btn secondary">🚀 Ejecutar Backtest</button>
+            <button id="btn-modal-apply-pine" class="editor-btn">✨ Añadir al Gráfico</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL INFORME DE BACKTESTING -->
+    <div id="backtest-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 720px;">
+        <div class="modal-header">
+          <h3>📊 Informe de Rendimiento del Backtest</h3>
+          <button id="modal-backtest-close" class="close-btn">&times;</button>
+        </div>
+        <div class="backtest-grid">
+          <div class="kpi-box"><div class="kpi-lbl">Ganancia Neta</div><div id="kpi-net-profit" class="kpi-val">$0.00</div></div>
+          <div class="kpi-box"><div class="kpi-lbl">Win Rate</div><div id="kpi-win-rate" class="kpi-val">0%</div></div>
+          <div class="kpi-box"><div class="kpi-lbl">Profit Factor</div><div id="kpi-profit-factor" class="kpi-val">0.00</div></div>
+          <div class="kpi-box"><div class="kpi-lbl">Total Trades</div><div id="kpi-total-trades" class="kpi-val">0</div></div>
+        </div>
+        <div class="trade-table-wrap">
+          <table class="trade-table">
+            <thead>
+              <tr><th>#</th><th>Acción</th><th>Precio</th><th>Fecha / Hora</th><th>PnL Realizado ($)</th></tr>
+            </thead>
+            <tbody id="trade-table-body">
+              <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Sin operaciones ejecutadas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CATÁLOGO DE INDICADORES (fx) -->
+    <div id="indicators-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>fx Indicadores, Métricas y Estrategias</h3>
+          <button id="modal-indicators-close" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-search-box">
+          <input type="text" id="indicator-search-input" placeholder="🔍 Buscar indicador (SQZMOM, ADX/DMI, VRVP, EMA, RSI)..." />
+        </div>
+        <div id="indicators-catalog-list" class="catalog-list"></div>
+      </div>
+    </div>
+
+    <!-- MODAL EXPLORADOR Y GESTOR DE ACTIVOS DISPONIBLES (MÁXIMO 20) -->
+    <div id="watchlist-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 740px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <h3>🌐 Activos Disponibles & Lista de Seguimiento</h3>
+            <span style="font-size: 11px; color: var(--text-muted);">
+              En seguimiento: <strong id="wl-modal-count-val" style="color: #2962ff; font-size: 12px;">10</strong> / <strong>20</strong> máx.
+            </span>
+          </div>
+          <button id="modal-watchlist-close" class="close-btn">&times;</button>
+        </div>
+        
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="wl-search-input" placeholder="🔍 Buscar por ticker o nombre (ej. BTC, ORO, NVDA, EURUSD, TSLA)..." style="flex:1; background:#131722; border:1px solid #2a2e39; color:#fff; padding:8px 12px; border-radius:6px; font-size:12px; outline:none;" />
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="wl-custom-symbol-input" placeholder="Ticker Yahoo (ej. TSLA)" style="width: 140px; background:#131722; border:1px solid #2a2e39; color:#fff; padding:8px 10px; border-radius:6px; font-size:12px; outline:none; text-transform:uppercase;" />
+              <button id="btn-add-custom-symbol" class="editor-btn" style="padding: 6px 12px; font-size: 11px;" title="Agregar cualquier ticker válido de Yahoo Finance">+ Agregar</button>
+            </div>
+          </div>
+          <div id="wl-category-tabs" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="wl-tab-btn active" data-cat="TODOS">Todos</button>
+            <button class="wl-tab-btn" data-cat="CRIPTO">🪙 Criptos</button>
+            <button class="wl-tab-btn" data-cat="METALES">🥇 Metales & Commodities</button>
+            <button class="wl-tab-btn" data-cat="INDICES">📈 Índices</button>
+            <button class="wl-tab-btn" data-cat="ACCIONES">💻 Acciones Tech</button>
+            <button class="wl-tab-btn" data-cat="FOREX">💱 Divisas Forex</button>
+          </div>
+        </div>
+
+        <div id="wl-available-list" style="flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 400px;">
+          <!-- Se puebla dinámicamente -->
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 11px; color: var(--text-muted);">
+            ⚡ Cotizaciones en vivo vía Yahoo Finance. Límite de <strong>20 activos</strong> simultáneos.
+          </div>
+          <button id="btn-modal-watchlist-close-done" class="editor-btn">Listo / Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP TOOLBAR -->
+    <div id="top-toolbar">
+      <div class="tv-logo">📈 <span>TradingView</span> Pro</div>
+      <input type="text" id="ticker-search" value="BTCUSDT" title="Buscar Símbolo">
+      
+      <!-- BOTÓN MÓVIL TICKER / SÍMBOLO SELECTOR (TRADINGVIEW MOBILE) -->
+      <button id="btn-mobile-symbol-pill" class="mobile-symbol-btn" title="Buscar / Cambiar Símbolo">
+        <span id="mob-sym-label">BTC-USD</span>
+        <span style="font-size: 10px; color: #787b86;">▾</span>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="tf-group">
+        <button class="toolbar-btn tf-btn" data-tf="15m" title="15 Minutos">15m</button>
+        <button class="toolbar-btn tf-btn" data-tf="30m" title="30 Minutos">30m</button>
+        <button class="toolbar-btn tf-btn active" data-tf="1h" title="1 Hora">1h</button>
+        <button class="toolbar-btn tf-btn" data-tf="2h" title="2 Horas">2h</button>
+        <button class="toolbar-btn tf-btn" data-tf="4h" title="4 Horas">4h</button>
+        <button class="toolbar-btn tf-btn" data-tf="1d" title="1 Día">1D</button>
+        <button class="toolbar-btn tf-btn" data-tf="1w" title="Semanal (1 Semana)">1S</button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="style-group">
+        <button class="toolbar-btn style-btn active" data-style="candles" title="Velas Japonesas">🕯️ Velas</button>
+        <button class="toolbar-btn style-btn" data-style="line" title="Gráfico de Línea">📈 Línea</button>
+        <button class="toolbar-btn style-btn" data-style="area" title="Gráfico de Área">📉 Área</button>
+      </div>
+
+      <!-- BOTONES MÓVILES EN LA DERECHA DE LA BARRA -->
+      <button id="btn-mobile-style-cycle" class="toolbar-btn mobile-only-btn" title="Alternar Estilo (Velas / Línea / Área)">🕯️</button>
+      <button id="btn-mobile-more-menu" class="toolbar-btn mobile-only-btn" title="Más Opciones">⋮</button>
+
+      <div class="toolbar-divider desktop-only"></div>
+
+      <button id="btn-indicadores" class="toolbar-btn desktop-only">fx Indicadores</button>
+      <button id="btn-pine-modal-open" class="toolbar-btn desktop-only">🌲 Editor Pine Script</button>
+      <button id="btn-cargar-csv" class="toolbar-btn desktop-only">📁 Cargar CSV</button>
+      <input type="file" id="csv-file-input" accept=".csv,.txt" style="display: none;">
+    </div>
+
+    <!-- MAIN WORKSPACE -->
+    <div id="main-workspace">
+      <!-- SIDEBAR IZQUIERDA (HERRAMIENTAS DIBUJO) -->
+      <div id="left-sidebar">
+        <button id="btn-cursor" class="sidebar-btn active" title="Cruz / Cursor">🔍</button>
+        <button id="btn-tendencia" class="sidebar-btn" title="Línea de Tendencia">╱</button>
+        <button id="btn-ray" class="sidebar-btn" title="Rayo Extendido">↗️</button>
+        <button id="btn-horzline" class="sidebar-btn" title="Línea Horizontal">──</button>
+        <button id="btn-vertline" class="sidebar-btn" title="Línea Vertical">┊</button>
+        <button id="btn-fibo" class="sidebar-btn" title="Retroceso Fibonacci">📐</button>
+        <button id="btn-fibext" class="sidebar-btn" title="Extensión Fibonacci">📊</button>
+        <button id="btn-rect" class="sidebar-btn" title="Zona Oferta/Demanda (Rectángulo)">⬛</button>
+        <button id="btn-ellipse" class="sidebar-btn" title="Zona Elipse">⭕</button>
+        <button id="btn-brush" class="sidebar-btn" title="Pincel Trazo Libre">✏️</button>
+        <button id="btn-text" class="sidebar-btn" title="Anotación de Texto">📝</button>
+        <button id="btn-pricetag" class="sidebar-btn" title="Etiqueta de Precio">📍</button>
+        <button id="btn-longpos" class="sidebar-btn" title="Posición Larga (Long R:R)">🟢</button>
+        <button id="btn-shortpos" class="sidebar-btn" title="Posición Corta (Short R:R)">🔴</button>
+        <button id="btn-ruler" class="sidebar-btn" title="Regla de Medición">📏</button>
+        <button id="btn-borrar" class="sidebar-btn" title="Borrar Todos los Dibujos">🗑️</button>
+      </div>
+
+      <!-- ÁREA DE GRÁFICOS Y DIVISOR REAJUSTABLE -->
+      <div id="chart-container">
+        <div id="main-chart-container">
+          <div id="chart-legend">Cargando datos...</div>
+          <div id="indicators-legend"></div>
+          <div id="order-overlay">
+            <button id="btn-sell" class="order-btn"><span>VENDER</span><strong id="sell-price">--</strong></button>
+            <button id="btn-buy" class="order-btn"><span>COMPRAR</span><strong id="buy-price">--</strong></button>
+          </div>
+        </div>
+        
+        <!-- ELEMENTO REAJUSTABLE PARA CAMBIAR TAMAÑO ENTRE PRECIO Y OSCILADOR -->
+        <div id="chart-resizer" title="Arrastrar para redimensionar el gráfico oscilador"></div>
+
+        <div id="oscillator-chart-container"></div>
+      </div>
+
+      <!-- WATCHLIST SIDEBAR -->
+      <div id="right-watchlist">
+        <div class="watchlist-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>Seguimiento</span>
+            <span id="watchlist-count-badge" style="background: #2a2e39; color: #9598a1; font-size: 10px; font-weight: normal; padding: 1px 6px; border-radius: 10px;" title="Activos en seguimiento / Máximo 20">10/20</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button id="btn-open-watchlist-modal" class="watchlist-add-btn" title="Explorar todos los activos disponibles y gestionar lista">
+              <span>+ Activos</span>
+            </button>
+            <button id="btn-close-mobile-watchlist" class="mobile-only-close-btn" title="Cerrar panel de seguimiento">&times;</button>
+          </div>
+        </div>
+        <div id="watchlist-items" class="watchlist-list">
+          <div class="watchlist-item active" data-symbol="BTC-USD">
+            <span class="watchlist-symbol">BTC-USD</span>
+            <span class="watchlist-price" id="wl-price-BTC-USD">--</span>
+            <span class="watchlist-change up" id="wl-change-BTC-USD">+0.00%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="ETH-USD">
+            <span class="watchlist-symbol">ETH-USD</span>
+            <span class="watchlist-price" id="wl-price-ETH-USD">--</span>
+            <span class="watchlist-change up" id="wl-change-ETH-USD">+0.09%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="SOL-USD">
+            <span class="watchlist-symbol">SOL-USD</span>
+            <span class="watchlist-price" id="wl-price-SOL-USD">--</span>
+            <span class="watchlist-change up" id="wl-change-SOL-USD">+0.21%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="XAUUSD">
+            <span class="watchlist-symbol">XAUUSD (Oro)</span>
+            <span class="watchlist-price" id="wl-price-XAUUSD">--</span>
+            <span class="watchlist-change up" id="wl-change-XAUUSD">+0.05%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="NASDAQ">
+            <span class="watchlist-symbol">NASDAQ (US100)</span>
+            <span class="watchlist-price" id="wl-price-NASDAQ">--</span>
+            <span class="watchlist-change up" id="wl-change-NASDAQ">+0.12%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="SP500">
+            <span class="watchlist-symbol">SP500 (S&P 500)</span>
+            <span class="watchlist-price" id="wl-price-SP500">--</span>
+            <span class="watchlist-change up" id="wl-change-SP500">+0.08%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="EURUSD">
+            <span class="watchlist-symbol">EURUSD</span>
+            <span class="watchlist-price" id="wl-price-EURUSD">--</span>
+            <span class="watchlist-change down" id="wl-change-EURUSD">-0.04%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="NVDA">
+            <span class="watchlist-symbol">NVDA</span>
+            <span class="watchlist-price" id="wl-price-NVDA">--</span>
+            <span class="watchlist-change up" id="wl-change-NVDA">+1.25%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="AAPL">
+            <span class="watchlist-symbol">AAPL</span>
+            <span class="watchlist-price" id="wl-price-AAPL">--</span>
+            <span class="watchlist-change down" id="wl-change-AAPL">-0.15%</span>
+          </div>
+          <div class="watchlist-item" data-symbol="DOGE-USD">
+            <span class="watchlist-symbol">DOGE-USD</span>
+            <span class="watchlist-price" id="wl-price-DOGE-USD">--</span>
+            <span class="watchlist-change up" id="wl-change-DOGE-USD">+0.10%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS BAR INFERIOR -->
+    <div id="bottom-toolbar">
+      <div>
+        <button class="bottom-btn">1D</button>
+        <button class="bottom-btn">5D</button>
+        <button class="bottom-btn">1M</button>
+        <button class="bottom-btn">3M</button>
+        <button class="bottom-btn">YTD</button>
+        <button class="bottom-btn">Todos</button>
+      </div>
+      <div id="clock-display">00:00:00 UTC</div>
+    </div>
+
+    <!-- BARRA DE NAVEGACIÓN INFERIOR PARA CELULARES (TRADINGVIEW MOBILE) -->
+    <div id="mobile-bottom-nav">
+      <button class="mob-nav-btn active" id="mob-btn-chart" title="Ver Gráfico Principal">
+        <span class="mob-nav-icon">📈</span>
+        <span class="mob-nav-lbl">Gráfico</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-btn-watchlist" title="Lista de Seguimiento">
+        <span class="mob-nav-icon">📋</span>
+        <span class="mob-nav-lbl">Seguimiento</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-btn-drawings" title="Herramientas de Dibujo">
+        <span class="mob-nav-icon">📐</span>
+        <span class="mob-nav-lbl">Dibujar</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-btn-indicators" title="Indicadores Técnicos">
+        <span class="mob-nav-icon">⚡</span>
+        <span class="mob-nav-lbl">Indicadores</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-btn-pine" title="Editor Pine Script">
+        <span class="mob-nav-icon">🌲</span>
+        <span class="mob-nav-lbl">Pine</span>
+      </button>
+    </div>
+
+    <!-- TELÓN DE FONDO (BACKDROP) PARA PANELES MÓVILES -->
+    <div id="mobile-backdrop"></div>
+
+    <!-- HOJA DESLIZANTE DE MÁS OPCIONES PARA MÓVIL -->
+    <div id="mobile-more-sheet">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color);">
+        <strong style="color: #fff; font-size: 13px;">⚙️ Opciones & Herramientas</strong>
+        <button id="btn-close-more-sheet" style="background: none; border: none; color: #787b86; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+        <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">📲 Instalar como Aplicación</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-csv">📁 Cargar archivo CSV / Historial</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-export">💾 Exportar Dibujos (JSON)</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-import">📂 Importar Dibujos (JSON)</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-fit">🔍 Ajustar Gráfico a Pantalla</button>
+      </div>
+    </div>
+
+    <script src="./lightweight-charts.standalone.production.js"></script>
+    <script src="./indicators.js"></script>
+    <script src="./drawing_canvas.js"></script>
+    <script src="./pine_editor.js"></script>
+    <script src="./main.js"></script>
+    <script>
+      // 1. Registro de Service Worker para PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => {
+              console.log('[PWA] Service Worker registrado exitosamente:', reg.scope);
+            })
+            .catch(err => {
+              console.warn('[PWA] No se pudo registrar Service Worker:', err);
+            });
+        });
+      }
+
+      // 2. Control de Instalación PWA (beforeinstallprompt)
+      let deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        const btn = document.getElementById('sheet-btn-install');
+        if (btn) btn.style.display = 'flex';
+      });
+
+      const btnInstall = document.getElementById('sheet-btn-install');
+      if (btnInstall) {
+        btnInstall.addEventListener('click', async () => {
+          if (deferredInstallPrompt) {
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            console.log('[PWA] Elección de instalación:', outcome);
+            deferredInstallPrompt = null;
+            btnInstall.style.display = 'none';
+          } else {
+            alert("💡 Para instalar en tu celular:\n\n• En Android: Toca el menú de 3 puntos (⋮) en Chrome y pulsa 'Instalar aplicación' o 'Agregar a la pantalla principal'.\n\n• En iPhone (Safari): Toca el botón Compartir (⎋) y selecciona 'Agregar a inicio'.");
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "quantvisor-mobile",
+  "version": "1.0.0",
+  "description": "QuantVisor TradingView Pro Mobile - Cloud Engine",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "tradingview",
+    "charting",
+    "quantitative",
+    "pwa",
+    "mobile"
+  ],
+  "author": "Antonio Llanos",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
