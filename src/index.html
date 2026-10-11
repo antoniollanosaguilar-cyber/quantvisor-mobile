@@ -2769,6 +2769,9 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div id="mt5-multiasset-badge" class="desktop-only" style="display:none; font-size:11px; color:#089981; background:rgba(8,153,129,0.12); padding:4px 8px; border-radius:4px; border:1px solid rgba(8,153,129,0.3); font-weight:bold;">
           🌐 Cesta Multi-Activo
         </div>
+        <div id="mt5-fleet-badge" class="desktop-only" style="font-size:11px; color:#3888ff; background:rgba(56,136,255,0.12); padding:4px 8px; border-radius:4px; border:1px solid rgba(56,136,255,0.3); font-weight:bold;">
+          🤖 Flota: 5 Bots Activos
+        </div>
         <div style="margin-left: auto;">
           <span id="mt5-badge-status" class="mt5-badge-status status-active">🟢 ACTIVA (CUMPLIENDO REGLAS)</span>
         </div>
@@ -2839,6 +2842,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="mt5-terminal-header">
           <button class="mt5-tab-btn active" data-tab="mt5-tab-positions">📋 Operaciones Abiertas</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-history">📜 Historial de Cuenta</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-fleet">🤖 Flota Multi-Bot</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-equity">📈 Curva de Capital (Balance/Equity)</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-stats">📊 Estadísticas Rendimiento</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-journal">📑 Journal & Logs MT5</button>
@@ -2853,6 +2857,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <tr>
                 <th>Ticket</th>
                 <th>Hora</th>
+                <th>Bot / Magic</th>
                 <th>Tipo</th>
                 <th>Lotes</th>
                 <th>Símbolo</th>
@@ -2866,7 +2871,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               </tr>
             </thead>
             <tbody id="mt5-positions-body">
-              <tr><td colspan="12" style="text-align:center; padding:24px; color:#787b86;">Sin operaciones abiertas.</td></tr>
+              <tr><td colspan="13" style="text-align:center; padding:24px; color:#787b86;">Sin operaciones abiertas.</td></tr>
             </tbody>
           </table>
         </div>
@@ -2878,6 +2883,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <tr>
                 <th>Ticket</th>
                 <th>Hora Cierre</th>
+                <th>Bot / Magic</th>
                 <th>Tipo</th>
                 <th>Lotes</th>
                 <th>Símbolo</th>
@@ -2889,7 +2895,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               </tr>
             </thead>
             <tbody id="mt5-history-body">
-              <tr><td colspan="10" style="text-align:center; padding:24px; color:#787b86;">Sin historial en la sesión.</td></tr>
+              <tr><td colspan="11" style="text-align:center; padding:24px; color:#787b86;">Sin historial en la sesión.</td></tr>
             </tbody>
           </table>
         </div>
@@ -2958,6 +2964,41 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               </thead>
               <tbody id="mt5-matrix-body">
                 <tr><td colspan="8" style="text-align:center; padding:24px; color:#787b86;">Cargando matriz multi-activo...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 8: FLOTA MULTI-BOT (GESTIÓN CONCURRENTE MULTI-EA) -->
+        <div id="mt5-tab-fleet" class="mt5-tab-pane">
+          <div style="padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: #131722; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 12px; color: var(--text-muted);">
+              Flota Multi-Bot Concurrente: <strong id="mt5-fleet-count" style="color: #fff;">0 bots activos</strong> &nbsp;|&nbsp; 
+              PnL Combinado Flota: <strong id="mt5-fleet-total-pnl" style="color: #089981;">+$0.00</strong>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-mt5-fleet-start-all" class="bt-btn primary" style="font-size: 11px; padding: 4px 10px;">▶ Iniciar Toda la Flota</button>
+              <button id="btn-mt5-fleet-pause-all" class="bt-btn secondary" style="font-size: 11px; padding: 4px 10px;">⏸ Pausar Flota</button>
+              <button id="btn-mt5-fleet-add-bot" class="bt-btn" style="font-size: 11px; padding: 4px 10px; background: rgba(56, 136, 255, 0.15); border: 1px solid #3888ff; color: #5b8cff;">+ Importar a la Flota</button>
+            </div>
+          </div>
+          <div class="mt5-table-wrap">
+            <table class="mt5-table">
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Bot / Estrategia</th>
+                  <th>Magic #</th>
+                  <th>Activo(s) Asignado(s)</th>
+                  <th>Gestión de Riesgo</th>
+                  <th>Órdenes Activas</th>
+                  <th>PnL Flotante</th>
+                  <th>Historial (Trades / Winrate / PnL)</th>
+                  <th>Acción / Interruptor</th>
+                </tr>
+              </thead>
+              <tbody id="mt5-fleet-body">
+                <tr><td colspan="9" style="text-align:center; padding:24px; color:#787b86;">Cargando flota de bots...</td></tr>
               </tbody>
             </table>
           </div>

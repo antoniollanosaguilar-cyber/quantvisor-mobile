@@ -366,6 +366,48 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // API: /api/mt5/fleet_toggle_bot
+    if (pathname === '/api/mt5/fleet_toggle_bot' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (!mt5Daemon) throw new Error('Daemon no disponible');
+                const ok = mt5Daemon.toggleBot(data.botId, data.enabled, {
+                    riskMode: data.riskMode,
+                    riskValue: data.riskValue
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: ok, state: mt5Daemon.getState() }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: /api/mt5/fleet_control
+    if (pathname === '/api/mt5/fleet_control' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (!mt5Daemon) throw new Error('Daemon no disponible');
+                if (data.action === 'START_ALL') mt5Daemon.setAllBots(true);
+                else if (data.action === 'PAUSE_ALL') mt5Daemon.setAllBots(false);
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, state: mt5Daemon.getState() }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
     // API: /api/history
     if (pathname === '/api/history') {
         const symbol = parsedUrl.searchParams.get('symbol') || 'BTC-USD';

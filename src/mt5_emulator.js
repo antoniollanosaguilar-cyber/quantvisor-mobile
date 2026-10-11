@@ -68,15 +68,19 @@ class MT5VirtualEmulator {
         this.assetMatrix = {};
         this.multiAssetCandles = {};
 
-        // Preloaded MT5 Expert Advisors (Bots)
+        // Preloaded MT5 Expert Advisors (Bots de la Flota Concurrente)
         this.botsCatalog = {
             multiasset_champion: {
                 id: 'multiasset_champion',
                 name: 'Mega Alpha Multi-Activo Champion (Crypto + Oro + Forex 24/7)',
+                enabled: true,
                 multiAsset: true,
                 symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'],
                 timeframe: '1h',
+                strategyType: 'donchian_breakout',
                 magic: 8801,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Estrategia cuantitativa institucional que monitorea y opera simultáneamente sobre 5 activos clave 24/7.',
                 params: {
                     donchianPeriod: 24,
@@ -90,9 +94,14 @@ class MT5VirtualEmulator {
             gold_rush: {
                 id: 'gold_rush',
                 name: 'Hobbiecode Gold Rush Breakout (XAUUSD)',
+                enabled: true,
                 symbol: 'XAUUSD',
+                symbols: ['XAUUSD'],
                 timeframe: '1h',
+                strategyType: 'donchian_breakout',
                 magic: 7701,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Estrategia auditada de cuentas fondeadas ($48k+ en retiros). Rotura Donchian(51) + Gann(5), orden Buy Stop de 10 barras y salida temporal en 5 velas.',
                 params: {
                     donchianPeriod: 51,
@@ -108,9 +117,14 @@ class MT5VirtualEmulator {
             btc_vcp: {
                 id: 'btc_vcp',
                 name: 'Bitcoin VCP Squeeze & Expansion (BTC-USD)',
+                enabled: true,
                 symbol: 'BTC-USD',
+                symbols: ['BTC-USD'],
                 timeframe: '1h',
+                strategyType: 'vcp_squeeze',
                 magic: 7702,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Compresión extrema de volatilidad BBW (< 0.045) sobre EMA 200 y ruptura asimétrica de Donchian(24) con 1:3 R:R.',
                 params: {
                     emaPeriod: 200,
@@ -126,11 +140,16 @@ class MT5VirtualEmulator {
             },
             sqz_momentum: {
                 id: 'sqz_momentum',
-                name: 'Squeeze Momentum Breakout (Multi-Activo)',
+                name: 'Squeeze Momentum Breakout (SOL-USD)',
+                enabled: true,
                 symbol: 'SOL-USD',
+                symbols: ['SOL-USD'],
                 timeframe: '1h',
+                strategyType: 'sqz_momentum',
                 magic: 7703,
-                description: 'Detección de compresión Bollinger dentro de Keltner con posterior liberación direccional de momentum.',
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Detección de compresión Bollinger dentro de Keltner con posterior liberación direccional de momentum en Solana.',
                 params: {
                     bbLength: 20,
                     bbMult: 2.0,
@@ -145,9 +164,14 @@ class MT5VirtualEmulator {
             eurusd_vcp: {
                 id: 'eurusd_vcp',
                 name: 'EURUSD VCP Institutional Breakout (EURUSD)',
+                enabled: true,
                 symbol: 'EURUSD',
+                symbols: ['EURUSD'],
                 timeframe: '1h',
+                strategyType: 'donchian_breakout',
                 magic: 7704,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Estrategia de microestructura en divisas: contracción Donchian(10)/ATR con ruptura en sesión de Londres/Nueva York.',
                 params: {
                     donchianPeriod: 10,
@@ -161,9 +185,14 @@ class MT5VirtualEmulator {
             cruce_ema: {
                 id: 'cruce_ema',
                 name: 'Cruce Tendencial EMA (20/50) + ATR Trailing',
+                enabled: false,
                 symbol: 'NASDAQ',
+                symbols: ['NASDAQ'],
                 timeframe: '1h',
+                strategyType: 'ema_cross',
                 magic: 7705,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Cruce de medias exponenciales con filtro macro y trailing stop de volatilidad continua.',
                 params: {
                     fastPeriod: 20,
@@ -266,7 +295,16 @@ class MT5VirtualEmulator {
             tableMatrixBody: document.getElementById('mt5-matrix-body'),
             matrixCount: document.getElementById('mt5-matrix-count'),
             btnRefreshMatrix: document.getElementById('btn-mt5-refresh-matrix'),
-            btnLoadMultiAssetTemplate: document.getElementById('btn-mt5-load-multiasset-template')
+            btnLoadMultiAssetTemplate: document.getElementById('btn-mt5-load-multiasset-template'),
+
+            // Flota Multi-Bot Concurrente
+            badgeFleet: document.getElementById('mt5-fleet-badge'),
+            tableFleetBody: document.getElementById('mt5-fleet-body'),
+            fleetCount: document.getElementById('mt5-fleet-count'),
+            fleetTotalPnL: document.getElementById('mt5-fleet-total-pnl'),
+            btnFleetStartAll: document.getElementById('btn-mt5-fleet-start-all'),
+            btnFleetPauseAll: document.getElementById('btn-mt5-fleet-pause-all'),
+            btnFleetAddBot: document.getElementById('btn-mt5-fleet-add-bot')
         };
 
         this.cargarBotsCustom();
@@ -582,6 +620,23 @@ class MT5VirtualEmulator {
             });
         }
 
+        // Controles de Flota Multi-Bot
+        if (this.dom.btnFleetStartAll) {
+            this.dom.btnFleetStartAll.addEventListener('click', () => {
+                this.iniciarTodaLaFlota();
+            });
+        }
+        if (this.dom.btnFleetPauseAll) {
+            this.dom.btnFleetPauseAll.addEventListener('click', () => {
+                this.pausarTodaLaFlota();
+            });
+        }
+        if (this.dom.btnFleetAddBot) {
+            this.dom.btnFleetAddBot.addEventListener('click', () => {
+                if (this.dom.modalImportBot) this.dom.modalImportBot.style.display = 'flex';
+            });
+        }
+
         // Tabs del Terminal
         if (this.dom.tabBtns) {
             this.dom.tabBtns.forEach(btn => {
@@ -747,6 +802,8 @@ class MT5VirtualEmulator {
             this.renderizarEstadisticas();
         } else if (tabId === 'mt5-tab-matrix') {
             this.renderizarMatrizMultiActivo();
+        } else if (tabId === 'mt5-tab-fleet') {
+            this.renderizarFlotaBots();
         }
     }
 
@@ -901,6 +958,9 @@ class MT5VirtualEmulator {
 
         if (!this.isRunning || this.account.status !== 'ACTIVE') return;
 
+        // Evaluar señales de toda la flota de bots habilitada
+        this.evaluarLogicaFlota();
+
         if (this.multiAsset) {
             this.evaluarLogicaMultiActivo();
         } else {
@@ -1036,6 +1096,15 @@ class MT5VirtualEmulator {
                 if (Array.isArray(data.equityHistory) && data.equityHistory.length > 0) this.equityHistory = data.equityHistory;
                 if (data.assetMatrix) this.assetMatrix = data.assetMatrix;
                 if (data.challengeConfig) this.challengeConfig = Object.assign(this.challengeConfig, data.challengeConfig);
+                if (data.botsCatalog && typeof data.botsCatalog === 'object') {
+                    Object.keys(data.botsCatalog).forEach(k => {
+                        if (this.botsCatalog[k]) {
+                            Object.assign(this.botsCatalog[k], data.botsCatalog[k]);
+                        } else {
+                            this.botsCatalog[k] = data.botsCatalog[k];
+                        }
+                    });
+                }
                 if (typeof data.isRunning === 'boolean') {
                     this.isRunning = data.isRunning;
                     this.actualizarBotonEjecucion();
@@ -1043,6 +1112,8 @@ class MT5VirtualEmulator {
                 this.actualizarUI();
                 if (this.activeTab === 'mt5-tab-matrix') {
                     this.renderizarMatrizMultiActivo();
+                } else if (this.activeTab === 'mt5-tab-fleet') {
+                    this.renderizarFlotaBots();
                 }
             }
         } catch (e) {
@@ -1133,6 +1204,7 @@ class MT5VirtualEmulator {
         // 2. Si el bot está activo, evaluar señales de entrada/salida
         if (this.isRunning && this.account.status === 'ACTIVE') {
             this.evaluarLogicaBot();
+            this.evaluarLogicaFlota();
         }
 
         // 3. Evaluar reglas de cumplimiento de cuenta fondeada
@@ -1176,21 +1248,21 @@ class MT5VirtualEmulator {
                 }
             }
 
-            // Trailing Stop dinámico
-            const bot = this.botsCatalog[this.selectedBotId];
-            if (bot && bot.params.useTrailing && pos.profit > 0) {
+            // Trailing Stop dinámico por bot (Magic Number)
+            const bot = Object.values(this.botsCatalog).find(b => b.magic === pos.magic) || this.botsCatalog[this.selectedBotId];
+            if (bot && bot.params && bot.params.useTrailing && pos.profit > 0) {
                 const trailDist = (pos.openPrice * 0.015); // 1.5% o trailing ATR
                 if (isBuy) {
                     const newSL = curPrice - trailDist;
                     if (newSL > (pos.sl || 0) && newSL > pos.openPrice) {
                         pos.sl = parseFloat(newSL.toFixed(spec.digits));
-                        this.logJournal(`[TrailingStop] Ticket #${pos.ticket} SL ajustado a ${pos.sl}`);
+                        this.logJournal(`[TrailingStop] Ticket #${pos.ticket} (${bot.name}) SL ajustado a ${pos.sl}`);
                     }
                 } else {
                     const newSL = curPrice + trailDist;
                     if ((pos.sl === 0 || newSL < pos.sl) && newSL < pos.openPrice) {
                         pos.sl = parseFloat(newSL.toFixed(spec.digits));
-                        this.logJournal(`[TrailingStop] Ticket #${pos.ticket} SL ajustado a ${pos.sl}`);
+                        this.logJournal(`[TrailingStop] Ticket #${pos.ticket} (${bot.name}) SL ajustado a ${pos.sl}`);
                     }
                 }
             }
@@ -1562,7 +1634,7 @@ class MT5VirtualEmulator {
     // =========================================================================
     // MQL5 API VIRTUAL: OrderSend, PositionClose, OrderModify
     // =========================================================================
-    orderSend(symbol, type, lots, price, sl, tp, comment = '') {
+    orderSend(symbol, type, lots, price, sl, tp, comment = '', magic = null, botName = null) {
         const spec = this.symbolSpecs[symbol] || { contractSize: 1, pointVal: 1, spread: 1.0, digits: 2 };
         const isBuy = type === 'BUY';
         const spreadOffset = isBuy ? (spec.spread * 0.5) : (-spec.spread * 0.5);
@@ -1578,6 +1650,8 @@ class MT5VirtualEmulator {
 
         const ticket = this.nextTicket++;
         const commission = lots * (spec.commPerLot || 5.0);
+        const effectiveMagic = magic !== null && magic !== undefined ? magic : (this.magicNumber || 8801);
+        const effectiveBotName = botName || this.botsCatalog[this.selectedBotId]?.name || 'EA Bot';
 
         const position = {
             ticket: ticket,
@@ -1593,14 +1667,15 @@ class MT5VirtualEmulator {
             commission: commission,
             swap: 0,
             comment: comment,
-            magic: this.magicNumber
+            magic: effectiveMagic,
+            botName: effectiveBotName
         };
 
         this.openPositions.push(position);
         this.account.margin += requiredMargin;
         this.account.freeMargin = this.account.equity - this.account.margin;
 
-        this.logJournal(`[OrderSend SUCCESS] Ticket #${ticket} ${type} ${lots.toFixed(2)} lots ${symbol} @ ${execPrice.toFixed(spec.digits)} | SL: ${position.sl} TP: ${position.tp}`);
+        this.logJournal(`[OrderSend SUCCESS] Ticket #${ticket} [Magic #${effectiveMagic} | ${effectiveBotName}] ${type} ${lots.toFixed(2)} lots ${symbol} @ ${execPrice.toFixed(spec.digits)} | SL: ${position.sl} TP: ${position.tp}`);
         
         this.actualizarLineasPosiciones();
         this.actualizarUI();
@@ -1629,7 +1704,9 @@ class MT5VirtualEmulator {
             closePrice: finalPrice,
             commission: pos.commission,
             profit: netProfit,
-            reason: exitReason
+            reason: exitReason,
+            magic: pos.magic || 8801,
+            botName: pos.botName || 'EA Bot'
         };
 
         this.closedPositions.unshift(closedRecord);
@@ -1857,12 +1934,15 @@ class MT5VirtualEmulator {
 
         this.renderizarTablaPosiciones();
         this.renderizarTablaHistorial();
+        this.actualizarBadgeFlota();
         if (this.activeTab === 'mt5-tab-equity') {
             this.renderizarCurvaEquidad();
         } else if (this.activeTab === 'mt5-tab-stats') {
             this.renderizarEstadisticas();
         } else if (this.activeTab === 'mt5-tab-matrix') {
             this.renderizarMatrizMultiActivo();
+        } else if (this.activeTab === 'mt5-tab-fleet') {
+            this.renderizarFlotaBots();
         }
     }
 
@@ -2034,7 +2114,7 @@ class MT5VirtualEmulator {
         if (!this.dom.tablePositions) return;
         if (this.openPositions.length === 0) {
             this.dom.tablePositions.innerHTML = `
-                <tr><td colspan="12" style="text-align:center; padding:24px; color:#787b86;">
+                <tr><td colspan="13" style="text-align:center; padding:24px; color:#787b86;">
                     Sin órdenes abiertas en el mercado. ${this.isRunning ? 'Bot en espera de señal...' : 'Pulse "▶ Iniciar Bot en Vivo" para comenzar.'}
                 </td></tr>
             `;
@@ -2044,10 +2124,12 @@ class MT5VirtualEmulator {
         this.dom.tablePositions.innerHTML = this.openPositions.map(p => {
             const isBuy = p.type === 'BUY';
             const pnlCls = p.profit >= 0 ? 'pnl-pos' : 'pnl-neg';
+            const botLabel = p.botName ? `<span style="font-weight:bold; color:#5b8cff;">${p.botName}</span><br><span style="font-size:10px; color:#787b86;">Magic: #${p.magic || '--'}</span>` : `<span style="color:#787b86;">Magic #${p.magic || '--'}</span>`;
             return `
                 <tr>
                     <td style="font-family:monospace; font-weight:bold;">#${p.ticket}</td>
                     <td style="color:#787b86;">${new Date(p.time * 1000).toLocaleTimeString()}</td>
+                    <td style="font-size:11px; line-height:1.2;">${botLabel}</td>
                     <td><span class="mt5-tag ${isBuy ? 'buy' : 'sell'}">${p.type}</span></td>
                     <td style="font-weight:bold;">${p.lots.toFixed(2)}</td>
                     <td style="font-weight:bold;">${p.symbol}</td>
@@ -2069,7 +2151,7 @@ class MT5VirtualEmulator {
         if (!this.dom.tableHistory) return;
         if (this.closedPositions.length === 0) {
             this.dom.tableHistory.innerHTML = `
-                <tr><td colspan="10" style="text-align:center; padding:24px; color:#787b86;">
+                <tr><td colspan="11" style="text-align:center; padding:24px; color:#787b86;">
                     Sin historial de operaciones en esta sesión.
                 </td></tr>
             `;
@@ -2079,10 +2161,12 @@ class MT5VirtualEmulator {
         this.dom.tableHistory.innerHTML = this.closedPositions.map(p => {
             const isBuy = p.type === 'BUY';
             const pnlCls = p.profit >= 0 ? 'pnl-pos' : 'pnl-neg';
+            const botLabel = p.botName ? `<span style="font-weight:bold; color:#5b8cff;">${p.botName}</span><br><span style="font-size:10px; color:#787b86;">Magic: #${p.magic || '--'}</span>` : `<span style="color:#787b86;">Magic #${p.magic || '--'}</span>`;
             return `
                 <tr>
                     <td style="font-family:monospace;">#${p.ticket}</td>
                     <td style="color:#787b86;">${new Date(p.closeTime * 1000).toLocaleTimeString()}</td>
+                    <td style="font-size:11px; line-height:1.2;">${botLabel}</td>
                     <td><span class="mt5-tag ${isBuy ? 'buy' : 'sell'}">${p.type}</span></td>
                     <td>${p.lots.toFixed(2)}</td>
                     <td>${p.symbol}</td>
@@ -2157,6 +2241,381 @@ class MT5VirtualEmulator {
         this.currentCandles = [];
         this.cargarVelasYActualizar();
         this.logJournal(`[SymbolSelect] Vista principal de gráfico cambiada a ${sym}.`);
+    }
+
+    // =========================================================================
+    // FLOTA MULTI-BOT CONCURRENTE (MULTI-EA FLEET MANAGEMENT)
+    // =========================================================================
+    actualizarBadgeFlota() {
+        const bots = Object.values(this.botsCatalog);
+        const activeCount = bots.filter(b => b.enabled !== false).length;
+        const totalFloatingPnL = this.openPositions.reduce((acc, p) => acc + (p.profit || 0), 0);
+
+        if (this.dom.badgeFleet) {
+            this.dom.badgeFleet.innerText = `🤖 Flota: ${activeCount}/${bots.length} Bots Activos`;
+            this.dom.badgeFleet.style.color = activeCount > 0 ? '#3888ff' : '#787b86';
+        }
+        if (this.dom.fleetCount) {
+            this.dom.fleetCount.innerText = `${activeCount} de ${bots.length} bots activos`;
+        }
+        if (this.dom.fleetTotalPnL) {
+            this.dom.fleetTotalPnL.innerText = `${totalFloatingPnL >= 0 ? '+' : ''}$${totalFloatingPnL.toFixed(2)}`;
+            this.dom.fleetTotalPnL.style.color = totalFloatingPnL >= 0 ? '#089981' : '#f23645';
+        }
+    }
+
+    renderizarFlotaBots() {
+        if (!this.dom.tableFleetBody) return;
+        this.actualizarBadgeFlota();
+        const bots = Object.values(this.botsCatalog);
+
+        if (bots.length === 0) {
+            this.dom.tableFleetBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:24px; color:#787b86;">No hay bots registrados en la flota.</td></tr>`;
+            return;
+        }
+
+        this.dom.tableFleetBody.innerHTML = bots.map(bot => {
+            const isEnabled = bot.enabled !== false;
+            const magic = bot.magic || 8801;
+            const openOrders = this.openPositions.filter(p => p.magic === magic);
+            const closedOrders = this.closedPositions.filter(p => p.magic === magic);
+            
+            const openCount = openOrders.length;
+            const floatingPnL = openOrders.reduce((acc, p) => acc + (p.profit || 0), 0);
+            
+            let wins = 0;
+            let netPnL = 0;
+            closedOrders.forEach(p => {
+                netPnL += p.profit;
+                if (p.profit > 0) wins++;
+            });
+            const tradesCount = closedOrders.length;
+            const winRate = tradesCount > 0 ? ((wins / tradesCount) * 100).toFixed(1) : '0.0';
+
+            const syms = Array.isArray(bot.symbols) && bot.symbols.length > 0 ? bot.symbols : [bot.symbol || 'BTC-USD'];
+            const symBadges = syms.map(s => `<span class="mt5-tag" style="background:rgba(41,98,255,0.15); color:#5b8cff; font-size:10px; margin-right:2px;">${s}</span>`).join(' ');
+
+            const pnlCls = floatingPnL > 0 ? 'pnl-pos' : (floatingPnL < 0 ? 'pnl-neg' : '');
+            const pnlStr = floatingPnL !== 0 ? `${floatingPnL >= 0 ? '+' : ''}$${floatingPnL.toFixed(2)}` : '$0.00';
+            const netPnLCls = netPnL > 0 ? 'pnl-pos' : (netPnL < 0 ? 'pnl-neg' : '');
+            const netPnLStr = `${netPnL >= 0 ? '+' : ''}$${netPnL.toFixed(2)}`;
+
+            const riskMode = bot.riskMode || 'LOTS';
+            const riskValue = bot.riskValue !== undefined ? bot.riskValue : (riskMode === 'LOTS' ? 0.10 : 1.0);
+
+            const statusBadge = isEnabled
+                ? `<span class="mt5-tag buy" style="cursor:pointer;" onclick="window.MT5Emulator.toggleBotEnFlota('${bot.id}', false)">🟢 ON</span>`
+                : `<span class="mt5-tag" style="background:#2a2e39; color:#787b86; cursor:pointer;" onclick="window.MT5Emulator.toggleBotEnFlota('${bot.id}', true)">⏸ OFF</span>`;
+
+            return `
+                <tr style="background: ${isEnabled ? 'transparent' : 'rgba(255,255,255,0.01)'}; opacity: ${isEnabled ? '1' : '0.75'};">
+                    <td>${statusBadge}</td>
+                    <td>
+                        <div style="font-weight:bold; color:#fff;">${bot.name}</div>
+                        <div style="font-size:11px; color:#787b86;">${bot.description ? bot.description.slice(0, 75) + '...' : (bot.strategyType || 'MQL5 EA')}</div>
+                    </td>
+                    <td style="font-family:monospace; font-weight:bold; color:#5b8cff;">#${magic}</td>
+                    <td>${symBadges}</td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <select onchange="window.MT5Emulator.cambiarModoRiesgoBot('${bot.id}', this.value)" style="background:#131722; border:1px solid #2a2e39; color:#fff; font-size:10px; padding:2px 4px; border-radius:3px;">
+                                <option value="LOTS" ${riskMode === 'LOTS' ? 'selected' : ''}>Lotes Fijos</option>
+                                <option value="PCT" ${riskMode === 'PCT' ? 'selected' : ''}>% Riesgo</option>
+                            </select>
+                            <input type="number" value="${riskValue}" step="${riskMode === 'LOTS' ? '0.01' : '0.1'}" min="${riskMode === 'LOTS' ? '0.01' : '0.1'}"
+                                onchange="window.MT5Emulator.cambiarValorRiesgoBot('${bot.id}', this.value)"
+                                style="background:#131722; border:1px solid #2a2e39; color:#fff; font-size:11px; width:52px; padding:2px 4px; border-radius:3px; text-align:right;">
+                            <span style="font-size:10px; color:#787b86;">${riskMode === 'LOTS' ? 'Lt' : '%'}</span>
+                        </div>
+                    </td>
+                    <td style="font-weight:bold; text-align:center;">
+                        ${openCount > 0 ? `<strong style="color:#3888ff;">${openCount}</strong>` : '<span style="color:#787b86;">0</span>'}
+                    </td>
+                    <td class="${pnlCls}" style="font-weight:bold;">${pnlStr}</td>
+                    <td style="font-size:11px;">
+                        <span>Trades: <strong>${tradesCount}</strong></span> | 
+                        <span>WR: <strong>${winRate}%</strong></span> | 
+                        <span class="${netPnLCls}">PnL: <strong>${netPnLStr}</strong></span>
+                    </td>
+                    <td>
+                        <div style="display:flex; gap:4px;">
+                            <button class="mt5-btn-close" style="background:${isEnabled ? 'rgba(242,54,69,0.2)' : 'rgba(8,153,129,0.2)'}; color:${isEnabled ? '#f23645' : '#089981'}; border:1px solid ${isEnabled ? '#f23645' : '#089981'}; padding:3px 8px;"
+                                onclick="window.MT5Emulator.toggleBotEnFlota('${bot.id}', ${!isEnabled})">
+                                ${isEnabled ? '⏸ Pausar' : '▶ Activar'}
+                            </button>
+                            <button class="mt5-btn-close" style="background:#1e222d; color:#5b8cff; border:1px solid #2a2e39; padding:3px 6px;"
+                                onclick="window.MT5Emulator.seleccionarBot('${bot.id}')" title="Seleccionar y ver en gráfico principal">
+                                📊 Ver
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async toggleBotEnFlota(botId, enable) {
+        if (!this.botsCatalog[botId]) return;
+        this.botsCatalog[botId].enabled = !!enable;
+        this.guardarBotsCustom();
+        this.actualizarBadgeFlota();
+        if (this.activeTab === 'mt5-tab-fleet') this.renderizarFlotaBots();
+
+        this.logJournal(`[FleetToggle] Bot '${this.botsCatalog[botId].name}' ${enable ? 'ACTIVADO 🟢' : 'PAUSADO ⏸'}.`);
+
+        if (typeof fetch !== 'undefined') {
+            try {
+                await fetch('/api/mt5/fleet_toggle_bot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        botId: botId,
+                        enabled: !!enable,
+                        riskMode: this.botsCatalog[botId].riskMode,
+                        riskValue: this.botsCatalog[botId].riskValue
+                    })
+                });
+            } catch (e) {}
+        }
+    }
+
+    async iniciarTodaLaFlota() {
+        Object.values(this.botsCatalog).forEach(b => {
+            b.enabled = true;
+        });
+        this.guardarBotsCustom();
+        this.isRunning = true;
+        this.actualizarBotonEjecucion();
+        this.actualizarBadgeFlota();
+        if (this.activeTab === 'mt5-tab-fleet') this.renderizarFlotaBots();
+
+        if (this.worker) {
+            this.worker.postMessage({ type: 'START', intervalMs: 2500 });
+        }
+
+        this.logJournal(`[FleetControl] Toda la flota (${Object.keys(this.botsCatalog).length} bots) ha sido iniciada.`);
+
+        if (typeof fetch !== 'undefined') {
+            try {
+                await fetch('/api/mt5/fleet_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'START_ALL' })
+                });
+            } catch (e) {}
+        }
+    }
+
+    async pausarTodaLaFlota() {
+        Object.values(this.botsCatalog).forEach(b => {
+            b.enabled = false;
+        });
+        this.guardarBotsCustom();
+        this.actualizarBadgeFlota();
+        if (this.activeTab === 'mt5-tab-fleet') this.renderizarFlotaBots();
+
+        this.logJournal(`[FleetControl] Toda la flota de bots ha sido pausada.`);
+
+        if (typeof fetch !== 'undefined') {
+            try {
+                await fetch('/api/mt5/fleet_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'PAUSE_ALL' })
+                });
+            } catch (e) {}
+        }
+    }
+
+    async cambiarModoRiesgoBot(botId, mode) {
+        if (!this.botsCatalog[botId]) return;
+        this.botsCatalog[botId].riskMode = mode;
+        if (mode === 'LOTS' && (!this.botsCatalog[botId].riskValue || this.botsCatalog[botId].riskValue > 5)) {
+            this.botsCatalog[botId].riskValue = 0.10;
+        } else if (mode === 'PCT' && (!this.botsCatalog[botId].riskValue || this.botsCatalog[botId].riskValue < 0.1)) {
+            this.botsCatalog[botId].riskValue = 1.0;
+        }
+        this.guardarBotsCustom();
+        if (this.activeTab === 'mt5-tab-fleet') this.renderizarFlotaBots();
+
+        if (typeof fetch !== 'undefined') {
+            try {
+                await fetch('/api/mt5/fleet_toggle_bot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        botId: botId,
+                        enabled: this.botsCatalog[botId].enabled !== false,
+                        riskMode: mode,
+                        riskValue: this.botsCatalog[botId].riskValue
+                    })
+                });
+            } catch (e) {}
+        }
+    }
+
+    async cambiarValorRiesgoBot(botId, val) {
+        if (!this.botsCatalog[botId]) return;
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) return;
+        this.botsCatalog[botId].riskValue = num;
+        this.guardarBotsCustom();
+
+        if (typeof fetch !== 'undefined') {
+            try {
+                await fetch('/api/mt5/fleet_toggle_bot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        botId: botId,
+                        enabled: this.botsCatalog[botId].enabled !== false,
+                        riskMode: this.botsCatalog[botId].riskMode || 'LOTS',
+                        riskValue: num
+                    })
+                });
+            } catch (e) {}
+        }
+    }
+
+    calcularLotajeParaBot(bot, sym, entryPrice, slPrice) {
+        const spec = this.symbolSpecs[sym] || { contractSize: 1, pointVal: 1, digits: 2 };
+        const riskMode = bot.riskMode || this.challengeConfig.riskMode || 'LOTS';
+        const riskValue = bot.riskValue !== undefined ? bot.riskValue : (this.challengeConfig.riskValue || 0.10);
+
+        if (riskMode === 'LOTS') {
+            const fixedLots = Math.max(0.01, parseFloat(riskValue) || 0.10);
+            return Math.min(20.0, Math.round(fixedLots * 100) / 100);
+        }
+
+        const symCount = (Array.isArray(bot.symbols) && bot.symbols.length > 0) ? bot.symbols.length : 1;
+        const riskPct = (parseFloat(riskValue) || 1.0) / symCount;
+        const riskUSD = (riskPct / 100) * this.account.balance;
+        const slDist = Math.abs(entryPrice - slPrice);
+        if (slDist <= 0) return 0.10;
+
+        let lots = riskUSD / (slDist * spec.pointVal);
+        lots = Math.max(0.01, Math.min(20.0, Math.round(lots * 100) / 100));
+        return lots;
+    }
+
+    evaluarLogicaFlota() {
+        if (!this.isRunning || this.account.status !== 'ACTIVE' || this.modo247) return;
+
+        const activeBots = Object.values(this.botsCatalog).filter(b => b.enabled !== false);
+        if (activeBots.length === 0) return;
+
+        // Límite de órdenes concurrentes en cartera
+        if (this.openPositions.length >= 10) return;
+
+        activeBots.forEach(bot => {
+            const symbols = Array.isArray(bot.symbols) && bot.symbols.length > 0 ? bot.symbols : [bot.symbol || 'BTC-USD'];
+            symbols.forEach(sym => {
+                // Verificar si ya tiene orden abierta en este activo para este bot
+                const openForBotSym = this.openPositions.filter(p => p.symbol === sym && p.magic === bot.magic);
+                if (openForBotSym.length >= (bot.maxOpenPerAsset || 1)) return;
+
+                let candles = this.multiAssetCandles[sym] || (this.symbol === sym ? this.currentCandles : null);
+                if (!candles || candles.length < 25) {
+                    candles = this.generarVelasFallback(sym, 100);
+                    this.multiAssetCandles[sym] = candles;
+                }
+
+                const curBar = candles[candles.length - 1];
+                const lastBar = candles[candles.length - 2];
+                const curPrice = curBar.close;
+                const atr = this.calcularATR(candles, (bot.params && bot.params.atrPeriod) || 14);
+
+                let signal = null;
+                let slPrice = 0;
+                let tpPrice = 0;
+
+                const stratType = bot.strategyType || bot.id || 'donchian_breakout';
+
+                if (stratType === 'donchian_breakout' || stratType === 'multiasset_champion' || stratType === 'gold_rush' || stratType === 'eurusd_vcp') {
+                    const period = (bot.params && bot.params.donchianPeriod) || 20;
+                    const lookback = candles.slice(-period - 2, -2);
+                    if (lookback.length >= period) {
+                        const maxH = Math.max(...lookback.map(c => c.high));
+                        const minL = Math.min(...lookback.map(c => c.low));
+                        const slMult = (bot.params && bot.params.slAtrMult) || 1.5;
+                        const tpMult = (bot.params && bot.params.tpAtrMult) || 3.0;
+
+                        if (curBar.high >= maxH && curBar.close > lastBar.close) {
+                            signal = 'BUY';
+                            slPrice = curPrice - (atr * slMult);
+                            tpPrice = curPrice + (atr * tpMult);
+                        } else if (curBar.low <= minL && curBar.close < lastBar.close) {
+                            signal = 'SELL';
+                            slPrice = curPrice - (atr * slMult);
+                            tpPrice = curPrice - (atr * tpMult);
+                        }
+                    }
+                } else if (stratType === 'vcp_squeeze' || stratType === 'btc_vcp') {
+                    const emaPeriod = (bot.params && bot.params.emaPeriod) || 200;
+                    const emaVal = this.calcularEMA(candles, emaPeriod);
+                    const period = (bot.params && bot.params.donchianPeriod) || 20;
+                    const lookback = candles.slice(-period - 2, -2);
+                    if (lookback.length >= period) {
+                        const maxH = Math.max(...lookback.map(c => c.high));
+                        const minL = Math.min(...lookback.map(c => c.low));
+                        const slMult = (bot.params && bot.params.slAtrMult) || 1.25;
+                        const tpMult = (bot.params && bot.params.tpAtrMult) || 3.2;
+
+                        if (curPrice > emaVal && curBar.high >= maxH) {
+                            signal = 'BUY';
+                            slPrice = curPrice - (atr * slMult);
+                            tpPrice = curPrice + (atr * tpMult);
+                        } else if (curPrice < emaVal && curBar.low <= minL) {
+                            signal = 'SELL';
+                            slPrice = curPrice - (atr * slMult);
+                            tpPrice = curPrice - (atr * tpMult);
+                        }
+                    }
+                } else if (stratType === 'sqz_momentum') {
+                    const slPct = ((bot.params && bot.params.slPct) || 2.0) / 100;
+                    const tpPct = ((bot.params && bot.params.tpPct) || 4.5) / 100;
+                    const lookback = candles.slice(-22, -2);
+                    if (lookback.length >= 20) {
+                        const maxHigh = Math.max(...lookback.map(c => c.high));
+                        const minLow = Math.min(...lookback.map(c => c.low));
+                        if (curBar.close > maxHigh && curBar.close > lastBar.close) {
+                            signal = 'BUY';
+                            slPrice = curPrice * (1 - slPct);
+                            tpPrice = curPrice * (1 + tpPct);
+                        } else if (curBar.close < minLow && curBar.close < lastBar.close) {
+                            signal = 'SELL';
+                            slPrice = curPrice * (1 + slPct);
+                            tpPrice = curPrice * (1 - tpPct);
+                        }
+                    }
+                } else if (stratType === 'ema_cross' || stratType === 'cruce_ema') {
+                    const fast = (bot.params && bot.params.fastPeriod) || 20;
+                    const slow = (bot.params && bot.params.slowPeriod) || 50;
+                    const emaFastCur = this.calcularEMA(candles, fast);
+                    const emaSlowCur = this.calcularEMA(candles, slow);
+                    const prevSlice = candles.slice(0, -1);
+                    const emaFastPrev = this.calcularEMA(prevSlice, fast);
+                    const emaSlowPrev = this.calcularEMA(prevSlice, slow);
+                    const slMult = (bot.params && bot.params.slAtrMult) || 2.0;
+                    const tpMult = (bot.params && bot.params.tpAtrMult) || 4.0;
+
+                    if (emaFastPrev <= emaSlowPrev && emaFastCur > emaSlowCur) {
+                        signal = 'BUY';
+                        slPrice = curPrice - (atr * slMult);
+                        tpPrice = curPrice + (atr * tpMult);
+                    } else if (emaFastPrev >= emaSlowPrev && emaFastCur < emaSlowCur) {
+                        signal = 'SELL';
+                        slPrice = curPrice - (atr * slMult);
+                        tpPrice = curPrice - (atr * tpMult);
+                    }
+                }
+
+                if (signal) {
+                    const lots = this.calcularLotajeParaBot(bot, sym, curPrice, slPrice);
+                    this.orderSend(sym, signal, lots, curPrice, slPrice, tpPrice, `[${bot.name}] Signal`, bot.magic, bot.name);
+                }
+            });
+        });
     }
 
     logJournal(msg) {

@@ -84,16 +84,19 @@ export class ServerMT5Daemon {
             };
         });
 
-        // Catálogo de Bots Multi-Activo
+        // Catálogo de Bots Multi-Activo (Flota Concurrente)
         this.botsCatalog = {
             multiasset_champion: {
                 id: 'multiasset_champion',
                 name: 'Mega Alpha Multi-Asset Champion (Crypto + Oro + Forex)',
+                enabled: true,
                 multiAsset: true,
                 symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'],
                 timeframe: '1h',
                 strategyType: 'donchian_breakout',
                 magic: 8801,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
                 description: 'Estrategia institucional que opera concurrentemente sobre Bitcoin, Ethereum, Solana, Oro y EURUSD.',
                 params: {
                     donchianPeriod: 24,
@@ -104,22 +107,109 @@ export class ServerMT5Daemon {
                     trailingAtrMult: 1.2
                 }
             },
-            crypto_vcp_ensemble: {
-                id: 'crypto_vcp_ensemble',
-                name: 'Crypto Basket VCP Squeeze (BTC, ETH, SOL)',
-                multiAsset: true,
-                symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+            gold_rush: {
+                id: 'gold_rush',
+                name: 'Hobbiecode Gold Rush Breakout (XAUUSD)',
+                enabled: true,
+                symbol: 'XAUUSD',
+                symbols: ['XAUUSD'],
+                timeframe: '1h',
+                strategyType: 'donchian_breakout',
+                magic: 7701,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Estrategia auditada en Oro. Rotura Donchian(51) con trailing ATR.',
+                params: {
+                    donchianPeriod: 51,
+                    atrPeriod: 14,
+                    slAtrMult: 1.5,
+                    tpAtrMult: 3.0,
+                    useTrailing: true,
+                    trailingAtrMult: 1.2
+                }
+            },
+            btc_vcp: {
+                id: 'btc_vcp',
+                name: 'Bitcoin VCP Squeeze & Expansion (BTC-USD)',
+                enabled: true,
+                symbol: 'BTC-USD',
+                symbols: ['BTC-USD'],
                 timeframe: '1h',
                 strategyType: 'vcp_squeeze',
-                magic: 8802,
-                description: 'Rotura asimétrica de volatilidad con filtro tendencial EMA 200 en canasta cripto.',
+                magic: 7702,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Compresión BBW sobre EMA 200 y ruptura Donchian en Bitcoin.',
                 params: {
                     emaPeriod: 200,
-                    donchianPeriod: 20,
+                    donchianPeriod: 24,
                     atrPeriod: 14,
                     slAtrMult: 1.25,
                     tpAtrMult: 3.2,
+                    useTrailing: true,
+                    trailingAtrMult: 1.5
+                }
+            },
+            sqz_momentum: {
+                id: 'sqz_momentum',
+                name: 'Squeeze Momentum Breakout (SOL-USD)',
+                enabled: true,
+                symbol: 'SOL-USD',
+                symbols: ['SOL-USD'],
+                timeframe: '1h',
+                strategyType: 'sqz_momentum',
+                magic: 7703,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Liberación de compresión de momentum en Solana.',
+                params: {
+                    bbLength: 20,
+                    slPct: 2.0,
+                    tpPct: 4.5,
                     useTrailing: true
+                }
+            },
+            eurusd_vcp: {
+                id: 'eurusd_vcp',
+                name: 'EURUSD VCP Institutional Breakout (EURUSD)',
+                enabled: true,
+                symbol: 'EURUSD',
+                symbols: ['EURUSD'],
+                timeframe: '1h',
+                strategyType: 'donchian_breakout',
+                magic: 7704,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Contracción Donchian(10) en sesión de divisas.',
+                params: {
+                    donchianPeriod: 10,
+                    atrPeriod: 14,
+                    slAtrMult: 1.0,
+                    tpAtrMult: 3.0,
+                    useTrailing: true,
+                    trailingAtrMult: 1.0
+                }
+            },
+            cruce_ema: {
+                id: 'cruce_ema',
+                name: 'Cruce Tendencial EMA (NASDAQ)',
+                enabled: false,
+                symbol: 'NASDAQ',
+                symbols: ['NASDAQ'],
+                timeframe: '1h',
+                strategyType: 'ema_cross',
+                magic: 7705,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                description: 'Cruce de medias exponenciales 20/50 en índices.',
+                params: {
+                    fastPeriod: 20,
+                    slowPeriod: 50,
+                    atrPeriod: 14,
+                    slAtrMult: 2.0,
+                    tpAtrMult: 4.0,
+                    useTrailing: true,
+                    trailingAtrMult: 1.5
                 }
             }
         };
@@ -143,6 +233,15 @@ export class ServerMT5Daemon {
                     if (Array.isArray(saved.equityHistory)) this.equityHistory = saved.equityHistory;
                     if (Array.isArray(saved.symbols) && saved.symbols.length > 0) this.symbols = saved.symbols;
                     if (saved.activeBotId && this.botsCatalog[saved.activeBotId]) this.activeBotId = saved.activeBotId;
+                    if (saved.botsCatalog && typeof saved.botsCatalog === 'object') {
+                        Object.keys(saved.botsCatalog).forEach(k => {
+                            if (this.botsCatalog[k]) {
+                                Object.assign(this.botsCatalog[k], saved.botsCatalog[k]);
+                            } else {
+                                this.botsCatalog[k] = saved.botsCatalog[k];
+                            }
+                        });
+                    }
                     if (saved.challengeConfig) this.challengeConfig = Object.assign(this.challengeConfig, saved.challengeConfig);
                     if (saved.nextTicket) this.nextTicket = saved.nextTicket;
                     if (saved.isRunning !== undefined) this.isRunning = saved.isRunning;
@@ -162,6 +261,7 @@ export class ServerMT5Daemon {
                 equityHistory: this.equityHistory.slice(-500),
                 symbols: this.symbols,
                 activeBotId: this.activeBotId,
+                botsCatalog: this.botsCatalog,
                 challengeConfig: this.challengeConfig,
                 nextTicket: this.nextTicket,
                 isRunning: this.isRunning,
@@ -185,25 +285,25 @@ export class ServerMT5Daemon {
     }
 
     // =========================================================================
-    // CONTROL DEL DAEMON 24/7
+    // CONTROL DEL DAEMON 24/7 & FLOTA MULTI-BOT
     // =========================================================================
     start() {
         if (this.isRunning && this.timer) return;
         this.isRunning = true;
         this.guardarEstadoPersistente();
-        this.log(`🚀 [DaemonStarted] Bot MT5 24/7 activado en segundo plano. Escaneando ${this.symbols.length} activos.`);
+        const activeCount = this.getActiveBots().length;
+        this.log(`🚀 [DaemonStarted] Flota MT5 24/7 activada en segundo plano (${activeCount} bots activos concurrentes).`);
 
         if (!this.timer) {
             this.timer = setInterval(() => this.ejecutarCiclo(), this.pollIntervalMs);
         }
-        // Ejecutar primer ciclo inmediatamente
         this.ejecutarCiclo();
     }
 
     pause() {
         this.isRunning = false;
         this.guardarEstadoPersistente();
-        this.log(`⏸ [DaemonPaused] Bot MT5 pausado en segundo plano.`);
+        this.log(`⏸ [DaemonPaused] Flota MT5 pausada en segundo plano.`);
     }
 
     stop() {
@@ -212,6 +312,83 @@ export class ServerMT5Daemon {
             clearInterval(this.timer);
             this.timer = null;
         }
+    }
+
+    getActiveBots() {
+        return Object.values(this.botsCatalog).filter(b => b.enabled !== false);
+    }
+
+    toggleBot(botId, enabled, options = {}) {
+        if (!this.botsCatalog[botId]) return false;
+        this.botsCatalog[botId].enabled = !!enabled;
+        if (options.riskMode) this.botsCatalog[botId].riskMode = options.riskMode;
+        if (options.riskValue !== undefined) this.botsCatalog[botId].riskValue = parseFloat(options.riskValue);
+        this.guardarEstadoPersistente();
+        this.log(`[FleetToggle] Bot '${this.botsCatalog[botId].name}' (${botId}) -> ${enabled ? 'ACTIVADO 🟢' : 'PAUSADO ⏸'}`);
+        return true;
+    }
+
+    setAllBots(enabled) {
+        Object.values(this.botsCatalog).forEach(b => {
+            b.enabled = !!enabled;
+        });
+        this.guardarEstadoPersistente();
+        this.log(`[FleetControl] Toda la flota de bots ha sido ${enabled ? 'ACTIVADA' : 'PAUSADA'}.`);
+    }
+
+    setBotRisk(botId, riskMode, riskValue) {
+        if (!this.botsCatalog[botId]) return false;
+        if (riskMode) this.botsCatalog[botId].riskMode = riskMode;
+        if (riskValue !== undefined) this.botsCatalog[botId].riskValue = parseFloat(riskValue);
+        this.guardarEstadoPersistente();
+        this.log(`[FleetRisk] Riesgo de '${this.botsCatalog[botId].name}' fijado a ${this.botsCatalog[botId].riskValue} (${this.botsCatalog[botId].riskMode})`);
+        return true;
+    }
+
+    getFleetStats() {
+        const stats = {};
+        Object.values(this.botsCatalog).forEach(bot => {
+            const magic = bot.magic;
+            const openForBot = this.openPositions.filter(p => p.magic === magic);
+            const closedForBot = this.closedPositions.filter(p => p.magic === magic);
+            
+            let wins = 0;
+            let grossProfit = 0;
+            let grossLoss = 0;
+            let netPnL = 0;
+
+            closedForBot.forEach(p => {
+                netPnL += p.profit;
+                if (p.profit > 0) {
+                    wins++;
+                    grossProfit += p.profit;
+                } else if (p.profit < 0) {
+                    grossLoss += Math.abs(p.profit);
+                }
+            });
+
+            const totalTrades = closedForBot.length;
+            const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+            const floatingPnL = openForBot.reduce((acc, p) => acc + (p.profit || 0), 0);
+
+            stats[bot.id] = {
+                id: bot.id,
+                name: bot.name,
+                magic: bot.magic,
+                enabled: bot.enabled !== false,
+                symbols: Array.isArray(bot.symbols) ? bot.symbols : [bot.symbol || 'BTC-USD'],
+                timeframe: bot.timeframe || '1h',
+                strategyType: bot.strategyType || 'donchian_breakout',
+                riskMode: bot.riskMode || 'LOTS',
+                riskValue: bot.riskValue !== undefined ? bot.riskValue : 0.10,
+                openCount: openForBot.length,
+                floatingPnL: parseFloat(floatingPnL.toFixed(2)),
+                tradesCount: totalTrades,
+                winRate: parseFloat(winRate.toFixed(1)),
+                netPnL: parseFloat(netPnL.toFixed(2))
+            };
+        });
+        return stats;
     }
 
     setSymbols(symbolsArray) {
@@ -231,36 +408,61 @@ export class ServerMT5Daemon {
             }
         });
         this.guardarEstadoPersistente();
-        this.log(`[SymbolsUpdated] Nueva cesta multi-activo: [${this.symbols.join(', ')}]`);
+        this.log(`[SymbolsUpdated] Cesta general actualizada: [${this.symbols.join(', ')}]`);
     }
 
     setBot(botConfig) {
         if (!botConfig || !botConfig.name) return;
         const id = botConfig.id || `custom_bot_${Date.now()}`;
         botConfig.id = id;
+        if (botConfig.enabled === undefined) botConfig.enabled = true;
         this.botsCatalog[id] = botConfig;
         this.activeBotId = id;
         if (Array.isArray(botConfig.symbols) && botConfig.symbols.length > 0) {
             this.setSymbols(botConfig.symbols);
         }
         this.guardarEstadoPersistente();
-        this.log(`[BotInstalled] Bot '${botConfig.name}' activado para ejecución 24/7.`);
+        this.log(`[BotInstalled] Bot '${botConfig.name}' añadido a la flota 24/7.`);
     }
 
     // =========================================================================
-    // CICLO PERIÓDICO MULTI-ACTIVO (EVERY 10 SECONDS)
+    // CICLO PERIÓDICO MULTI-BOT CONCURRENTE (EVERY 10 SECONDS)
     // =========================================================================
     async ejecutarCiclo() {
         try {
-            // 1. Obtener datos y procesar cada símbolo de la cesta
-            for (const sym of this.symbols) {
-                await this.procesarSimbolo(sym);
+            const activeBots = this.getActiveBots();
+
+            // 1. Unificar todos los símbolos necesarios (cesta base + símbolos de bots activos)
+            const neededSymbolsSet = new Set(this.symbols);
+            activeBots.forEach(bot => {
+                if (Array.isArray(bot.symbols)) bot.symbols.forEach(s => neededSymbolsSet.add(s));
+                else if (bot.symbol) neededSymbolsSet.add(bot.symbol);
+            });
+            const neededSymbols = Array.from(neededSymbolsSet);
+
+            // 2. Procesar velas, cotizaciones y posiciones abiertas para cada símbolo
+            const candlesBySymbol = {};
+            for (const sym of neededSymbols) {
+                candlesBySymbol[sym] = await this.procesarSimbolo(sym);
             }
 
-            // 2. Evaluar reglas de cumplimiento Prop Firm a nivel global de la cuenta
+            // 3. Si la flota está activa y la cuenta no violó reglas, evaluar señales para CADA bot activo en paralelo
+            if (this.isRunning && this.account.status === 'ACTIVE') {
+                for (const bot of activeBots) {
+                    const botSyms = Array.isArray(bot.symbols) && bot.symbols.length > 0 ? bot.symbols : [bot.symbol || 'BTC-USD'];
+                    for (const sym of botSyms) {
+                        const candles = candlesBySymbol[sym];
+                        if (candles && candles.length >= 25) {
+                            this.evaluarEstrategiaParaBot(sym, candles, bot);
+                        }
+                    }
+                }
+            }
+
+            // 4. Evaluar reglas de cumplimiento Prop Firm a nivel global de la cuenta
             this.evaluarReglasPropFirm();
 
-            // 3. Registrar punto en la curva de capital si cambió la equidad o cada minuto
+            // 5. Registrar curva de capital
             const nowSec = Math.floor(Date.now() / 1000);
             const lastEq = this.equityHistory[this.equityHistory.length - 1];
             if (!lastEq || Math.abs(lastEq.equity - this.account.equity) >= 1 || (nowSec - lastEq.time >= 60)) {
@@ -278,14 +480,11 @@ export class ServerMT5Daemon {
     }
 
     async procesarSimbolo(sym) {
-        const bot = this.botsCatalog[this.activeBotId] || Object.values(this.botsCatalog)[0];
-        const tf = bot?.timeframe || '1h';
-
         // Obtener velas para el símbolo
         let candles = [];
         if (typeof this.fetchCandlesFn === 'function') {
             try {
-                candles = await this.fetchCandlesFn(sym, tf);
+                candles = await this.fetchCandlesFn(sym, '1h');
             } catch (e) {}
         }
 
@@ -294,12 +493,12 @@ export class ServerMT5Daemon {
         }
 
         const lastBar = candles[candles.length - 1];
-        if (!lastBar) return;
+        if (!lastBar) return candles;
 
         const curPrice = lastBar.close;
         const atr = this.calcularATR(candles, 14);
 
-        // Actualizar matriz de activos
+        // Actualizar matriz de activos en tiempo real
         if (!this.assetMatrix[sym]) {
             this.assetMatrix[sym] = { symbol: sym };
         }
@@ -307,24 +506,20 @@ export class ServerMT5Daemon {
         this.assetMatrix[sym].atr = parseFloat(atr.toFixed(2));
         this.assetMatrix[sym].lastUpdate = Math.floor(Date.now() / 1000);
 
-        // 1. Procesar posiciones abiertas de este activo (SL, TP, Trailing)
-        this.procesarTicksEnPosiciones(sym, lastBar);
-
-        // 2. Si el bot está activo y la cuenta está vigente, evaluar estrategia multi-activo
-        if (this.isRunning && this.account.status === 'ACTIVE') {
-            this.evaluarEstrategiaMultiActivo(sym, candles, bot);
-        }
+        // Procesar posiciones abiertas de este activo (SL, TP, Trailing stop específico de cada bot)
+        this.procesarTicksEnPosiciones(sym, lastBar, atr);
 
         // Actualizar estadísticas de matriz para este activo
         const symOpen = this.openPositions.filter(p => p.symbol === sym);
         this.assetMatrix[sym].openTradesCount = symOpen.length;
-        this.assetMatrix[sym].floatingPnL = symOpen.reduce((acc, p) => acc + p.profit, 0);
+        this.assetMatrix[sym].floatingPnL = parseFloat(symOpen.reduce((acc, p) => acc + p.profit, 0).toFixed(2));
+
+        return candles;
     }
 
-    procesarTicksEnPosiciones(sym, candle) {
+    procesarTicksEnPosiciones(sym, candle, atr) {
         const spec = this.symbolSpecs[sym] || { contractSize: 1, pointVal: 1, digits: 2 };
         const curPrice = candle.close;
-        const bot = this.botsCatalog[this.activeBotId];
 
         for (let i = this.openPositions.length - 1; i >= 0; i--) {
             const pos = this.openPositions[i];
@@ -335,7 +530,7 @@ export class ServerMT5Daemon {
             const priceDiff = isBuy ? (curPrice - pos.openPrice) : (pos.openPrice - curPrice);
             pos.profit = (priceDiff * pos.lots * spec.pointVal) - pos.commission;
 
-            // SL Hit
+            // Stop Loss
             if (pos.sl > 0) {
                 const hitSL = isBuy ? (candle.low <= pos.sl) : (candle.high >= pos.sl);
                 if (hitSL) {
@@ -344,7 +539,7 @@ export class ServerMT5Daemon {
                 }
             }
 
-            // TP Hit
+            // Take Profit
             if (pos.tp > 0) {
                 const hitTP = isBuy ? (candle.high >= pos.tp) : (candle.low <= pos.tp);
                 if (hitTP) {
@@ -353,62 +548,67 @@ export class ServerMT5Daemon {
                 }
             }
 
-            // Trailing Stop
+            // Trailing Stop dinámico específico del bot propietario de la posición
+            const bot = Object.values(this.botsCatalog).find(b => b.magic === pos.magic) || this.botsCatalog[this.activeBotId];
             if (bot && bot.params && bot.params.useTrailing && pos.profit > 0) {
-                const trailDist = pos.openPrice * 0.015;
+                const mult = bot.params.trailingAtrMult || 1.2;
+                const trailDist = (atr && atr > 0) ? (atr * mult) : (pos.openPrice * 0.015);
                 if (isBuy) {
                     const newSL = curPrice - trailDist;
                     if (newSL > (pos.sl || 0) && newSL > pos.openPrice) {
                         pos.sl = parseFloat(newSL.toFixed(spec.digits));
-                        this.log(`[TrailingStop] Ticket #${pos.ticket} (${sym}) SL ajustado a ${pos.sl}`);
+                        this.log(`[TrailingStop] Ticket #${pos.ticket} (${bot.name} en ${sym}) SL ajustado a ${pos.sl}`);
                     }
                 } else {
                     const newSL = curPrice + trailDist;
                     if ((pos.sl === 0 || newSL < pos.sl) && newSL < pos.openPrice) {
                         pos.sl = parseFloat(newSL.toFixed(spec.digits));
-                        this.log(`[TrailingStop] Ticket #${pos.ticket} (${sym}) SL ajustado a ${pos.sl}`);
+                        this.log(`[TrailingStop] Ticket #${pos.ticket} (${bot.name} en ${sym}) SL ajustado a ${pos.sl}`);
                     }
                 }
             }
         }
 
-        // Recalcular métricas de cuenta
+        // Recalcular métricas de cuenta consolidadas
         const totalFloating = this.openPositions.reduce((acc, p) => acc + p.profit, 0);
-        this.account.floatingPnL = totalFloating;
-        this.account.equity = this.account.balance + totalFloating;
+        this.account.floatingPnL = parseFloat(totalFloating.toFixed(2));
+        this.account.equity = parseFloat((this.account.balance + totalFloating).toFixed(2));
         this.account.peakEquity = Math.max(this.account.peakEquity, this.account.equity);
-        this.account.freeMargin = this.account.equity - this.account.margin;
+        this.account.freeMargin = parseFloat((this.account.equity - this.account.margin).toFixed(2));
+        this.account.marginLevel = this.account.margin > 0 ? (this.account.equity / this.account.margin) * 100 : 0;
     }
 
-    evaluarEstrategiaMultiActivo(sym, candles, bot) {
-        if (!candles || candles.length < 30) return;
+    evaluarEstrategiaParaBot(sym, candles, bot) {
+        if (!candles || candles.length < 25) return;
 
-        // Reglas de portafolio
-        const totalOpen = this.openPositions.length;
-        if (totalOpen >= (this.challengeConfig.maxTotalOpen || 5)) return;
+        // Reglas de portafolio y límites de concurrencia
+        const maxTotal = this.challengeConfig.maxTotalOpen || 10;
+        if (this.openPositions.length >= maxTotal) return;
 
-        const openInSym = this.openPositions.filter(p => p.symbol === sym).length;
-        if (openInSym >= (this.challengeConfig.maxOpenPerAsset || 1)) return;
+        // Limitar a máximo 1 orden abierta por este bot en este activo
+        const botOpenInSym = this.openPositions.filter(p => p.symbol === sym && p.magic === bot.magic).length;
+        if (botOpenInSym >= (bot.maxOpenPerAsset || 1)) return;
 
         const curBar = candles[candles.length - 1];
         const lastBar = candles[candles.length - 2];
         const curPrice = curBar.close;
-        const atr = this.calcularATR(candles, bot.params.atrPeriod || 14);
+        const atr = this.calcularATR(candles, (bot.params && bot.params.atrPeriod) || 14);
 
         let signal = null;
         let slPrice = 0;
         let tpPrice = 0;
 
-        const stratType = bot.strategyType || 'donchian_breakout';
+        const stratType = bot.strategyType || bot.id || 'donchian_breakout';
 
-        if (stratType === 'donchian_breakout') {
-            const period = bot.params.donchianPeriod || 20;
+        // 1. Donchian Breakout
+        if (stratType === 'donchian_breakout' || stratType === 'multiasset_champion' || stratType === 'gold_rush' || stratType === 'eurusd_vcp') {
+            const period = (bot.params && bot.params.donchianPeriod) || 20;
             const lookback = candles.slice(-period - 2, -2);
             if (lookback.length >= period) {
                 const maxH = Math.max(...lookback.map(c => c.high));
                 const minL = Math.min(...lookback.map(c => c.low));
-                const slMult = bot.params.slAtrMult || 1.5;
-                const tpMult = bot.params.tpAtrMult || 3.0;
+                const slMult = (bot.params && bot.params.slAtrMult) || 1.5;
+                const tpMult = (bot.params && bot.params.tpAtrMult) || 3.0;
 
                 if (curBar.high >= maxH && curBar.close > lastBar.close) {
                     signal = 'BUY';
@@ -420,16 +620,19 @@ export class ServerMT5Daemon {
                     tpPrice = curPrice - (atr * tpMult);
                 }
             }
-        } else if (stratType === 'vcp_squeeze') {
-            const emaPeriod = bot.params.emaPeriod || 200;
+        }
+
+        // 2. VCP Squeeze
+        else if (stratType === 'vcp_squeeze' || stratType === 'btc_vcp' || stratType === 'crypto_vcp_ensemble') {
+            const emaPeriod = (bot.params && bot.params.emaPeriod) || 200;
             const emaVal = this.calcularEMA(candles, emaPeriod);
-            const period = bot.params.donchianPeriod || 20;
+            const period = (bot.params && bot.params.donchianPeriod) || 20;
             const lookback = candles.slice(-period - 2, -2);
             if (lookback.length >= period) {
                 const maxH = Math.max(...lookback.map(c => c.high));
                 const minL = Math.min(...lookback.map(c => c.low));
-                const slMult = bot.params.slAtrMult || 1.25;
-                const tpMult = bot.params.tpAtrMult || 3.2;
+                const slMult = (bot.params && bot.params.slAtrMult) || 1.25;
+                const tpMult = (bot.params && bot.params.tpAtrMult) || 3.2;
 
                 if (curPrice > emaVal && curBar.high >= maxH) {
                     signal = 'BUY';
@@ -443,28 +646,72 @@ export class ServerMT5Daemon {
             }
         }
 
-        // Actualizar señal en la matriz
-        if (this.assetMatrix[sym]) {
-            this.assetMatrix[sym].signal = signal || 'WAITING';
+        // 3. Squeeze Momentum Breakout
+        else if (stratType === 'sqz_momentum' || stratType === 'sqz_momentum') {
+            const len = (bot.params && bot.params.bbLength) || 20;
+            const ema = this.calcularEMA(candles, len);
+            const slPct = ((bot.params && bot.params.slPct) || 2.0) / 100;
+            const tpPct = ((bot.params && bot.params.tpPct) || 4.5) / 100;
+
+            if (curBar.close > lastBar.high && curBar.close > ema) {
+                signal = 'BUY';
+                slPrice = curPrice * (1 - slPct);
+                tpPrice = curPrice * (1 + tpPct);
+            } else if (curBar.close < lastBar.low && curBar.close < ema) {
+                signal = 'SELL';
+                slPrice = curPrice * (1 + slPct);
+                tpPrice = curPrice - (tpPct);
+            }
         }
 
-        // Ejecutar orden si hay señal
+        // 4. Cruce EMA Tendencial
+        else if (stratType === 'ema_cross' || stratType === 'cruce_ema') {
+            const fastP = (bot.params && bot.params.fastPeriod) || 20;
+            const slowP = (bot.params && bot.params.slowPeriod) || 50;
+            const emaFastPrev = this.calcularEMA(candles.slice(0, -1), fastP);
+            const emaSlowPrev = this.calcularEMA(candles.slice(0, -1), slowP);
+            const emaFastCur = this.calcularEMA(candles, fastP);
+            const emaSlowCur = this.calcularEMA(candles, slowP);
+            const slMult = (bot.params && bot.params.slAtrMult) || 2.0;
+            const tpMult = (bot.params && bot.params.tpAtrMult) || 4.0;
+
+            if (emaFastPrev <= emaSlowPrev && emaFastCur > emaSlowCur) {
+                signal = 'BUY';
+                slPrice = curPrice - (atr * slMult);
+                tpPrice = curPrice + (atr * tpMult);
+            } else if (emaFastPrev >= emaSlowPrev && emaFastCur < emaSlowCur) {
+                signal = 'SELL';
+                slPrice = curPrice + (atr * slMult);
+                tpPrice = curPrice - (atr * tpMult);
+            }
+        }
+
+        // Actualizar señal en la matriz si es el bot principal o no tiene señal previa
+        if (this.assetMatrix[sym]) {
+            if (signal) this.assetMatrix[sym].signal = `${signal} (${bot.name.slice(0, 10)})`;
+        }
+
+        // Ejecutar orden con el Magic Number y Nombre del Bot
         if (signal) {
-            const lots = this.calcularLotajeSeguro(sym, curPrice, slPrice);
-            this.orderSend(sym, signal, lots, curPrice, slPrice, tpPrice, `[24/7 ${bot.id}]`);
+            const lots = this.calcularLotajeParaBot(bot, sym, curPrice, slPrice);
+            this.orderSend(sym, signal, lots, curPrice, slPrice, tpPrice, `[${bot.name}]`, bot.magic, bot.name);
         }
     }
 
-    calcularLotajeSeguro(sym, entryPrice, slPrice) {
+    calcularLotajeParaBot(bot, sym, entryPrice, slPrice) {
         const spec = this.symbolSpecs[sym] || { contractSize: 1, pointVal: 1, digits: 2 };
+        const riskMode = bot.riskMode || this.challengeConfig.riskMode || 'LOTS';
+        const riskValue = bot.riskValue !== undefined ? bot.riskValue : (this.challengeConfig.riskValue || 0.10);
 
-        if (this.challengeConfig.riskMode === 'LOTS') {
-            const fixedLots = Math.max(0.01, parseFloat(this.challengeConfig.riskValue) || 0.10);
+        if (riskMode === 'LOTS') {
+            const fixedLots = Math.max(0.01, parseFloat(riskValue) || 0.10);
             return Math.min(20.0, Math.round(fixedLots * 100) / 100);
         }
 
-        // Modo Porcentaje (%)
-        const riskUSD = (this.challengeConfig.riskValue / 100) * this.account.balance;
+        // Modo Porcentaje (%) dividido entre los símbolos del bot
+        const symbolsCount = (Array.isArray(bot.symbols) && bot.symbols.length > 0) ? bot.symbols.length : 1;
+        const riskPct = (parseFloat(riskValue) || 1.0) / symbolsCount;
+        const riskUSD = (riskPct / 100) * this.account.balance;
         const slDist = Math.abs(entryPrice - slPrice);
         if (slDist <= 0) return 0.10;
 
@@ -473,7 +720,7 @@ export class ServerMT5Daemon {
         return lots;
     }
 
-    orderSend(symbol, type, lots, price, sl, tp, comment = '') {
+    orderSend(symbol, type, lots, price, sl, tp, comment = '', magic = 8801, botName = 'MT5 Bot') {
         const spec = this.symbolSpecs[symbol] || { contractSize: 1, pointVal: 1, spread: 1.0, digits: 2 };
         const isBuy = type === 'BUY';
         const spreadOffset = isBuy ? (spec.spread * 0.5) : (-spec.spread * 0.5);
@@ -501,14 +748,15 @@ export class ServerMT5Daemon {
             profit: -commission,
             commission,
             comment,
-            magic: 8801
+            magic: magic || 8801,
+            botName: botName || 'MT5 Bot'
         };
 
         this.openPositions.push(position);
         this.account.margin += requiredMargin;
         this.account.freeMargin = this.account.equity - this.account.margin;
 
-        this.log(`[OrderSend SUCCESS] Ticket #${ticket} ${type} ${lots.toFixed(2)} lots ${symbol} @ ${execPrice} | SL: ${position.sl} TP: ${position.tp}`);
+        this.log(`[OrderSend SUCCESS] Ticket #${ticket} ${type} ${lots.toFixed(2)} lots ${symbol} @ ${execPrice} [Bot: ${botName} #${magic}] | SL: ${position.sl} TP: ${position.tp}`);
         this.guardarEstadoPersistente();
         return ticket;
     }
@@ -535,7 +783,9 @@ export class ServerMT5Daemon {
             closePrice: finalPrice,
             commission: pos.commission,
             profit: netProfit,
-            reason: exitReason
+            reason: exitReason,
+            magic: pos.magic || 8801,
+            botName: pos.botName || 'MT5 Bot'
         };
 
         this.closedPositions.unshift(closedRecord);
@@ -554,7 +804,7 @@ export class ServerMT5Daemon {
         });
         if (this.equityHistory.length > 1000) this.equityHistory.shift();
 
-        this.log(`[OrderClose] Ticket #${ticket} (${pos.symbol}) cerrado a ${finalPrice.toFixed(spec.digits)} | PnL: ${netProfit >= 0 ? '+' : ''}$${netProfit.toFixed(2)} [${exitReason}]`);
+        this.log(`[OrderClose] Ticket #${ticket} (${pos.symbol} - ${pos.botName}) cerrado a ${finalPrice.toFixed(spec.digits)} | PnL: ${netProfit >= 0 ? '+' : ''}$${netProfit.toFixed(2)} [${exitReason}]`);
         this.guardarEstadoPersistente();
         return true;
     }
@@ -630,6 +880,8 @@ export class ServerMT5Daemon {
             isRunning: this.isRunning,
             activeBotId: this.activeBotId,
             bot: this.botsCatalog[this.activeBotId] || null,
+            botsCatalog: this.botsCatalog,
+            fleetStats: this.getFleetStats(),
             symbols: this.symbols,
             assetMatrix: this.assetMatrix,
             account: this.account,
