@@ -580,6 +580,290 @@
       .badge-close { color: var(--brand-blue); font-weight: bold; }
 
       /* ==========================================================================
+         SIMULADOR BAR REPLAY (REPETICIÓN DE MERCADO ESTILO TRADINGVIEW)
+         ========================================================================== */
+      .replay-bar {
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(19, 23, 34, 0.95);
+        backdrop-filter: blur(8px);
+        border: 1px solid #2a2e39;
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+        padding: 5px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 120;
+        user-select: none;
+        transition: opacity 0.2s ease;
+      }
+      .replay-drag-handle {
+        color: #787b86;
+        cursor: grab;
+        font-size: 13px;
+        letter-spacing: -2px;
+      }
+      .replay-btn {
+        background: #1e222d;
+        border: 1px solid #2a2e39;
+        color: #d1d4dc;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .replay-btn:hover {
+        background: #2a2e39;
+        color: #fff;
+        border-color: #363c4e;
+      }
+      .replay-btn.play-btn {
+        background: #2962ff;
+        color: #fff;
+        border-color: #2962ff;
+        min-width: 32px;
+        justify-content: center;
+      }
+      .replay-btn.play-btn:hover {
+        background: #1e4bd8;
+      }
+      .replay-btn.exit-btn {
+        background: rgba(242, 54, 69, 0.15);
+        color: #f23645;
+        border-color: rgba(242, 54, 69, 0.3);
+      }
+      .replay-btn.exit-btn:hover {
+        background: #f23645;
+        color: #fff;
+      }
+      .replay-select {
+        background: #1e222d;
+        border: 1px solid #2a2e39;
+        color: #d1d4dc;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        outline: none;
+      }
+      .replay-info {
+        font-family: monospace;
+        font-size: 11px;
+        color: #787b86;
+        white-space: nowrap;
+      }
+      .replay-divider {
+        width: 1px;
+        height: 18px;
+        background: #2a2e39;
+      }
+      .replay-banner {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2962ff;
+        color: #ffffff;
+        padding: 8px 18px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        z-index: 150;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 6px 20px rgba(41, 98, 255, 0.5);
+      }
+      .replay-cancel-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: bold;
+      }
+      .replay-cancel-btn:hover {
+        background: rgba(255, 255, 255, 0.35);
+      }
+      .replay-toggle-btn.active {
+        background: #2962ff !important;
+        color: #fff !important;
+      }
+
+      /* ==========================================================================
+         SISTEMA MULTI-GRÁFICO (PANTALLA DIVIDIDA / MULTI-CHART LAYOUTS)
+         ========================================================================== */
+      .layout-dropdown-container {
+        position: relative;
+        display: inline-block;
+      }
+      .layout-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        background: #1e222d;
+        border: 1px solid #2a2e39;
+        border-radius: 6px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75);
+        z-index: 1000;
+        min-width: 220px;
+        padding: 6px 0;
+      }
+      .layout-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        color: #d1d4dc;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .layout-menu-item:hover {
+        background: #2a2e39;
+        color: #ffffff;
+      }
+      .layout-menu-item.active {
+        color: #2962ff;
+        font-weight: 600;
+        background: rgba(41, 98, 255, 0.12);
+      }
+      .layout-icon {
+        width: 18px;
+        height: 18px;
+        border: 1px solid #787b86;
+        border-radius: 2px;
+      }
+      .layout-icon-1 { background: rgba(41, 98, 255, 0.4); }
+      .layout-icon-2v {
+        background: linear-gradient(to right, rgba(41, 98, 255, 0.4) 50%, #1e222d 50%);
+        border-right: 1px solid #787b86;
+      }
+      .layout-icon-2h {
+        background: linear-gradient(to bottom, rgba(41, 98, 255, 0.4) 50%, #1e222d 50%);
+        border-bottom: 1px solid #787b86;
+      }
+      .layout-icon-4 {
+        background: conic-gradient(rgba(41, 98, 255, 0.4) 90deg, #1e222d 90deg 180deg, rgba(41, 98, 255, 0.4) 180deg 270deg, #1e222d 270deg);
+      }
+
+      /* Contenedor de Cuadrícula de Gráficos */
+      #multi-chart-grid {
+        display: grid;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #131722;
+      }
+      #multi-chart-grid.layout-1 {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+      }
+      #multi-chart-grid.layout-2v {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr;
+        gap: 2px;
+      }
+      #multi-chart-grid.layout-2h {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+      }
+      #multi-chart-grid.layout-4 {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+      }
+
+      .chart-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #131722;
+        border: 1px solid #1f2937;
+      }
+      .chart-panel.active {
+        border: 1px solid #2962ff;
+      }
+
+      .panel-header {
+        height: 28px;
+        min-height: 28px;
+        background: #181b24;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        border-bottom: 1px solid #2a2e39;
+        font-size: 11px;
+        z-index: 10;
+      }
+      .panel-sym-picker {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: bold;
+        color: #fff;
+      }
+      .panel-sym-select {
+        background: #1e222d;
+        border: 1px solid #2a2e39;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        outline: none;
+      }
+      .panel-tf-picker {
+        display: flex;
+        gap: 2px;
+      }
+      .panel-tf-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        color: #787b86;
+        padding: 1px 6px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .panel-tf-btn.active, .panel-tf-btn:hover {
+        background: #2a2e39;
+        color: #fff;
+      }
+      .panel-chart-body {
+        flex: 1 1 0%;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+      }
+      .panel-legend {
+        position: absolute;
+        top: 6px;
+        left: 8px;
+        z-index: 15;
+        font-size: 10px;
+        color: #d1d4dc;
+        pointer-events: none;
+        background: rgba(19, 23, 34, 0.8);
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+
+      /* ==========================================================================
          SISTEMA RESPONSIVO MÓVIL (TRADINGVIEW MOBILE PRO DESIGN)
          ========================================================================== */
       #mobile-bottom-nav {
@@ -1075,6 +1359,38 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button class="toolbar-btn style-btn" data-style="area" title="Gráfico de Área">📉 Área</button>
       </div>
 
+      <div class="toolbar-divider desktop-only"></div>
+
+      <!-- BOTÓN BAR REPLAY (REPETICIÓN DE VELAS) -->
+      <button id="btn-bar-replay" class="toolbar-btn desktop-only" title="Simulador de Repetición de Velas (Bar Replay)">
+        <span>⏱️</span> <span>Replay</span>
+      </button>
+
+      <!-- SELECTOR MULTI-GRÁFICO (PANTALLA DIVIDIDA) -->
+      <div class="layout-dropdown-container desktop-only">
+        <button id="btn-chart-layout" class="toolbar-btn" title="Distribución de Gráficos (Pantalla Dividida)">
+          <span>⊞</span> <span>Diseño</span> ▾
+        </button>
+        <div id="layout-dropdown-menu" class="layout-dropdown-menu" style="display: none;">
+          <div class="layout-menu-item active" data-layout="1">
+            <div class="layout-icon layout-icon-1"></div>
+            <span>1 Gráfico (Normal)</span>
+          </div>
+          <div class="layout-menu-item" data-layout="2v">
+            <div class="layout-icon layout-icon-2v"></div>
+            <span>2 Gráficos Verticales (Lado a Lado)</span>
+          </div>
+          <div class="layout-menu-item" data-layout="2h">
+            <div class="layout-icon layout-icon-2h"></div>
+            <span>2 Gráficos Horizontales (Arriba y Abajo)</span>
+          </div>
+          <div class="layout-menu-item" data-layout="4">
+            <div class="layout-icon layout-icon-4"></div>
+            <span>4 Gráficos (Cuadrícula 2x2)</span>
+          </div>
+        </div>
+      </div>
+
       <!-- BOTONES MÓVILES EN LA DERECHA DE LA BARRA -->
       <button id="btn-mobile-style-cycle" class="toolbar-btn mobile-only-btn" title="Alternar Estilo (Velas / Línea / Área)">🕯️</button>
       <button id="btn-mobile-more-menu" class="toolbar-btn mobile-only-btn" title="Más Opciones">⋮</button>
@@ -1111,19 +1427,108 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
 
       <!-- ÁREA DE GRÁFICOS Y DIVISOR REAJUSTABLE -->
       <div id="chart-container">
-        <div id="main-chart-container">
-          <div id="chart-legend">Cargando datos...</div>
-          <div id="indicators-legend"></div>
-          <div id="order-overlay">
-            <button id="btn-sell" class="order-btn"><span>VENDER</span><strong id="sell-price">--</strong></button>
-            <button id="btn-buy" class="order-btn"><span>COMPRAR</span><strong id="buy-price">--</strong></button>
+        <!-- BARRA FLOTANTE DE CONTROL DE BAR REPLAY -->
+        <div id="replay-control-bar" class="replay-bar" style="display: none;">
+          <div class="replay-drag-handle" title="Barra de repetición">⋮⋮</div>
+          <button id="replay-btn-jump-cut" class="replay-btn" title="Volver al punto de corte inicial">⏮</button>
+          <button id="replay-btn-play" class="replay-btn play-btn" title="Reproducir / Pausar">▶</button>
+          <button id="replay-btn-step" class="replay-btn" title="Avanzar 1 vela (Paso a paso)">⏭</button>
+          <div class="replay-divider"></div>
+          <span style="font-size: 11px; color: #787b86;">Vel:</span>
+          <select id="replay-speed-select" class="replay-select">
+            <option value="2000">0.5x</option>
+            <option value="1000" selected>1.0x</option>
+            <option value="500">2.0x</option>
+            <option value="200">5.0x</option>
+          </select>
+          <div class="replay-divider"></div>
+          <span id="replay-status-info" class="replay-info">Vela 0/0</span>
+          <button id="replay-btn-exit" class="replay-btn exit-btn" title="Salir de repetición">✕ Salir</button>
+        </div>
+
+        <!-- BANNER DE AVISO MIENTRAS SE SELECCIONA VELA PARA CORTAR -->
+        <div id="replay-selection-banner" class="replay-banner" style="display: none;">
+          <span>✂️ <strong>Modo Repetición:</strong> Haz clic en cualquier vela para cortar el tiempo e iniciar la simulación.</span>
+          <button id="replay-btn-cancel-cut" class="replay-cancel-btn">Cancelar</button>
+        </div>
+
+        <!-- CUADRÍCULA MULTI-GRÁFICO FLEXIBLE -->
+        <div id="multi-chart-grid" class="layout-1">
+          <!-- PANEL 0: Panel Principal Completo (Precio + Oscilador + Dibujos) -->
+          <div id="panel-chart-0" class="chart-panel active">
+            <div id="main-chart-container">
+              <div id="chart-legend">Cargando datos...</div>
+              <div id="indicators-legend"></div>
+              <div id="order-overlay">
+                <button id="btn-sell" class="order-btn"><span>VENDER</span><strong id="sell-price">--</strong></button>
+                <button id="btn-buy" class="order-btn"><span>COMPRAR</span><strong id="buy-price">--</strong></button>
+              </div>
+            </div>
+            
+            <div id="chart-resizer" title="Arrastrar para redimensionar el gráfico oscilador"></div>
+            <div id="oscillator-chart-container"></div>
+          </div>
+
+          <!-- PANEL 1: Panel Secundario (Derecha en 2v, Abajo en 2h) -->
+          <div id="panel-chart-1" class="chart-panel" style="display: none;">
+            <div class="panel-header">
+              <div class="panel-sym-picker">
+                <span>📈</span>
+                <select class="panel-sym-select" id="p1-sym-select"></select>
+              </div>
+              <div class="panel-tf-picker">
+                <button class="panel-tf-btn" data-panel="1" data-tf="15m">15m</button>
+                <button class="panel-tf-btn" data-panel="1" data-tf="30m">30m</button>
+                <button class="panel-tf-btn active" data-panel="1" data-tf="1h">1h</button>
+                <button class="panel-tf-btn" data-panel="1" data-tf="4h">4h</button>
+                <button class="panel-tf-btn" data-panel="1" data-tf="1d">1D</button>
+              </div>
+            </div>
+            <div class="panel-chart-body" id="p1-chart-body">
+              <div class="panel-legend" id="p1-legend">Cargando...</div>
+            </div>
+          </div>
+
+          <!-- PANEL 2: Panel Secundario (Inferior izquierdo en 2x2) -->
+          <div id="panel-chart-2" class="chart-panel" style="display: none;">
+            <div class="panel-header">
+              <div class="panel-sym-picker">
+                <span>📈</span>
+                <select class="panel-sym-select" id="p2-sym-select"></select>
+              </div>
+              <div class="panel-tf-picker">
+                <button class="panel-tf-btn" data-panel="2" data-tf="15m">15m</button>
+                <button class="panel-tf-btn" data-panel="2" data-tf="30m">30m</button>
+                <button class="panel-tf-btn" data-panel="2" data-tf="1h">1h</button>
+                <button class="panel-tf-btn active" data-panel="2" data-tf="4h">4h</button>
+                <button class="panel-tf-btn" data-panel="2" data-tf="1d">1D</button>
+              </div>
+            </div>
+            <div class="panel-chart-body" id="p2-chart-body">
+              <div class="panel-legend" id="p2-legend">Cargando...</div>
+            </div>
+          </div>
+
+          <!-- PANEL 3: Panel Secundario (Inferior derecho en 2x2) -->
+          <div id="panel-chart-3" class="chart-panel" style="display: none;">
+            <div class="panel-header">
+              <div class="panel-sym-picker">
+                <span>📈</span>
+                <select class="panel-sym-select" id="p3-sym-select"></select>
+              </div>
+              <div class="panel-tf-picker">
+                <button class="panel-tf-btn" data-panel="3" data-tf="15m">15m</button>
+                <button class="panel-tf-btn" data-panel="3" data-tf="30m">30m</button>
+                <button class="panel-tf-btn" data-panel="3" data-tf="1h">1h</button>
+                <button class="panel-tf-btn" data-panel="3" data-tf="4h">4h</button>
+                <button class="panel-tf-btn active" data-panel="3" data-tf="1d">1D</button>
+              </div>
+            </div>
+            <div class="panel-chart-body" id="p3-chart-body">
+              <div class="panel-legend" id="p3-legend">Cargando...</div>
+            </div>
           </div>
         </div>
-        
-        <!-- ELEMENTO REAJUSTABLE PARA CAMBIAR TAMAÑO ENTRE PRECIO Y OSCILADOR -->
-        <div id="chart-resizer" title="Arrastrar para redimensionar el gráfico oscilador"></div>
-
-        <div id="oscillator-chart-container"></div>
       </div>
 
       <!-- WATCHLIST SIDEBAR -->
@@ -1242,11 +1647,12 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button id="btn-close-more-sheet" style="background: none; border: none; color: #787b86; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
       </div>
         <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">📲 Instalar como Aplicación</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-replay">⏱️ Modo Bar Replay (Repetición)</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-layout">⊞ Cambiar Diseño de Pantalla</button>
         <button class="mobile-sheet-btn" id="sheet-btn-csv">📁 Cargar archivo CSV / Historial</button>
         <button class="mobile-sheet-btn" id="sheet-btn-export">💾 Exportar Dibujos (JSON)</button>
         <button class="mobile-sheet-btn" id="sheet-btn-import">📂 Importar Dibujos (JSON)</button>
         <button class="mobile-sheet-btn" id="sheet-btn-fit">🔍 Ajustar Gráfico a Pantalla</button>
-      </div>
     </div>
 
     <script src="./lightweight-charts.standalone.production.js"></script>

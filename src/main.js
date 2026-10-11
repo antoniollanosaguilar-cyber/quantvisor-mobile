@@ -221,6 +221,18 @@ function inicializarGraficos() {
         }
     });
 
+    chart.subscribeClick(param => {
+        if (typeof handleReplayChartClick === 'function') {
+            handleReplayChartClick(param);
+        }
+    });
+
+    mainContainer.addEventListener('click', (e) => {
+        if (typeof handleReplayContainerClick === 'function') {
+            handleReplayContainerClick(e);
+        }
+    });
+
     window.addEventListener('resize', resizeGraficos);
 }
 
@@ -333,6 +345,10 @@ function resizeGraficos() {
 
     if (drawingEngine) {
         drawingEngine.resize();
+    }
+
+    if (typeof redimensionarPanelesSecundarios === 'function') {
+        redimensionarPanelesSecundarios();
     }
 }
 
@@ -2566,11 +2582,841 @@ function inicializarEventosUI() {
         });
     }
 
+    if (typeof inicializarEventosReplayYMultiChart === 'function') {
+        inicializarEventosReplayYMultiChart();
+    }
+
     window.addEventListener('resize', () => {
         if (typeof resizeGraficos === 'function') resizeGraficos();
     });
     window.addEventListener('orientationchange', () => {
         if (typeof resizeGraficos === 'function') setTimeout(resizeGraficos, 200);
     });
+}
+
+// =========================================================================
+// FEATURE 2: MOTOR DE SIMULACIÓN BAR REPLAY (REPETICIÓN HISTÓRICA)
+// =========================================================================
+
+let isReplayMode = false;
+let isReplayWaitingForClick = false;
+let replayCutIndex = -1;
+let replayCurrentIndex = -1;
+let historialVelasCompleto = [];
+let replayTimer = null;
+let replaySpeedMs = 1000;
+
+function activarModoSeleccionReplay() {
+    if (isReplayMode) {
+        salirModoReplay();
+        return;
+    }
+    if (isReplayWaitingForClick) {
+        cancelarSeleccionReplay();
+        return;
+    }
+
+    if (!historialVelas || historialVelas.length < 5) {
+        alert("Cargando datos históricos... Por favor espera unos momentos antes de iniciar Bar Replay.");
+        return;
+    }
+
+    isReplayWaitingForClick = true;
+    const banner = document.getElementById('replay-selection-banner');
+    if (banner) banner.style.display = 'flex';
+
+    const btnReplay = document.getElementById('btn-bar-replay');
+    if (btnReplay) btnReplay.classList.add('active');
+
+    if (drawingEngine) {
+        drawingEngine.setActiveTool(null);
+        if (drawingEngine.canvas) drawingEngine.canvas.style.pointerEvents = 'none';
+    }
+}
+
+function cancelarSeleccionReplay() {
+    isReplayWaitingForClick = false;
+    const banner = document.getElementById('replay-selection-banner');
+    if (banner) banner.style.display = 'none';
+
+    const btnReplay = document.getElementById('btn-bar-replay');
+    if (btnReplay) btnReplay.classList.remove('active');
+
+    if (drawingEngine && drawingEngine.canvas) {
+        drawingEngine.canvas.style.pointerEvents = 'auto';
+    }
+}
+
+function handleReplayChartClick(param) {
+    if (!isReplayWaitingForClick) return;
+    if (!historialVelas || historialVelas.length === 0) return;
+
+    let targetTime = param ? param.time : null;
+    let cutIdx = -1;
+
+    if (targetTime) {
+        cutIdx = historialVelas.findIndex(c => c.time === targetTime);
+    }
+    
+    if (cutIdx === -1 && param && param.point && chart && chart.timeScale()) {
+        try {
+            const coordTime = chart.timeScale().coordinateToTime(param.point.x);
+            if (coordTime) {
+                cutIdx = historialVelas.findIndex(c => c.time === coordTime);
+                if (cutIdx === -1) {
+                    let minDiff = Infinity;
+                    historialVelas.forEach((c, idx) => {
+                        const diff = Math.abs(c.time - coordTime);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            cutIdx = idx;
+                        }
+                    });
+                }
+            }
+        } catch (e) {}
+    }
+
+    if (cutIdx === -1 && historialVelas.length > 0) {
+        cutIdx = Math.floor(historialVelas.length * 0.7);
+    }
+
+    if (cutIdx >= 0 && cutIdx < historialVelas.length) {
+        iniciarSimulacionReplayEnIndice(cutIdx);
+    }
+}
+
+function handleReplayContainerClick(e) {
+    if (!isReplayWaitingForClick) return;
+    if (!chart || !chart.timeScale() || !historialVelas || historialVelas.length === 0) return;
+    try {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const coordTime = chart.timeScale().coordinateToTime(x);
+        if (coordTime) {
+            let cutIdx = historialVelas.findIndex(c => c.time === coordTime);
+            if (cutIdx === -1) {
+                let minDiff = Infinity;
+                historialVelas.forEach((c, idx) => {
+                    const diff = Math.abs(c.time - coordTime);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        cutIdx = idx;
+                    }
+                });
+            }
+            if (cutIdx >= 0) {
+                iniciarSimulacionReplayEnIndice(cutIdx);
+            }
+        }
+    } catch (err) {}
+}
+
+function iniciarSimulacionReplayEnIndice(cutIdx) {
+    isReplayWaitingForClick = false;
+    isReplayMode = true;
+
+    const banner = document.getElementById('replay-selection-banner');
+    if (banner) banner.style.display = 'none';
+
+    if (drawingEngine && drawingEngine.canvas) {
+        drawingEngine.canvas.style.pointerEvents = 'auto';
+    }
+
+    historialVelasCompleto = [...historialVelas];
+    replayCutIndex = Math.min(cutIdx, historialVelasCompleto.length - 1);
+    replayCurrentIndex = replayCutIndex;
+
+    if (livePollingTimer) {
+        clearInterval(livePollingTimer);
+        livePollingTimer = null;
+    }
+
+    historialVelas = historialVelasCompleto.slice(0, replayCutIndex + 1);
+
+    if (activePriceSeries) {
+        activePriceSeries.setData(historialVelas);
+    }
+    if (volumeSeries) {
+        const volData = historialVelas.map(c => ({
+            time: c.time,
+            value: c.volume,
+            color: c.close >= c.open ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)'
+        }));
+        volumeSeries.setData(volData);
+    }
+
+    if (drawingEngine) {
+        drawingEngine.setCandles(historialVelas);
+        drawingEngine.redraw();
+    }
+
+    recalcularYRenderizarIndicadores();
+    mostrarLeyendaOHLCV(historialVelas[historialVelas.length - 1]);
+
+    const replayBar = document.getElementById('replay-control-bar');
+    if (replayBar) replayBar.style.display = 'flex';
+
+    const btnPlay = document.getElementById('replay-btn-play');
+    if (btnPlay) btnPlay.textContent = '▶';
+
+    actualizarReplayStatusInfo();
+}
+
+function alternarPlayPauseReplay() {
+    if (replayTimer) {
+        pausarReplay();
+    } else {
+        reproducirReplay();
+    }
+}
+
+function reproducirReplay() {
+    if (!isReplayMode || !historialVelasCompleto || historialVelasCompleto.length === 0) return;
+    if (replayCurrentIndex >= historialVelasCompleto.length - 1) {
+        reiniciarReplayAlCorte();
+    }
+    if (replayTimer) clearInterval(replayTimer);
+    const speedSelect = document.getElementById('replay-speed-select');
+    replaySpeedMs = speedSelect ? parseInt(speedSelect.value) || 1000 : 1000;
+    replayTimer = setInterval(avanzarVelaReplay, replaySpeedMs);
+    const btnPlay = document.getElementById('replay-btn-play');
+    if (btnPlay) btnPlay.textContent = '⏸';
+}
+
+function pausarReplay() {
+    if (replayTimer) {
+        clearInterval(replayTimer);
+        replayTimer = null;
+    }
+    const btnPlay = document.getElementById('replay-btn-play');
+    if (btnPlay) btnPlay.textContent = '▶';
+}
+
+function avanzarVelaReplay() {
+    if (!isReplayMode || !historialVelasCompleto || historialVelasCompleto.length === 0) return;
+    if (replayCurrentIndex >= historialVelasCompleto.length - 1) {
+        pausarReplay();
+        const info = document.getElementById('replay-status-info');
+        if (info) info.textContent = `Fin: ${historialVelasCompleto.length}/${historialVelasCompleto.length}`;
+        return;
+    }
+
+    replayCurrentIndex++;
+    const nextCandle = historialVelasCompleto[replayCurrentIndex];
+    historialVelas.push(nextCandle);
+
+    if (activePriceSeries) {
+        activePriceSeries.update(nextCandle);
+    }
+    if (volumeSeries) {
+        volumeSeries.update({
+            time: nextCandle.time,
+            value: nextCandle.volume,
+            color: nextCandle.close >= nextCandle.open ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)'
+        });
+    }
+
+    if (drawingEngine) {
+        drawingEngine.setCandles(historialVelas);
+        drawingEngine.redraw();
+    }
+
+    recalcularYRenderizarIndicadores();
+    mostrarLeyendaOHLCV(nextCandle);
+    actualizarReplayStatusInfo();
+}
+
+function reiniciarReplayAlCorte() {
+    pausarReplay();
+    if (!historialVelasCompleto || historialVelasCompleto.length === 0) return;
+    replayCurrentIndex = replayCutIndex;
+    historialVelas = historialVelasCompleto.slice(0, replayCutIndex + 1);
+
+    if (activePriceSeries) activePriceSeries.setData(historialVelas);
+    if (volumeSeries) {
+        const volData = historialVelas.map(c => ({
+            time: c.time,
+            value: c.volume,
+            color: c.close >= c.open ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)'
+        }));
+        volumeSeries.setData(volData);
+    }
+    if (drawingEngine) {
+        drawingEngine.setCandles(historialVelas);
+        drawingEngine.redraw();
+    }
+    recalcularYRenderizarIndicadores();
+    mostrarLeyendaOHLCV(historialVelas[historialVelas.length - 1]);
+    actualizarReplayStatusInfo();
+}
+
+function salirModoReplay() {
+    pausarReplay();
+    isReplayMode = false;
+    isReplayWaitingForClick = false;
+
+    const replayBar = document.getElementById('replay-control-bar');
+    if (replayBar) replayBar.style.display = 'none';
+
+    const banner = document.getElementById('replay-selection-banner');
+    if (banner) banner.style.display = 'none';
+
+    const btnReplay = document.getElementById('btn-bar-replay');
+    if (btnReplay) btnReplay.classList.remove('active');
+
+    if (drawingEngine && drawingEngine.canvas) {
+        drawingEngine.canvas.style.pointerEvents = 'auto';
+    }
+
+    if (historialVelasCompleto && historialVelasCompleto.length > 0) {
+        historialVelas = [...historialVelasCompleto];
+        if (activePriceSeries) activePriceSeries.setData(historialVelas);
+        if (volumeSeries) {
+            const volData = historialVelas.map(c => ({
+                time: c.time,
+                value: c.volume,
+                color: c.close >= c.open ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)'
+            }));
+            volumeSeries.setData(volData);
+        }
+        if (drawingEngine) {
+            drawingEngine.setCandles(historialVelas);
+            drawingEngine.redraw();
+        }
+        recalcularYRenderizarIndicadores();
+        mostrarLeyendaOHLCV(historialVelas[historialVelas.length - 1]);
+    }
+
+    iniciarMotorEnVivoYahoo();
+}
+
+function actualizarReplayStatusInfo() {
+    const info = document.getElementById('replay-status-info');
+    if (info && historialVelasCompleto && historialVelasCompleto.length > 0) {
+        info.textContent = `Vela ${replayCurrentIndex + 1}/${historialVelasCompleto.length}`;
+    }
+}
+
+// =========================================================================
+// FEATURE 3: MOTOR MULTI-GRÁFICO (MULTI-CHART SPLIT SCREEN)
+// =========================================================================
+
+const SIMBOLOS_MULTICHART = [
+    { s: 'BTC-USD', n: 'Bitcoin (USD)' },
+    { s: 'ETH-USD', n: 'Ethereum (USD)' },
+    { s: 'SOL-USD', n: 'Solana (USD)' },
+    { s: 'XAUUSD', n: 'Oro Spot (Gold)' },
+    { s: 'NASDAQ', n: 'Nasdaq 100' },
+    { s: 'SP500', n: 'S&P 500' },
+    { s: 'NVDA', n: 'NVIDIA Corp' },
+    { s: 'AAPL', n: 'Apple Inc' },
+    { s: 'TSLA', n: 'Tesla Inc' },
+    { s: 'MSFT', n: 'Microsoft Corp' },
+    { s: 'AMZN', n: 'Amazon.com' },
+    { s: 'EURUSD=X', n: 'EUR/USD Forex' }
+];
+
+let currentChartLayout = '1';
+let activePanelIndex = 0;
+
+const panelesSecundarios = {
+    1: {
+        symbol: 'ETH-USD',
+        interval: '1h',
+        chart: null,
+        series: null,
+        volumeSeries: null,
+        containerId: 'p1-chart-body',
+        selectId: 'p1-sym-select',
+        legendId: 'p1-legend',
+        data: []
+    },
+    2: {
+        symbol: 'SOL-USD',
+        interval: '4h',
+        chart: null,
+        series: null,
+        volumeSeries: null,
+        containerId: 'p2-chart-body',
+        selectId: 'p2-sym-select',
+        legendId: 'p2-legend',
+        data: []
+    },
+    3: {
+        symbol: 'NVDA',
+        interval: '1d',
+        chart: null,
+        series: null,
+        volumeSeries: null,
+        containerId: 'p3-chart-body',
+        selectId: 'p3-sym-select',
+        legendId: 'p3-legend',
+        data: []
+    }
+};
+
+function setActivePanel(panelId) {
+    activePanelIndex = panelId;
+    [0, 1, 2, 3].forEach(id => {
+        const panel = document.getElementById(`panel-chart-${id}`);
+        if (panel) {
+            panel.classList.toggle('active', id === panelId);
+        }
+    });
+}
+
+async function setChartLayout(layout) {
+    currentChartLayout = layout;
+    const grid = document.getElementById('multi-chart-grid');
+    if (!grid) return;
+
+    grid.className = `layout-${layout}`;
+
+    document.querySelectorAll('.layout-menu-item').forEach(item => {
+        item.classList.toggle('active', item.getAttribute('data-layout') === layout);
+    });
+
+    const p1 = document.getElementById('panel-chart-1');
+    const p2 = document.getElementById('panel-chart-2');
+    const p3 = document.getElementById('panel-chart-3');
+
+    if (layout === '1') {
+        if (p1) p1.style.display = 'none';
+        if (p2) p2.style.display = 'none';
+        if (p3) p3.style.display = 'none';
+        setActivePanel(0);
+    } else if (layout === '2v' || layout === '2h') {
+        if (p1) p1.style.display = 'flex';
+        if (p2) p2.style.display = 'none';
+        if (p3) p3.style.display = 'none';
+        await inicializarPanelSecundarioSiNecesario(1);
+    } else if (layout === '4') {
+        if (p1) p1.style.display = 'flex';
+        if (p2) p2.style.display = 'flex';
+        if (p3) p3.style.display = 'flex';
+        await inicializarPanelSecundarioSiNecesario(1);
+        await inicializarPanelSecundarioSiNecesario(2);
+        await inicializarPanelSecundarioSiNecesario(3);
+    }
+
+    const menu = document.getElementById('layout-dropdown-menu');
+    if (menu) menu.style.display = 'none';
+
+    setTimeout(() => {
+        resizeGraficos();
+    }, 60);
+}
+
+async function inicializarPanelSecundarioSiNecesario(panelId) {
+    const config = panelesSecundarios[panelId];
+    if (!config) return;
+
+    const container = document.getElementById(config.containerId);
+    if (!container) return;
+
+    const select = document.getElementById(config.selectId);
+    if (select && select.options.length === 0) {
+        SIMBOLOS_MULTICHART.forEach(symObj => {
+            const opt = document.createElement('option');
+            opt.value = symObj.s;
+            opt.textContent = `${symObj.s} (${symObj.n})`;
+            if (symObj.s === config.symbol) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        select.addEventListener('change', async (e) => {
+            config.symbol = e.target.value;
+            await cargarDatosPanelSecundario(panelId);
+        });
+    }
+
+    if (!config.chart) {
+        const w = container.clientWidth > 0 ? container.clientWidth : 400;
+        const h = container.clientHeight > 0 ? container.clientHeight : 300;
+
+        config.chart = LightweightCharts.createChart(container, {
+            width: w,
+            height: h,
+            layout: {
+                background: { type: 'solid', color: '#131722' },
+                textColor: '#d1d4dc',
+                fontSize: 10,
+                fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+            },
+            grid: { vertLines: { color: '#1a1e29' }, horzLines: { color: '#1a1e29' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.2 } },
+            timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 12 },
+        });
+
+        config.series = config.chart.addCandlestickSeries({
+            upColor: '#089981', downColor: '#f23645',
+            borderUpColor: '#089981', borderDownColor: '#f23645',
+            wickUpColor: '#089981', wickDownColor: '#f23645',
+        });
+
+        config.volumeSeries = config.chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+        });
+        config.volumeSeries.priceScale().applyOptions({
+            scaleMargins: { top: 0.88, bottom: 0 },
+        });
+
+        config.chart.subscribeCrosshairMove(param => {
+            actualizarLeyendaPanelSecundario(panelId, param);
+        });
+
+        new ResizeObserver(() => {
+            if (config.chart && container && container.clientWidth > 0 && container.clientHeight > 0) {
+                config.chart.applyOptions({
+                    width: container.clientWidth,
+                    height: container.clientHeight
+                });
+            }
+        }).observe(container);
+
+        await cargarDatosPanelSecundario(panelId);
+    } else {
+        const w = container.clientWidth > 0 ? container.clientWidth : 400;
+        const h = container.clientHeight > 0 ? container.clientHeight : 300;
+        config.chart.applyOptions({ width: w, height: h });
+        if (config.data.length === 0) {
+            await cargarDatosPanelSecundario(panelId);
+        }
+    }
+}
+
+async function cargarDatosPanelSecundario(panelId) {
+    const config = panelesSecundarios[panelId];
+    if (!config || !config.series) return;
+
+    try {
+        const invoke = (window.__TAURI__ && window.__TAURI__.core) 
+            ? window.__TAURI__.core.invoke 
+            : (window.__TAURI__ ? window.__TAURI__.invoke : null);
+
+        let candles = [];
+        if (invoke) {
+            candles = await invoke('cargar_historial', {
+                simbolo: config.symbol,
+                intervalo: config.interval
+            });
+        }
+        if (!candles || candles.length === 0) {
+            candles = generarVelasSinteticasGenericas(config.symbol, 200);
+        }
+
+        const rawList = candles.map(c => {
+            let t = c.time;
+            if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+            return {
+                time: t,
+                open: parseFloat(c.open),
+                high: parseFloat(c.high),
+                low: parseFloat(c.low),
+                close: parseFloat(c.close),
+                volume: parseFloat(c.volume) || 0
+            };
+        }).sort((a, b) => a.time - b.time);
+
+        config.data = rawList;
+        config.series.setData(rawList);
+
+        if (config.volumeSeries) {
+            const volData = rawList.map(c => ({
+                time: c.time,
+                value: c.volume,
+                color: c.close >= c.open ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)'
+            }));
+            config.volumeSeries.setData(volData);
+        }
+
+        if (config.chart && config.chart.timeScale()) {
+            config.chart.timeScale().fitContent();
+        }
+
+        if (rawList.length > 0) {
+            actualizarLeyendaPanelSecundario(panelId, { seriesData: new Map([[config.series, rawList[rawList.length - 1]]]) });
+        }
+    } catch (e) {
+        console.warn(`Error al cargar datos del panel ${panelId}:`, e);
+    }
+}
+
+function actualizarLeyendaPanelSecundario(panelId, param) {
+    const config = panelesSecundarios[panelId];
+    if (!config) return;
+    const legendEl = document.getElementById(config.legendId);
+    if (!legendEl) return;
+
+    let d = null;
+    if (param && param.seriesData && param.seriesData.get) {
+        d = param.seriesData.get(config.series);
+    }
+    if (!d && config.data && config.data.length > 0) {
+        d = config.data[config.data.length - 1];
+    }
+    if (!d) {
+        legendEl.textContent = `${config.symbol} ${config.interval}`;
+        return;
+    }
+
+    const open = d.open !== undefined ? d.open : d.value;
+    const high = d.high !== undefined ? d.high : d.value;
+    const low = d.low !== undefined ? d.low : d.value;
+    const close = d.close !== undefined ? d.close : d.value;
+    const diff = close - open;
+    const isUp = diff >= 0;
+    const color = isUp ? '#089981' : '#f23645';
+
+    legendEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${config.symbol}</span> <span style="color:#787b86;">${config.interval}</span> O:<span style="color:${color};">${formatPrice(open)}</span> H:<span style="color:${color};">${formatPrice(high)}</span> L:<span style="color:${color};">${formatPrice(low)}</span> C:<span style="color:${color};">${formatPrice(close)}</span>`;
+}
+
+function redimensionarPanelesSecundarios() {
+    [1, 2, 3].forEach(id => {
+        const config = panelesSecundarios[id];
+        if (config && config.chart) {
+            const container = document.getElementById(config.containerId);
+            if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+                config.chart.applyOptions({
+                    width: container.clientWidth,
+                    height: container.clientHeight
+                });
+            }
+        }
+    });
+}
+
+function generarVelasSinteticasGenericas(sym = 'BTC-USD', count = 200) {
+    let basePrice = 100;
+    const s = (sym || '').toUpperCase();
+    if (s.includes('BTC')) basePrice = 83000;
+    else if (s.includes('ETH')) basePrice = 3500;
+    else if (s.includes('SOL')) basePrice = 180;
+    else if (s.includes('XAU') || s.includes('GOLD')) basePrice = 2650;
+    else if (s.includes('NVDA')) basePrice = 135;
+    else if (s.includes('AAPL')) basePrice = 230;
+    else if (s.includes('TSLA')) basePrice = 220;
+    else if (s.includes('SP500') || s.includes('SPY')) basePrice = 5800;
+    else if (s.includes('NASDAQ') || s.includes('QQQ')) basePrice = 20500;
+    else if (s.includes('EUR')) basePrice = 1.085;
+
+    let now = Math.floor(Date.now() / 1000) - count * 60;
+    const candles = [];
+    for (let i = 0; i < count; i++) {
+        const change = (Math.random() - 0.49) * (basePrice * 0.007);
+        const open = basePrice;
+        const close = Math.max(0.001, open + change);
+        const high = Math.max(open, close) + Math.random() * (basePrice * 0.003);
+        const low = Math.max(0.001, Math.min(open, close) - Math.random() * (basePrice * 0.003));
+        const volume = Math.floor(Math.random() * 50) + 10;
+        candles.push({ time: now + i * 60, open, high, low, close, volume });
+        basePrice = close;
+    }
+    return candles;
+}
+
+function inicializarEventosReplayYMultiChart() {
+    const btnReplay = document.getElementById('btn-bar-replay');
+    if (btnReplay) {
+        btnReplay.addEventListener('click', () => {
+            activarModoSeleccionReplay();
+        });
+    }
+
+    const btnCancelCut = document.getElementById('replay-btn-cancel-cut');
+    if (btnCancelCut) {
+        btnCancelCut.addEventListener('click', () => {
+            cancelarSeleccionReplay();
+        });
+    }
+
+    const btnPlay = document.getElementById('replay-btn-play');
+    if (btnPlay) {
+        btnPlay.addEventListener('click', () => {
+            alternarPlayPauseReplay();
+        });
+    }
+
+    const btnStep = document.getElementById('replay-btn-step');
+    if (btnStep) {
+        btnStep.addEventListener('click', () => {
+            pausarReplay();
+            avanzarVelaReplay();
+        });
+    }
+
+    const btnJump = document.getElementById('replay-btn-jump-cut');
+    if (btnJump) {
+        btnJump.addEventListener('click', () => {
+            reiniciarReplayAlCorte();
+        });
+    }
+
+    const speedSelect = document.getElementById('replay-speed-select');
+    if (speedSelect) {
+        speedSelect.addEventListener('change', () => {
+            replaySpeedMs = parseInt(speedSelect.value) || 1000;
+            if (replayTimer) {
+                reproducirReplay();
+            }
+        });
+    }
+
+    const btnExit = document.getElementById('replay-btn-exit');
+    if (btnExit) {
+        btnExit.addEventListener('click', () => {
+            salirModoReplay();
+        });
+    }
+
+    const dragHandle = document.querySelector('.replay-drag-handle');
+    const replayBar = document.getElementById('replay-control-bar');
+    if (dragHandle && replayBar) {
+        let isDragging = false;
+        let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+
+        dragHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = replayBar.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+            replayBar.style.transform = 'none';
+            replayBar.style.left = `${initialLeft}px`;
+            replayBar.style.top = `${initialTop}px`;
+            replayBar.style.bottom = 'auto';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            replayBar.style.left = `${Math.max(10, Math.min(window.innerWidth - 300, initialLeft + dx))}px`;
+            replayBar.style.top = `${Math.max(40, Math.min(window.innerHeight - 60, initialTop + dy))}px`;
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        dragHandle.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches[0]) {
+                isDragging = true;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                const rect = replayBar.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+                replayBar.style.transform = 'none';
+                replayBar.style.left = `${initialLeft}px`;
+                replayBar.style.top = `${initialTop}px`;
+                replayBar.style.bottom = 'auto';
+            }
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging || !e.touches || !e.touches[0]) return;
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            replayBar.style.left = `${Math.max(10, Math.min(window.innerWidth - 260, initialLeft + dx))}px`;
+            replayBar.style.top = `${Math.max(40, Math.min(window.innerHeight - 60, initialTop + dy))}px`;
+        });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+    }
+
+    const btnLayout = document.getElementById('btn-chart-layout');
+    const layoutMenu = document.getElementById('layout-dropdown-menu');
+    if (btnLayout && layoutMenu) {
+        btnLayout.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isShown = layoutMenu.style.display === 'block';
+            layoutMenu.style.display = isShown ? 'none' : 'block';
+        });
+    }
+
+    document.querySelectorAll('.layout-menu-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const layout = item.getAttribute('data-layout');
+            if (layout) {
+                setChartLayout(layout);
+            }
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (layoutMenu && !layoutMenu.contains(e.target) && e.target !== btnLayout) {
+            layoutMenu.style.display = 'none';
+        }
+    });
+
+    [0, 1, 2, 3].forEach(id => {
+        const panel = document.getElementById(`panel-chart-${id}`);
+        if (panel) {
+            panel.addEventListener('click', () => {
+                setActivePanel(id);
+            });
+        }
+    });
+
+    document.querySelectorAll('.panel-tf-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const panelId = parseInt(btn.getAttribute('data-panel'));
+            const tf = btn.getAttribute('data-tf');
+            if (!panelId || !tf) return;
+
+            const parent = btn.parentElement;
+            if (parent) {
+                parent.querySelectorAll('.panel-tf-btn').forEach(b => b.classList.remove('active'));
+            }
+            btn.classList.add('active');
+
+            if (panelesSecundarios[panelId]) {
+                panelesSecundarios[panelId].interval = tf;
+                await cargarDatosPanelSecundario(panelId);
+            }
+        });
+    });
+
+    const sheetBtnReplay = document.getElementById('sheet-btn-replay');
+    if (sheetBtnReplay) {
+        sheetBtnReplay.addEventListener('click', () => {
+            if (typeof cerrarPanelesMoviles === 'function') cerrarPanelesMoviles();
+            activarModoSeleccionReplay();
+        });
+    }
+
+    const sheetBtnLayout = document.getElementById('sheet-btn-layout');
+    if (sheetBtnLayout) {
+        sheetBtnLayout.addEventListener('click', () => {
+            if (typeof cerrarPanelesMoviles === 'function') cerrarPanelesMoviles();
+            const layouts = ['1', '2v', '2h', '4'];
+            const curIdx = layouts.indexOf(currentChartLayout);
+            const nextL = layouts[(curIdx + 1) % layouts.length];
+            setChartLayout(nextL);
+        });
+    }
+}
+
+// Exportaciones globales para depuración y tests automatizados
+if (typeof window !== 'undefined') {
+    window.isReplayMode = isReplayMode;
+    window.activarModoSeleccionReplay = activarModoSeleccionReplay;
+    window.cancelarSeleccionReplay = cancelarSeleccionReplay;
+    window.avanzarVelaReplay = avanzarVelaReplay;
+    window.salirModoReplay = salirModoReplay;
+    window.reiniciarReplayAlCorte = reiniciarReplayAlCorte;
+    window.setChartLayout = setChartLayout;
+    window.panelesSecundarios = panelesSecundarios;
+    window.inicializarEventosReplayYMultiChart = inicializarEventosReplayYMultiChart;
 }
 
