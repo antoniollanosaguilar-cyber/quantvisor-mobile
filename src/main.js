@@ -1410,6 +1410,8 @@ function cambiarEstiloGrafico(nuevoEstilo) {
         drawingEngine.mainSeries = activePriceSeries;
         drawingEngine.redraw();
     }
+}
+
 // Alternar Modo de la Aplicación: Gráfico Principal de Trading vs Backtesting Cuantitativo Dedicado
 window.cambiarModoApp = function(modo) {
     const mainWorkspace = document.getElementById('main-workspace');
