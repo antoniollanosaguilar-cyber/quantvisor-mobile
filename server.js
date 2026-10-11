@@ -641,14 +641,16 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: /api/status
-    if (pathname === '/api/status') {
+    // API: /api/status, /api/ping, /health (Keep-Alive institucional)
+    if (pathname === '/api/status' || pathname === '/api/ping' || pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
             server: 'QuantVisor Cloud Engine',
-            version: '1.0.0',
+            version: '2.0.0',
             uptime: Math.floor(process.uptime()),
+            daemonStatus: mt5Daemon?.account?.status || 'UNKNOWN',
+            openPositions: mt5Daemon?.openPositions?.length || 0,
             platform: process.platform
         }));
         return;
@@ -681,4 +683,21 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`🌐 QuantVisor Cloud Engine corriendo exitosamente en el puerto ${PORT}`);
+
+    // Auto Keep-Alive nativo para Render Free (evita que el servidor entre en reposo)
+    const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL;
+    if (keepAliveUrl) {
+        console.log(`[KeepAlive] Activando auto-ping automático cada 10 min para: ${keepAliveUrl}`);
+        setInterval(async () => {
+            try {
+                const pingRes = await fetch(`${keepAliveUrl}/health`);
+                if (pingRes.ok) {
+                    console.log(`[KeepAlive] Auto-ping exitoso a ${keepAliveUrl}/health`);
+                }
+            } catch (e) {
+                console.error('[KeepAlive] Auto-ping error:', e.message);
+            }
+        }, 10 * 60 * 1000);
+    }
 });
+
