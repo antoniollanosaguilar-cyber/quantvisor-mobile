@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { ServerMT5Daemon } from './server_mt5_engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,9 @@ const DRAWINGS_DIR = path.join(BASE_CACHE, 'drawings');
 
 try { fs.mkdirSync(CACHE_DIR, { recursive: true }); } catch (e) {}
 try { fs.mkdirSync(DRAWINGS_DIR, { recursive: true }); } catch (e) {}
+
+// Inicializar y arrancar el motor MT5 24/7 en segundo plano
+let mt5Daemon = null;
 
 function sanitizarNombre(str) {
     return (str || '').replace(/[^a-zA-Z0-9_\-]/g, '_').toUpperCase();
@@ -224,6 +228,17 @@ async function fetchYahooCandles(simbolo, intervalo) {
     return cached.length > 0 ? cached : [];
 }
 
+// Inicializar y arrancar el motor MT5 24/7 en segundo plano
+try {
+    mt5Daemon = new ServerMT5Daemon({
+        cacheDir: CACHE_DIR,
+        fetchCandlesFn: fetchYahooCandles
+    });
+    mt5Daemon.start();
+} catch (e) {
+    console.error('Error al arrancar mt5Daemon:', e);
+}
+
 // 5. Tipos MIME
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -251,6 +266,105 @@ const server = http.createServer(async (req, res) => {
 
     const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = parsedUrl.pathname;
+
+    // API: /api/mt5/daemon_state
+    if (pathname === '/api/mt5/daemon_state') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(mt5Daemon ? mt5Daemon.getState() : { error: 'Daemon not running' }));
+        return;
+    }
+
+    // API: /api/mt5/daemon_control
+    if (pathname === '/api/mt5/daemon_control' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (mt5Daemon) {
+                    if (data.action === 'START') mt5Daemon.start();
+                    else if (data.action === 'PAUSE') mt5Daemon.pause();
+                    else if (data.action === 'RESET') mt5Daemon.resetChallenge(data.tier || 100000);
+                    else if (data.action === 'PANIC') mt5Daemon.cerrarTodasLasPosiciones('Pánico Cloud 24/7');
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, state: mt5Daemon ? mt5Daemon.getState() : null }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: /api/mt5/daemon_configure
+    if (pathname === '/api/mt5/daemon_configure' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (mt5Daemon) {
+                    if (data.bot) mt5Daemon.setBot(data.bot);
+                    if (Array.isArray(data.symbols)) mt5Daemon.setSymbols(data.symbols);
+                    if (data.riskMode) mt5Daemon.challengeConfig.riskMode = data.riskMode;
+                    if (data.riskValue !== undefined) mt5Daemon.challengeConfig.riskValue = parseFloat(data.riskValue);
+                    if (data.tier) mt5Daemon.challengeConfig.tier = parseFloat(data.tier);
+                    mt5Daemon.guardarEstadoPersistente();
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, state: mt5Daemon ? mt5Daemon.getState() : null }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: /api/mt5/manual_order
+    if (pathname === '/api/mt5/manual_order' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (!mt5Daemon) throw new Error('Daemon no disponible');
+                const sym = data.symbol || 'BTC-USD';
+                const type = data.type || 'BUY';
+                const lots = parseFloat(data.lots) || 0.10;
+                const price = parseFloat(data.price) || 0;
+                const sl = parseFloat(data.sl) || 0;
+                const tp = parseFloat(data.tp) || 0;
+                const ticket = mt5Daemon.orderSend(sym, type, lots, price, sl, tp, 'Manual Cloud');
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, ticket }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: /api/mt5/close_order
+    if (pathname === '/api/mt5/close_order' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                if (!mt5Daemon) throw new Error('Daemon no disponible');
+                const ok = mt5Daemon.cerrarPosicion(parseInt(data.ticket, 10), null, 'Cierre Manual Cloud');
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: ok }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
 
     // API: /api/history
     if (pathname === '/api/history') {

@@ -56,10 +56,37 @@ class MT5VirtualEmulator {
         this.candleSeries = null;
         this.priceLines = [];          // Lightweight Charts price lines for open positions
         this.currentCandles = [];
-        this.activeTab = 'tab-mt5-positions';
+        this.activeTab = 'mt5-tab-positions';
+
+        // 24/7 Daemon Sync & Multi-Asset Portfolio State
+        this.modo247 = false;
+        this.serverPollTimer = null;
+        this.wakeLock = null;
+        this.worker = null;
+        this.multiAsset = false;
+        this.basketSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'];
+        this.assetMatrix = {};
+        this.multiAssetCandles = {};
 
         // Preloaded MT5 Expert Advisors (Bots)
         this.botsCatalog = {
+            multiasset_champion: {
+                id: 'multiasset_champion',
+                name: 'Mega Alpha Multi-Activo Champion (Crypto + Oro + Forex 24/7)',
+                multiAsset: true,
+                symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'],
+                timeframe: '1h',
+                magic: 8801,
+                description: 'Estrategia cuantitativa institucional que monitorea y opera simultáneamente sobre 5 activos clave 24/7.',
+                params: {
+                    donchianPeriod: 24,
+                    atrPeriod: 14,
+                    slAtrMult: 1.5,
+                    tpAtrMult: 3.0,
+                    useTrailing: true,
+                    trailingAtrMult: 1.2
+                }
+            },
             gold_rush: {
                 id: 'gold_rush',
                 name: 'Hobbiecode Gold Rush Breakout (XAUUSD)',
@@ -230,12 +257,22 @@ class MT5VirtualEmulator {
 
             // Splitter
             splitter: document.getElementById('mt5-splitter'),
-            panel: document.getElementById('mt5-terminal-panel')
+            panel: document.getElementById('mt5-terminal-panel'),
+
+            // 24/7 y Multi-Activo
+            btnToggle247: document.getElementById('btn-mt5-toggle-247'),
+            btnWakeLock: document.getElementById('btn-mt5-wakelock'),
+            badgeMultiAsset: document.getElementById('mt5-multiasset-badge'),
+            tableMatrixBody: document.getElementById('mt5-matrix-body'),
+            matrixCount: document.getElementById('mt5-matrix-count'),
+            btnRefreshMatrix: document.getElementById('btn-mt5-refresh-matrix'),
+            btnLoadMultiAssetTemplate: document.getElementById('btn-mt5-load-multiasset-template')
         };
 
         this.cargarBotsCustom();
         this.cargarEstadoPersistente();
         this.initEventos();
+        this.initWebWorker();
         this.poblarSelectores();
         this.actualizarUI();
         this.renderizarFormularioParametros();
@@ -484,6 +521,46 @@ class MT5VirtualEmulator {
                 this.importarBotDesdeEditor();
             });
         }
+        if (this.dom.btnLoadMultiAssetTemplate && this.dom.editorImportBot) {
+            this.dom.btnLoadMultiAssetTemplate.addEventListener('click', () => {
+                this.dom.editorImportBot.value = JSON.stringify({
+                    id: 'mi_bot_multiactivo_247',
+                    name: 'Mi Bot Multi-Activo Institucional 24/7',
+                    multiAsset: true,
+                    symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'],
+                    timeframe: '1h',
+                    magic: 9922,
+                    description: 'Bot multi-activo diseñado para operar 24/7 en simultáneo en 5 activos.',
+                    strategyType: 'donchian_breakout',
+                    params: {
+                        donchianPeriod: 20,
+                        atrPeriod: 14,
+                        slAtrMult: 1.5,
+                        tpAtrMult: 3.0,
+                        useTrailing: true,
+                        trailingAtrMult: 1.2
+                    }
+                }, null, 2);
+            });
+        }
+
+        // Modo 24/7 Cloud y Wake Lock
+        if (this.dom.btnToggle247) {
+            this.dom.btnToggle247.addEventListener('click', () => {
+                this.toggleModo247();
+            });
+        }
+        if (this.dom.btnWakeLock) {
+            this.dom.btnWakeLock.addEventListener('click', () => {
+                this.toggleWakeLock();
+            });
+        }
+        if (this.dom.btnRefreshMatrix) {
+            this.dom.btnRefreshMatrix.addEventListener('click', () => {
+                this.evaluarLogicaMultiActivo();
+                this.renderizarMatrizMultiActivo();
+            });
+        }
 
         if (this.dom.btnToggleRun) {
             this.dom.btnToggleRun.addEventListener('click', () => {
@@ -588,15 +665,27 @@ class MT5VirtualEmulator {
         const bot = this.botsCatalog[botId];
         if (!bot) return;
         this.selectedBotId = botId;
-        this.symbol = bot.symbol;
-        this.timeframe = bot.timeframe;
-        this.magicNumber = bot.magic;
+        this.symbol = bot.symbol || (Array.isArray(bot.symbols) ? bot.symbols[0] : 'BTC-USD');
+        this.timeframe = bot.timeframe || '1h';
+        this.magicNumber = bot.magic || 8801;
+
+        this.multiAsset = !!(bot.multiAsset || (Array.isArray(bot.symbols) && bot.symbols.length > 1));
+        if (this.multiAsset && Array.isArray(bot.symbols)) {
+            this.basketSymbols = bot.symbols;
+            if (this.dom.badgeMultiAsset) {
+                this.dom.badgeMultiAsset.style.display = 'block';
+                this.dom.badgeMultiAsset.innerText = `🌐 Cesta: [${bot.symbols.join(', ')}]`;
+            }
+        } else {
+            if (this.dom.badgeMultiAsset) this.dom.badgeMultiAsset.style.display = 'none';
+        }
 
         if (this.dom.symbolSelect) this.dom.symbolSelect.value = this.symbol;
         if (this.dom.tfSelect) this.dom.tfSelect.value = this.timeframe;
         this.renderizarFormularioParametros();
         this.currentCandles = [];
         this.cargarVelasYActualizar();
+        if (this.multiAsset) this.renderizarMatrizMultiActivo();
         this.logJournal(`[BotSelected] Cargado bot: '${bot.name}' en ${this.symbol} (${this.timeframe}).`);
     }
 
@@ -656,6 +745,8 @@ class MT5VirtualEmulator {
             this.renderizarCurvaEquidad();
         } else if (tabId === 'mt5-tab-stats') {
             this.renderizarEstadisticas();
+        } else if (tabId === 'mt5-tab-matrix') {
+            this.renderizarMatrizMultiActivo();
         }
     }
 
@@ -782,27 +873,234 @@ class MT5VirtualEmulator {
     }
 
     // =========================================================================
+    // SERVICIOS EN SEGUNDO PLANO 24/7 (WEB WORKER & WAKE LOCK & SYNC)
+    // =========================================================================
+    initWebWorker() {
+        if (typeof Worker === 'undefined' || typeof window === 'undefined') {
+            return;
+        }
+        try {
+            this.worker = new Worker('src/mt5_worker.js');
+            this.worker.onmessage = (e) => {
+                const data = e.data || {};
+                if (data.type === 'TICK_HEARTBEAT') {
+                    this.onWorkerHeartbeat(data.time);
+                }
+            };
+            this.logJournal(`[WebWorker] Anti-throttling Web Worker inicializado con éxito.`);
+        } catch (e) {
+            console.warn('No se pudo inicializar Web Worker:', e);
+        }
+    }
+
+    onWorkerHeartbeat(time) {
+        if (this.modo247) {
+            this.sincronizarConServidor();
+            return;
+        }
+
+        if (!this.isRunning || this.account.status !== 'ACTIVE') return;
+
+        if (this.multiAsset) {
+            this.evaluarLogicaMultiActivo();
+        } else {
+            if (this.currentCandles && this.currentCandles.length > 0) {
+                const last = this.currentCandles[this.currentCandles.length - 1];
+                const delta = (Math.random() - 0.49) * (last.close * 0.0005);
+                const newPrice = last.close + delta;
+                const spec = this.symbolSpecs[this.symbol] || { digits: 2 };
+                const updatedCandle = {
+                    ...last,
+                    high: Math.max(last.high, newPrice),
+                    low: Math.min(last.low, newPrice),
+                    close: parseFloat(newPrice.toFixed(spec.digits))
+                };
+                this.onTick(updatedCandle);
+            }
+        }
+    }
+
+    async toggleWakeLock() {
+        if (typeof navigator === 'undefined' || !navigator.wakeLock) {
+            if (typeof alert !== 'undefined') alert('Screen Wake Lock API no está soportada en este entorno o navegador.');
+            return;
+        }
+
+        try {
+            if (this.wakeLock) {
+                await this.wakeLock.release();
+                this.wakeLock = null;
+                this.actualizarBotonWakeLock();
+                this.logJournal(`[WakeLock] Pantalla activa liberada.`);
+            } else {
+                this.wakeLock = await navigator.wakeLock.request('screen');
+                this.wakeLock.addEventListener('release', () => {
+                    this.wakeLock = null;
+                    this.actualizarBotonWakeLock();
+                });
+                this.actualizarBotonWakeLock();
+                this.logJournal(`[WakeLock] Pantalla activa (Wake Lock) concedida. Previene la suspensión del sistema.`);
+            }
+        } catch (err) {
+            console.warn('Wake Lock error:', err);
+            this.logJournal(`[WakeLock] Error o permiso denegado: ${err.message}`);
+        }
+    }
+
+    actualizarBotonWakeLock() {
+        if (!this.dom.btnWakeLock) return;
+        if (this.wakeLock) {
+            this.dom.btnWakeLock.innerText = '🛡️ Pantalla Activa: ON';
+            this.dom.btnWakeLock.style.background = 'rgba(8, 153, 129, 0.2)';
+            this.dom.btnWakeLock.style.borderColor = '#089981';
+            this.dom.btnWakeLock.style.color = '#089981';
+        } else {
+            this.dom.btnWakeLock.innerText = '🛡️ Pantalla Activa: OFF';
+            this.dom.btnWakeLock.style.background = '#1e222d';
+            this.dom.btnWakeLock.style.borderColor = '#2a2e39';
+            this.dom.btnWakeLock.style.color = '#787b86';
+        }
+    }
+
+    toggleModo247() {
+        this.modo247 = !this.modo247;
+        if (this.modo247) {
+            if (this.dom.btnToggle247) {
+                this.dom.btnToggle247.innerText = '☁️ 24/7 Cloud: ON (Sincronizado)';
+                this.dom.btnToggle247.style.background = 'rgba(8, 153, 129, 0.25)';
+                this.dom.btnToggle247.style.borderColor = '#089981';
+                this.dom.btnToggle247.style.color = '#089981';
+            }
+            this.logJournal(`[24/7] Modo 24/7 activado. Conectando con servidor y sincronizando estado...`);
+
+            if (this.worker) {
+                this.worker.postMessage({ type: 'START', intervalMs: 3000 });
+            }
+
+            if (typeof fetch !== 'undefined') {
+                const bot = this.botsCatalog[this.selectedBotId];
+                fetch('/api/mt5/daemon_configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bot: bot,
+                        symbols: this.basketSymbols,
+                        riskMode: this.challengeConfig.riskMode,
+                        riskValue: this.challengeConfig.riskValue,
+                        tier: this.challengeConfig.tier
+                    })
+                }).then(() => {
+                    return fetch('/api/mt5/daemon_control', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'START' })
+                    });
+                }).then(() => {
+                    this.sincronizarConServidor();
+                }).catch(err => {
+                    this.logJournal(`[24/7 Warning] Servidor no respondió: ${err.message}. Operando con emulador local.`);
+                });
+            }
+
+            if (this.serverPollTimer) clearInterval(this.serverPollTimer);
+            this.serverPollTimer = setInterval(() => {
+                this.sincronizarConServidor();
+            }, 3500);
+
+            this.sincronizarConServidor();
+        } else {
+            if (this.serverPollTimer) {
+                clearInterval(this.serverPollTimer);
+                this.serverPollTimer = null;
+            }
+            if (this.dom.btnToggle247) {
+                this.dom.btnToggle247.innerText = '☁️ 24/7 Cloud: OFF (Local)';
+                this.dom.btnToggle247.style.background = 'rgba(56, 136, 255, 0.15)';
+                this.dom.btnToggle247.style.borderColor = '#3888ff';
+                this.dom.btnToggle247.style.color = '#5b8cff';
+            }
+            this.logJournal(`[24/7] Modo 24/7 desconectado. Ejecución retornada al cliente local.`);
+        }
+    }
+
+    async sincronizarConServidor() {
+        if (typeof fetch === 'undefined') return;
+        try {
+            const resp = await fetch('/api/mt5/daemon_state');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data && data.account) {
+                this.account = Object.assign(this.account, data.account);
+                if (Array.isArray(data.openPositions)) this.openPositions = data.openPositions;
+                if (Array.isArray(data.closedPositions)) this.closedPositions = data.closedPositions;
+                if (Array.isArray(data.equityHistory) && data.equityHistory.length > 0) this.equityHistory = data.equityHistory;
+                if (data.assetMatrix) this.assetMatrix = data.assetMatrix;
+                if (data.challengeConfig) this.challengeConfig = Object.assign(this.challengeConfig, data.challengeConfig);
+                if (typeof data.isRunning === 'boolean') {
+                    this.isRunning = data.isRunning;
+                    this.actualizarBotonEjecucion();
+                }
+                this.actualizarUI();
+                if (this.activeTab === 'mt5-tab-matrix') {
+                    this.renderizarMatrizMultiActivo();
+                }
+            }
+        } catch (e) {
+            // Silencioso en desconexión transitoria
+        }
+    }
+
+    // =========================================================================
     // MOTOR DE EJECUCIÓN MQL5: ON_TICK & FORWARD TESTING EN TIEMPO REAL
     // =========================================================================
     toggleEjecucionBot() {
         this.isRunning = !this.isRunning;
+        this.actualizarBotonEjecucion();
+
         if (this.isRunning) {
-            if (this.dom.btnToggleRun) {
-                this.dom.btnToggleRun.innerHTML = '⏸ Pausar Bot';
-                this.dom.btnToggleRun.classList.remove('primary');
-                this.dom.btnToggleRun.classList.add('secondary');
-            }
             this.logJournal(`[BotStarted] Bot activado para ejecución en vivo.`);
-            this.evaluarLogicaBot();
-        } else {
-            if (this.dom.btnToggleRun) {
-                this.dom.btnToggleRun.innerHTML = '▶ Iniciar Bot en Vivo';
-                this.dom.btnToggleRun.classList.add('primary');
-                this.dom.btnToggleRun.classList.remove('secondary');
+            if (this.multiAsset) {
+                this.evaluarLogicaMultiActivo();
+            } else {
+                this.evaluarLogicaBot();
             }
+            if (this.worker) {
+                this.worker.postMessage({ type: 'START', intervalMs: 2500 });
+            }
+            if (this.modo247 && typeof fetch !== 'undefined') {
+                fetch('/api/mt5/daemon_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'START' })
+                }).catch(() => {});
+            }
+        } else {
             this.logJournal(`[BotPaused] Bot pausado.`);
+            if (!this.modo247 && this.worker) {
+                this.worker.postMessage({ type: 'STOP' });
+            }
+            if (this.modo247 && typeof fetch !== 'undefined') {
+                fetch('/api/mt5/daemon_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'PAUSE' })
+                }).catch(() => {});
+            }
         }
         this.actualizarUI();
+    }
+
+    actualizarBotonEjecucion() {
+        if (!this.dom.btnToggleRun) return;
+        if (this.isRunning) {
+            this.dom.btnToggleRun.innerHTML = '⏸ Pausar Bot';
+            this.dom.btnToggleRun.classList.remove('primary');
+            this.dom.btnToggleRun.classList.add('secondary');
+        } else {
+            this.dom.btnToggleRun.innerHTML = '▶ Iniciar Bot en Vivo';
+            this.dom.btnToggleRun.classList.add('primary');
+            this.dom.btnToggleRun.classList.remove('secondary');
+        }
     }
 
     onTick(liveCandle) {
@@ -1098,6 +1396,166 @@ class MT5VirtualEmulator {
         const ticket = this.orderSend(this.symbol, tipo, lots, curPrice, slPrice, tpPrice, 'Manual Discretionary');
         if (ticket) {
             this.logJournal(`[ManualTrade] Orden #${ticket} ${tipo} ${lots} lotes abierta manualmente en ${this.symbol}.`);
+        }
+    }
+
+    calcularLotajeSeguroParaSimbolo(symbol, entryPrice, slPrice) {
+        const spec = this.symbolSpecs[symbol] || { contractSize: 1, pointVal: 1, digits: 2 };
+
+        if (this.challengeConfig.riskMode === 'LOTS') {
+            const fixedLots = Math.max(0.01, parseFloat(this.challengeConfig.riskValue) || 0.10);
+            return Math.min(50.0, Math.round(fixedLots * 100) / 100);
+        }
+
+        const count = (this.basketSymbols && this.basketSymbols.length > 0) ? this.basketSymbols.length : 1;
+        const riskPct = (this.challengeConfig.riskValue || 1.0) / count;
+        const riskUSD = (riskPct / 100) * this.account.balance;
+        const slDist = Math.abs(entryPrice - slPrice);
+
+        if (slDist <= 0) return 0.10;
+
+        let lots = riskUSD / (slDist * spec.pointVal);
+        lots = Math.max(0.01, Math.min(20.0, Math.round(lots * 100) / 100));
+        return lots;
+    }
+
+    evaluarLogicaMultiActivo() {
+        const bot = this.botsCatalog[this.selectedBotId];
+        const symbols = this.basketSymbols || ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'];
+        
+        symbols.forEach(sym => {
+            let candles = this.multiAssetCandles[sym];
+            if (!candles || candles.length < 30) {
+                candles = this.generarVelasFallback(sym, 100);
+                this.multiAssetCandles[sym] = candles;
+            } else {
+                const last = candles[candles.length - 1];
+                const delta = (Math.random() - 0.49) * (last.close * 0.001);
+                const newPrice = last.close + delta;
+                const spec = this.symbolSpecs[sym] || { digits: 2 };
+                last.close = parseFloat(newPrice.toFixed(spec.digits));
+                last.high = Math.max(last.high, last.close);
+                last.low = Math.min(last.low, last.close);
+            }
+
+            const curBar = candles[candles.length - 1];
+            const lastBar = candles[candles.length - 2];
+            const curPrice = curBar.close;
+            const atr = this.calcularATR(candles, 14);
+
+            const period = (bot && bot.params && bot.params.donchianPeriod) ? bot.params.donchianPeriod : 20;
+            const lookback = candles.slice(-period - 2, -2);
+            let signal = 'NEUTRAL';
+            let slPrice = 0;
+            let tpPrice = 0;
+
+            if (lookback.length >= period) {
+                const maxHigh = Math.max(...lookback.map(c => c.high));
+                const minLow = Math.min(...lookback.map(c => c.low));
+                const slAtrMult = (bot && bot.params && bot.params.slAtrMult) || 1.5;
+                const tpAtrMult = (bot && bot.params && bot.params.tpAtrMult) || 3.0;
+
+                if (curBar.high >= maxHigh && curBar.close > lastBar.close) {
+                    signal = 'BUY';
+                    slPrice = curPrice - (atr * slAtrMult);
+                    tpPrice = curPrice + (atr * tpAtrMult);
+                } else if (curBar.low <= minLow && curBar.close < lastBar.close) {
+                    signal = 'SELL';
+                    slPrice = curPrice - (atr * slAtrMult);
+                    tpPrice = curPrice - (atr * tpAtrMult);
+                }
+            }
+
+            const openPosForSym = this.openPositions.filter(p => p.symbol === sym);
+            const openOrdersCount = openPosForSym.length;
+            const floatingPnL = openPosForSym.reduce((acc, p) => acc + (p.profit || 0), 0);
+
+            this.assetMatrix[sym] = {
+                symbol: sym,
+                price: curPrice,
+                atr: atr,
+                signal: signal,
+                openOrdersCount: openOrdersCount,
+                floatingPnL: floatingPnL,
+                lastUpdate: Date.now()
+            };
+
+            // Ejecutar orden si el bot está corriendo en local, no en 24/7 cloud (que lo corre el servidor)
+            if (this.isRunning && this.account.status === 'ACTIVE' && !this.modo247) {
+                if (openOrdersCount === 0 && this.openPositions.length < 5 && signal !== 'NEUTRAL') {
+                    const lots = this.calcularLotajeSeguroParaSimbolo(sym, curPrice, slPrice);
+                    this.orderSend(sym, signal, lots, curPrice, slPrice, tpPrice, `[MultiAsset ${sym}] Signal`);
+                }
+            }
+        });
+
+        if (this.dom && this.dom.matrixCount) {
+            this.dom.matrixCount.innerText = `${symbols.length} activos`;
+        }
+
+        if (this.activeTab === 'mt5-tab-matrix') {
+            this.renderizarMatrizMultiActivo();
+        }
+    }
+
+    async ejecutarOrdenManualEnSimbolo(sym, tipo) {
+        if (this.account.status === 'VIOLATED') {
+            if (typeof alert !== 'undefined') alert("No es posible operar: La cuenta ha sido reprobada por exceder los límites de riesgo del Prop Firm.");
+            return;
+        }
+
+        if (this.modo247 && typeof fetch !== 'undefined') {
+            try {
+                const curPrice = this.assetMatrix[sym]?.price || (this.multiAssetCandles[sym]?.slice(-1)[0]?.close || 100);
+                const atr = this.assetMatrix[sym]?.atr || 10;
+                const isBuy = tipo === 'BUY';
+                const sl = isBuy ? (curPrice - atr * 1.5) : (curPrice + atr * 1.5);
+                const tp = isBuy ? (curPrice + atr * 3.0) : (curPrice - atr * 3.0);
+                const lots = this.calcularLotajeSeguroParaSimbolo(sym, curPrice, sl);
+
+                const resp = await fetch('/api/mt5/manual_order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: sym,
+                        type: tipo,
+                        lots: lots,
+                        price: curPrice,
+                        sl: sl,
+                        tp: tp
+                    })
+                });
+                const resData = await resp.json();
+                if (resData.success) {
+                    this.logJournal(`[24/7 ManualTrade] Orden #${resData.ticket} ${tipo} ${lots} lotes enviada al daemon para ${sym}.`);
+                    this.sincronizarConServidor();
+                } else {
+                    if (typeof alert !== 'undefined') alert(`Error abriendo orden: ${resData.error}`);
+                }
+            } catch (err) {
+                if (typeof alert !== 'undefined') alert(`Error comunicando con servidor 24/7: ${err.message}`);
+            }
+            return;
+        }
+
+        // Operativa local
+        let candles = this.multiAssetCandles[sym] || (this.symbol === sym ? this.currentCandles : null);
+        if (!candles || candles.length === 0) {
+            candles = this.generarVelasFallback(sym, 100);
+            this.multiAssetCandles[sym] = candles;
+        }
+
+        const curPrice = candles[candles.length - 1].close;
+        const atr = this.calcularATR(candles, 14);
+        const isBuy = tipo === 'BUY';
+        const slPrice = isBuy ? (curPrice - (atr * 1.5)) : (curPrice + (atr * 1.5));
+        const tpPrice = isBuy ? (curPrice + (atr * 3.0)) : (curPrice - (atr * 3.0));
+
+        const lots = this.calcularLotajeSeguroParaSimbolo(sym, curPrice, slPrice);
+        const ticket = this.orderSend(sym, tipo, lots, curPrice, slPrice, tpPrice, `Manual Matrix ${sym}`);
+        if (ticket) {
+            this.logJournal(`[ManualTrade] Orden #${ticket} ${tipo} ${lots} lotes abierta manualmente en ${sym}.`);
+            this.evaluarLogicaMultiActivo();
         }
     }
 
@@ -1403,6 +1861,8 @@ class MT5VirtualEmulator {
             this.renderizarCurvaEquidad();
         } else if (this.activeTab === 'mt5-tab-stats') {
             this.renderizarEstadisticas();
+        } else if (this.activeTab === 'mt5-tab-matrix') {
+            this.renderizarMatrizMultiActivo();
         }
     }
 
@@ -1634,6 +2094,69 @@ class MT5VirtualEmulator {
                 </tr>
             `;
         }).join('');
+    }
+
+    renderizarMatrizMultiActivo() {
+        if (!this.dom.tableMatrixBody) return;
+        const symbols = this.basketSymbols || ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XAUUSD', 'EURUSD'];
+        
+        if (this.dom.matrixCount) {
+            this.dom.matrixCount.innerText = `${symbols.length} activos`;
+        }
+
+        if (symbols.length === 0) {
+            this.dom.tableMatrixBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:#787b86;">No hay activos configurados en la cesta.</td></tr>`;
+            return;
+        }
+
+        this.dom.tableMatrixBody.innerHTML = symbols.map(sym => {
+            const data = this.assetMatrix[sym] || {};
+            const spec = this.symbolSpecs[sym] || { digits: 2 };
+            const price = data.price !== undefined ? data.price : (this.multiAssetCandles[sym]?.slice(-1)[0]?.close || 0);
+            const atr = data.atr !== undefined ? data.atr : 0;
+            const signal = data.signal || 'ESPERA';
+            const openOrders = data.openOrdersCount !== undefined ? data.openOrdersCount : this.openPositions.filter(p => p.symbol === sym).length;
+            const pnl = data.floatingPnL !== undefined ? data.floatingPnL : this.openPositions.filter(p => p.symbol === sym).reduce((acc, p) => acc + (p.profit || 0), 0);
+            const timeStr = data.lastUpdate ? new Date(data.lastUpdate).toLocaleTimeString() : '--:--:--';
+
+            let sigBadge = `<span class="mt5-tag" style="background: rgba(120, 123, 134, 0.2); color:#787b86;">⏸ ESPERA</span>`;
+            if (signal === 'BUY') sigBadge = `<span class="mt5-tag buy">▲ BUY</span>`;
+            else if (signal === 'SELL') sigBadge = `<span class="mt5-tag sell">▼ SELL</span>`;
+
+            const pnlCls = pnl > 0 ? 'pnl-pos' : (pnl < 0 ? 'pnl-neg' : '');
+            const pnlStr = pnl !== 0 ? `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}` : '$0.00';
+
+            return `
+                <tr>
+                    <td style="font-weight:bold; color:#fff;">
+                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${openOrders > 0 ? '#089981' : '#3888ff'}; margin-right:6px;"></span>
+                        ${sym}
+                    </td>
+                    <td style="font-family:monospace; font-weight:bold;">$${price.toFixed(spec.digits)}</td>
+                    <td style="color:#787b86;">${atr.toFixed(spec.digits)}</td>
+                    <td>${sigBadge}</td>
+                    <td style="font-weight:bold; text-align:center;">${openOrders > 0 ? `<strong style="color:#3888ff;">${openOrders}</strong>` : '0'}</td>
+                    <td class="${pnlCls}" style="font-weight:bold;">${pnlStr}</td>
+                    <td style="color:#787b86; font-size:11px;">${timeStr}</td>
+                    <td>
+                        <div style="display:flex; gap:4px;">
+                            <button class="mt5-btn-close" style="background:#1e222d; color:#5b8cff; border:1px solid #2a2e39;" onclick="window.MT5Emulator.cambiarSimboloActivo('${sym}')" title="Ver gráfico de ${sym}">📈 Gráfico</button>
+                            <button class="mt5-btn-close" style="background:rgba(8, 153, 129, 0.2); color:#089981; border:1px solid #089981; padding:2px 6px;" onclick="window.MT5Emulator.ejecutarOrdenManualEnSimbolo('${sym}', 'BUY')" title="Comprar ${sym}">+B</button>
+                            <button class="mt5-btn-close" style="background:rgba(242, 54, 69, 0.2); color:#f23645; border:1px solid #f23645; padding:2px 6px;" onclick="window.MT5Emulator.ejecutarOrdenManualEnSimbolo('${sym}', 'SELL')" title="Vender ${sym}">-S</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    cambiarSimboloActivo(sym) {
+        if (!sym) return;
+        this.symbol = sym;
+        if (this.dom.symbolSelect) this.dom.symbolSelect.value = sym;
+        this.currentCandles = [];
+        this.cargarVelasYActualizar();
+        this.logJournal(`[SymbolSelect] Vista principal de gráfico cambiada a ${sym}.`);
     }
 
     logJournal(msg) {
