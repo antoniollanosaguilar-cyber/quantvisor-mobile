@@ -161,7 +161,7 @@
         width: 100%;
       }
       
-      #chart-resizer {
+      #chart-resizer, .panel-chart-resizer {
         height: 5px;
         min-height: 5px;
         background-color: var(--border-color);
@@ -171,11 +171,12 @@
         display: none;
         flex-shrink: 0;
       }
-      #chart-resizer:hover, #chart-resizer.dragging {
+      #chart-resizer:hover, #chart-resizer.dragging,
+      .panel-chart-resizer:hover, .panel-chart-resizer.dragging {
         background-color: var(--brand-blue);
       }
 
-      #oscillator-chart-container {
+      #oscillator-chart-container, .panel-osc-body {
         height: 230px;
         min-height: 90px;
         max-height: 60%;
@@ -185,6 +186,7 @@
         position: relative;
         border-top: 1px solid var(--border-color);
         background-color: #131722;
+        box-sizing: border-box;
       }
 
       /* WATCHLIST SIDEBAR */
@@ -1456,6 +1458,20 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div id="multi-chart-grid" class="layout-1">
           <!-- PANEL 0: Panel Principal Completo (Precio + Oscilador + Dibujos) -->
           <div id="panel-chart-0" class="chart-panel active">
+            <div class="panel-header" id="p0-header" style="display: none;">
+              <div class="panel-sym-picker">
+                <span>📈</span>
+                <span id="p0-sym-label" style="font-weight: bold; color: #fff;">BTC-USD</span>
+              </div>
+              <div class="panel-tf-picker">
+                <button class="panel-tf-btn p0-tf-btn" data-panel="0" data-tf="15m">15m</button>
+                <button class="panel-tf-btn p0-tf-btn" data-panel="0" data-tf="30m">30m</button>
+                <button class="panel-tf-btn p0-tf-btn active" data-panel="0" data-tf="1h">1h</button>
+                <button class="panel-tf-btn p0-tf-btn" data-panel="0" data-tf="4h">4h</button>
+                <button class="panel-tf-btn p0-tf-btn" data-panel="0" data-tf="1d">1D</button>
+              </div>
+              <div class="panel-ind-indicator" id="p0-ind-indicator" style="color: #5b8cff; font-size: 10px; font-weight: 600; margin-left: auto; margin-right: 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Indicadores del gráfico principal"></div>
+            </div>
             <div id="main-chart-container">
               <div id="chart-legend">Cargando datos...</div>
               <div id="indicators-legend"></div>
@@ -1489,7 +1505,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <div class="panel-legend" id="p1-legend">Cargando...</div>
               <div class="panel-ind-legend" id="p1-ind-legend" style="position: absolute; top: 26px; left: 8px; font-size: 10px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 2px;"></div>
             </div>
-            <div class="panel-osc-body" id="p1-osc-body" style="display: none; height: 120px; min-height: 80px; border-top: 1px solid #1f2937;"></div>
+            <div class="panel-chart-resizer" id="p1-chart-resizer" title="Arrastrar para redimensionar oscilador"></div>
+            <div class="panel-osc-body" id="p1-osc-body"></div>
           </div>
 
           <!-- PANEL 2: Panel Secundario (Inferior izquierdo en 2x2) -->
@@ -1512,7 +1529,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <div class="panel-legend" id="p2-legend">Cargando...</div>
               <div class="panel-ind-legend" id="p2-ind-legend" style="position: absolute; top: 26px; left: 8px; font-size: 10px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 2px;"></div>
             </div>
-            <div class="panel-osc-body" id="p2-osc-body" style="display: none; height: 120px; min-height: 80px; border-top: 1px solid #1f2937;"></div>
+            <div class="panel-chart-resizer" id="p2-chart-resizer" title="Arrastrar para redimensionar oscilador"></div>
+            <div class="panel-osc-body" id="p2-osc-body"></div>
           </div>
 
           <!-- PANEL 3: Panel Secundario (Inferior derecho en 2x2) -->
@@ -1535,7 +1553,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <div class="panel-legend" id="p3-legend">Cargando...</div>
               <div class="panel-ind-legend" id="p3-ind-legend" style="position: absolute; top: 26px; left: 8px; font-size: 10px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 2px;"></div>
             </div>
-            <div class="panel-osc-body" id="p3-osc-body" style="display: none; height: 120px; min-height: 80px; border-top: 1px solid #1f2937;"></div>
+            <div class="panel-chart-resizer" id="p3-chart-resizer" title="Arrastrar para redimensionar oscilador"></div>
+            <div class="panel-osc-body" id="p3-osc-body"></div>
           </div>
         </div>
       </div>

@@ -485,8 +485,12 @@ async function cambiarSimboloYTemporalidad(simbolo, temporalidad) {
     if (mobSymLabel) {
         mobSymLabel.textContent = currentSymbol;
     }
+    const p0SymLabel = document.getElementById('p0-sym-label');
+    if (p0SymLabel) {
+        p0SymLabel.textContent = currentSymbol;
+    }
     
-    document.querySelectorAll('.tf-btn, .timeframe-btn').forEach(b => {
+    document.querySelectorAll('.tf-btn, .timeframe-btn, .p0-tf-btn').forEach(b => {
         const tf = (b.getAttribute('data-tf') || '').toLowerCase();
         const cur = (currentInterval || '').toLowerCase();
         const isActive = (tf === cur) || 
@@ -2200,41 +2204,48 @@ function inicializarEventosUI() {
         });
     }
 
-    // 8. Divisor Reajustable de Oscilador (Chart Resizer)
-    const resizer = document.getElementById('chart-resizer');
+    // 8. Divisor Reajustable de Oscilador (Chart Resizer Sincronizado Multipanel)
+    const resizers = document.querySelectorAll('#chart-resizer, .panel-chart-resizer');
     const chartContainer = document.getElementById('chart-container');
-    const oscContainer = document.getElementById('oscillator-chart-container');
+    const mainOscContainer = document.getElementById('oscillator-chart-container');
 
-    if (resizer && chartContainer && oscContainer) {
-        let isDragging = false;
+    let activeDraggingResizer = null;
 
-        resizer.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            resizer.classList.add('dragging');
+    resizers.forEach(resizerEl => {
+        resizerEl.addEventListener('mousedown', (e) => {
+            activeDraggingResizer = resizerEl;
+            resizerEl.classList.add('dragging');
             document.body.style.cursor = 'row-resize';
             e.preventDefault();
         });
+    });
 
-        window.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            const containerRect = chartContainer.getBoundingClientRect();
-            const mouseY = e.clientY - containerRect.top;
-            const totalHeight = containerRect.height;
-            const newOscHeight = Math.max(80, Math.min(totalHeight - 120, totalHeight - mouseY));
-            
-            oscContainer.style.height = `${newOscHeight}px`;
+    window.addEventListener('mousemove', (e) => {
+        if (!activeDraggingResizer) return;
+        const panel = activeDraggingResizer.closest('.chart-panel') || document.getElementById('panel-chart-0');
+        const containerRect = panel ? panel.getBoundingClientRect() : (chartContainer ? chartContainer.getBoundingClientRect() : null);
+        if (!containerRect) return;
+
+        const mouseY = e.clientY - containerRect.top;
+        const totalHeight = containerRect.height;
+        const newOscHeight = Math.max(70, Math.min(totalHeight - 100, Math.max(60, totalHeight - mouseY)));
+        
+        if (mainOscContainer) mainOscContainer.style.height = `${newOscHeight}px`;
+        [1, 2, 3].forEach(id => {
+            const secOsc = document.getElementById(`p${id}-osc-body`);
+            if (secOsc) secOsc.style.height = `${newOscHeight}px`;
+        });
+        resizeGraficos();
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (activeDraggingResizer) {
+            activeDraggingResizer.classList.remove('dragging');
+            activeDraggingResizer = null;
+            document.body.style.cursor = '';
             resizeGraficos();
-        });
-
-        window.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                resizer.classList.remove('dragging');
-                document.body.style.cursor = '';
-                resizeGraficos();
-            }
-        });
-    }
+        }
+    });
 
     // 9. Barra Inferior - Botones de Rango Temporal
     document.querySelectorAll('.bottom-btn').forEach(btn => {
@@ -2987,9 +2998,26 @@ async function setChartLayout(layout) {
         item.classList.toggle('active', item.getAttribute('data-layout') === layout);
     });
 
+    const p0Header = document.getElementById('p0-header');
+    if (p0Header) {
+        p0Header.style.display = (layout === '1') ? 'none' : 'flex';
+    }
+    const p0SymLabel = document.getElementById('p0-sym-label');
+    if (p0SymLabel && currentSymbol) {
+        p0SymLabel.textContent = currentSymbol;
+    }
+
     const p1 = document.getElementById('panel-chart-1');
     const p2 = document.getElementById('panel-chart-2');
     const p3 = document.getElementById('panel-chart-3');
+
+    // Sincronizar altura base de los osciladores secundarios
+    const mainOsc = document.getElementById('oscillator-chart-container');
+    const sharedOscHeight = (mainOsc && mainOsc.clientHeight > 0) ? mainOsc.clientHeight : 210;
+    [1, 2, 3].forEach(id => {
+        const secOsc = document.getElementById(`p${id}-osc-body`);
+        if (secOsc) secOsc.style.height = `${sharedOscHeight}px`;
+    });
 
     if (layout === '1') {
         if (p1) p1.style.display = 'none';
@@ -3166,9 +3194,15 @@ function garantizarOsciladorPanelSecundario(panelId) {
     const oscContainer = document.getElementById(`p${panelId}-osc-body`);
     if (!oscContainer) return null;
 
+    const mainOsc = document.getElementById('oscillator-chart-container');
+    const targetHeight = (mainOsc && mainOsc.clientHeight > 0) ? mainOsc.clientHeight : 210;
+    if (!oscContainer.style.height || oscContainer.clientHeight === 0) {
+        oscContainer.style.height = `${targetHeight}px`;
+    }
+
     if (!config.oscChart) {
         const w = oscContainer.clientWidth > 0 ? oscContainer.clientWidth : 400;
-        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : 120;
+        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : targetHeight;
 
         config.oscChart = LightweightCharts.createChart(oscContainer, {
             width: w,
@@ -3176,14 +3210,14 @@ function garantizarOsciladorPanelSecundario(panelId) {
             layout: {
                 background: { type: 'solid', color: '#131722' },
                 textColor: '#d1d4dc',
-                fontSize: 10,
+                fontSize: 11,
                 fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
             },
             grid: { vertLines: { color: '#1a1e29' }, horzLines: { color: '#1a1e29' } },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
             rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.1 } },
             leftPriceScale: { borderColor: '#2a2e39', visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
-            timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 12 },
+            timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 15 },
         });
 
         if (config.chart && config.chart.timeScale()) {
@@ -3200,7 +3234,7 @@ function garantizarOsciladorPanelSecundario(panelId) {
         }
     } else {
         const w = oscContainer.clientWidth > 0 ? oscContainer.clientWidth : 400;
-        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : 120;
+        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : targetHeight;
         config.oscChart.applyOptions({ width: w, height: h });
     }
 
@@ -3227,6 +3261,7 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
     // 2. Comprobar si hay osciladores activos
     let hayOsc = false;
     const oscContainer = document.getElementById(`p${panelId}-osc-body`);
+    const oscResizer = document.getElementById(`p${panelId}-chart-resizer`);
 
     indicadoresActivos.forEach(ind => {
         if (ind.visible === false) return;
@@ -3238,9 +3273,11 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
     let oscChart = null;
     if (hayOsc) {
         if (oscContainer) oscContainer.style.display = 'block';
+        if (oscResizer) oscResizer.style.display = 'block';
         oscChart = garantizarOsciladorPanelSecundario(panelId);
     } else {
         if (oscContainer) oscContainer.style.display = 'none';
+        if (oscResizer) oscResizer.style.display = 'none';
     }
 
     const cData = config.data;
@@ -3411,20 +3448,8 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
         }
     });
 
-    // 4. Actualizar badge de indicadores en el header del panel
-    const badge = document.getElementById(`p${panelId}-ind-indicator`);
-    if (badge) {
-        const activeNames = indicadoresActivos
-            .filter(i => i.visible !== false)
-            .map(i => {
-                if (ind.type === 'EMA') return `EMA(${i.params?.period || 20})`;
-                if (ind.type === 'SMA') return `SMA(${i.params?.period || 50})`;
-                if (ind.type === 'SQZMOM') return `SQZ`;
-                if (ind.type === 'ADX') return `ADX`;
-                return i.type;
-            });
-        badge.textContent = activeNames.length > 0 ? `fx: ${activeNames.join(', ')}` : '';
-    }
+    // 4. Actualizar badge de indicadores en el header de todos los paneles
+    actualizarBadgesIndicadoresPaneles();
 
     // 5. Ajustar rangos
     if (oscChart && config.chart && config.chart.timeScale()) {
@@ -3435,7 +3460,25 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
     }
 }
 
+function actualizarBadgesIndicadoresPaneles() {
+    const activeNames = indicadoresActivos
+        .filter(i => i.visible !== false)
+        .map(i => {
+            if (i.type === 'EMA') return `EMA(${i.params?.period || 20})`;
+            if (i.type === 'SMA') return `SMA(${i.params?.period || 50})`;
+            if (i.type === 'SQZMOM') return `SQZ`;
+            if (i.type === 'ADX') return `ADX`;
+            return i.type;
+        });
+    const txt = activeNames.length > 0 ? `fx: ${activeNames.join(', ')}` : '';
+    [0, 1, 2, 3].forEach(id => {
+        const badge = document.getElementById(`p${id}-ind-indicator`);
+        if (badge) badge.textContent = txt;
+    });
+}
+
 function sincronizarIndicadoresEnPanelesSecundarios() {
+    actualizarBadgesIndicadoresPaneles();
     [1, 2, 3].forEach(id => {
         const config = panelesSecundarios[id];
         if (config && config.chart && config.data && config.data.length > 0) {
@@ -3491,6 +3534,9 @@ function actualizarLeyendaPanelSecundario(panelId, param) {
 }
 
 function redimensionarPanelesSecundarios() {
+    const mainOsc = document.getElementById('oscillator-chart-container');
+    const mainOscHeight = (mainOsc && mainOsc.clientHeight > 0) ? mainOsc.clientHeight : 210;
+
     [1, 2, 3].forEach(id => {
         const config = panelesSecundarios[id];
         if (config) {
@@ -3505,11 +3551,16 @@ function redimensionarPanelesSecundarios() {
             }
             if (config.oscChart) {
                 const oscContainer = document.getElementById(`p${id}-osc-body`);
-                if (oscContainer && oscContainer.style.display !== 'none' && oscContainer.clientWidth > 0 && oscContainer.clientHeight > 0) {
-                    config.oscChart.applyOptions({
-                        width: oscContainer.clientWidth,
-                        height: oscContainer.clientHeight
-                    });
+                if (oscContainer && oscContainer.style.display !== 'none') {
+                    if (mainOsc && oscContainer.style.height !== `${mainOscHeight}px`) {
+                        oscContainer.style.height = `${mainOscHeight}px`;
+                    }
+                    if (oscContainer.clientWidth > 0 && oscContainer.clientHeight > 0) {
+                        config.oscChart.applyOptions({
+                            width: oscContainer.clientWidth,
+                            height: oscContainer.clientHeight
+                        });
+                    }
                 }
             }
         }
@@ -3698,7 +3749,7 @@ function inicializarEventosReplayYMultiChart() {
             e.stopPropagation();
             const panelId = parseInt(btn.getAttribute('data-panel'));
             const tf = btn.getAttribute('data-tf');
-            if (!panelId || !tf) return;
+            if (isNaN(panelId) || !tf) return;
 
             const parent = btn.parentElement;
             if (parent) {
@@ -3706,7 +3757,9 @@ function inicializarEventosReplayYMultiChart() {
             }
             btn.classList.add('active');
 
-            if (panelesSecundarios[panelId]) {
+            if (panelId === 0) {
+                cambiarSimboloYTemporalidad(currentSymbol, tf);
+            } else if (panelesSecundarios[panelId]) {
                 panelesSecundarios[panelId].interval = tf;
                 await cargarDatosPanelSecundario(panelId);
             }
