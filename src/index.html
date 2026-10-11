@@ -30,7 +30,7 @@
         background-color: var(--bg-main);
         overflow: hidden;
         display: grid;
-        grid-template-rows: 38px 1fr 24px;
+        grid-template-rows: 44px 38px 1fr 24px;
         height: 100vh;
         width: 100vw;
         color: var(--text-primary);
@@ -61,6 +61,27 @@
         cursor: pointer;
       }
       .tv-logo span { color: var(--brand-blue); }
+      
+      .toolbar-symbol-badge {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.5px;
+        padding-left: 2px;
+        padding-right: 4px;
+      }
+      .toolbar-symbol-badge .symbol-badge-icon {
+        font-size: 12px;
+        color: var(--brand-blue);
+      }
+      .toolbar-symbol-badge .symbol-badge-label {
+        font-size: 10px;
+        font-weight: 800;
+        color: #787b86;
+      }
       
       #ticker-search {
         background-color: #131722;
@@ -936,6 +957,46 @@
       }
 
       @media (max-width: 768px) {
+        body {
+          grid-template-rows: 40px 42px 1fr !important;
+        }
+
+        /* CABECERA SUPERIOR MAESTRA EN MÓVIL: Pestañas táctiles accesibles */
+        #master-navigation-bar {
+          height: 40px !important;
+          min-height: 40px !important;
+          padding: 0 4px !important;
+          justify-content: center !important;
+        }
+        .master-brand, .master-status-bar {
+          display: none !important;
+        }
+        .master-mode-nav {
+          margin: 0 !important;
+          width: 100% !important;
+          justify-content: center !important;
+        }
+        .master-mode-segmented {
+          width: 100% !important;
+          display: flex !important;
+          justify-content: space-between !important;
+          padding: 2px !important;
+          gap: 3px !important;
+        }
+        .master-tab, .app-mode-tab {
+          flex: 1 !important;
+          justify-content: center !important;
+          padding: 0 4px !important;
+          height: 32px !important;
+          gap: 4px !important;
+        }
+        .master-tab .tab-text {
+          font-size: 11px !important;
+        }
+        .master-tab .tab-chip {
+          display: none !important;
+        }
+
         /* TOP TOOLBAR: UNA SOLA FILA ESTRICTA DE 42px SIN AGLOMERACIÓN */
         #top-toolbar {
           height: 42px !important;
@@ -955,6 +1016,7 @@
 
         /* Ocultar botones de escritorio que saturan la cabecera móvil */
         .tv-logo,
+        .toolbar-symbol-badge,
         #ticker-search,
         .style-group,
         .toolbar-divider,
@@ -1045,7 +1107,7 @@
         #left-sidebar {
           position: fixed !important;
           left: -65px !important;
-          top: 42px !important;
+          top: 82px !important;
           bottom: 52px !important;
           z-index: 990 !important;
           transition: left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) !important;
@@ -1137,7 +1199,7 @@
         /* Dimensiones del gráfico en móvil */
         #main-workspace, #backtest-workspace, #mt5-runner-workspace {
           width: 100vw !important;
-          height: calc(100vh - 42px - 52px) !important;
+          height: calc(100vh - 40px - 42px - 52px) !important;
         }
         #chart-container {
           width: 100vw !important;
@@ -1174,38 +1236,207 @@
         }
       }
 
-      /* MODO TABS SUPERIORES (TRADING VS BACKTESTING) */
+      /* ==========================================================================
+         CABECERA SUPERIOR MAESTRA INSTITUCIONAL (MASTER NAVIGATION BAR)
+         ========================================================================== */
+      #master-navigation-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(180deg, #10141f 0%, #0a0d14 100%);
+        border-bottom: 1px solid #1f2536;
+        padding: 0 16px;
+        height: 44px;
+        min-height: 44px;
+        z-index: 110;
+        position: relative;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+      }
+
+      /* LADO IZQUIERDO: BRAND LOGO */
+      .master-brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        text-decoration: none;
+        user-select: none;
+      }
+      .brand-gem {
+        color: #2962ff;
+        font-size: 15px;
+        filter: drop-shadow(0 0 6px rgba(41, 98, 255, 0.7));
+      }
+      .brand-text {
+        font-size: 13.5px;
+        font-weight: 900;
+        letter-spacing: 0.8px;
+        color: #ffffff;
+      }
+      .brand-accent {
+        color: #2962ff;
+      }
+      .brand-tag {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        padding: 2px 6px;
+        background: rgba(41, 98, 255, 0.15);
+        border: 1px solid rgba(41, 98, 255, 0.35);
+        color: #709bfd;
+        border-radius: 4px;
+        text-transform: uppercase;
+      }
+
+      /* CENTRO: PESTAÑAS PRINCIPALES PROMINENTES (HERO SEGMENTED CONTROL) */
+      .master-mode-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        margin: 0 12px;
+      }
+      .master-mode-segmented {
+        display: inline-flex;
+        align-items: center;
+        background: #141824;
+        border: 1px solid #282f42;
+        border-radius: 10px;
+        padding: 4px;
+        gap: 6px;
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(255, 255, 255, 0.05);
+      }
+      .master-tab, .app-mode-tab {
+        background: transparent;
+        border: 1px solid transparent;
+        color: #8b95a5;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        padding: 0 18px;
+        height: 33px;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        outline: none;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .master-tab .tab-icon {
+        font-size: 15px;
+        line-height: 1;
+        transition: transform 0.2s ease;
+      }
+      .master-tab .tab-text {
+        font-size: 12.5px;
+        font-weight: 700;
+      }
+      .master-tab .tab-chip {
+        font-size: 9px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 4px;
+        letter-spacing: 0.4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #7b8599;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+      }
+      .master-tab:hover, .app-mode-tab:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .master-tab:hover .tab-icon {
+        transform: scale(1.12);
+      }
+
+      /* ESTADO ACTIVO DESTACADO */
+      .master-tab.active, .app-mode-tab.active {
+        background: linear-gradient(135deg, #2962ff 0%, #1e4bd8 100%) !important;
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+        box-shadow: 0 3px 14px rgba(41, 98, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+      }
+      .master-tab.active .tab-icon {
+        transform: scale(1.15);
+      }
+      .master-tab.active .tab-chip {
+        background: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.4);
+        font-weight: 900;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+
+      /* INDICADOR DE PULSO LIVE / 24/7 */
+      .live-pulse-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #089981;
+        margin-right: 4px;
+        box-shadow: 0 0 6px #089981;
+        animation: pulseLiveAnim 1.8s infinite;
+      }
+      @keyframes pulseLiveAnim {
+        0% { transform: scale(0.95); opacity: 0.7; box-shadow: 0 0 0 0 rgba(8, 153, 129, 0.7); }
+        70% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 0 5px rgba(8, 153, 129, 0); }
+        100% { transform: scale(0.95); opacity: 0.7; box-shadow: 0 0 0 0 rgba(8, 153, 129, 0); }
+      }
+
+      /* LADO DERECHO: ESTADO NUBE Y RELOJ */
+      .master-status-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      .cloud-status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(8, 153, 129, 0.12);
+        border: 1px solid rgba(8, 153, 129, 0.3);
+        padding: 3px 8px;
+        border-radius: 5px;
+        cursor: default;
+      }
+      .cloud-pulse-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #089981;
+        box-shadow: 0 0 6px #089981;
+        animation: pulseLiveAnim 2s infinite;
+      }
+      .cloud-status-text {
+        font-size: 10px;
+        font-weight: 800;
+        color: #089981;
+        letter-spacing: 0.5px;
+      }
+      .master-divider {
+        width: 1px;
+        height: 18px;
+        background-color: #242938;
+      }
+      .master-clock {
+        font-family: -apple-system, BlinkMacSystemFont, "Consolas", monospace;
+        font-size: 11px;
+        color: #8b95a5;
+        font-weight: 600;
+      }
+
+      /* Compatibilidad con contenedor de tabs antiguo si existiera */
       .app-mode-tabs {
         display: flex;
         align-items: center;
-        background-color: #131722;
-        border-radius: 6px;
-        padding: 2px;
-        border: 1px solid var(--border-color);
-        margin-left: 6px;
-      }
-      .app-mode-tab {
-        background: transparent;
-        border: none;
-        color: var(--text-muted);
-        font-size: 11px;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .app-mode-tab:hover {
-        color: #fff;
-        background-color: rgba(255, 255, 255, 0.05);
-      }
-      .app-mode-tab.active {
-        background-color: var(--brand-blue);
-        color: #fff;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
       }
 
       /* MODO IMÁN */
@@ -2224,13 +2455,54 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
     </div>
 
+    <!-- CABECERA SUPERIOR MAESTRA INSTITUCIONAL (MASTER NAVIGATION HEADER) -->
+    <header id="master-navigation-bar">
+      <!-- LADO IZQUIERDO: BRAND LOGO INSTITUCIONAL -->
+      <div class="master-brand">
+        <span class="brand-gem">◆</span>
+        <span class="brand-text">QUANT<span class="brand-accent">VISOR</span></span>
+        <span class="brand-tag">v2.5 PRO</span>
+      </div>
+
+      <!-- CENTRO: PESTAÑAS PRINCIPALES PROMINENTES (HERO SEGMENTED CONTROL) -->
+      <nav class="master-mode-nav" aria-label="Modo de Navegación Principal">
+        <div class="master-mode-segmented">
+          <button id="tab-btn-trading" class="app-mode-tab master-tab active" title="Pantalla de Gráfico y Análisis Cuantitativo Principal">
+            <span class="tab-icon">📈</span>
+            <span class="tab-text">Gráfico</span>
+            <span class="tab-chip">LIVE</span>
+          </button>
+          <button id="tab-btn-backtest" class="app-mode-tab master-tab" title="Entorno Dedicado de Backtesting Cuantitativo & Optimización">
+            <span class="tab-icon">🧪</span>
+            <span class="tab-text">Backtesting</span>
+            <span class="tab-chip">TESTER</span>
+          </button>
+          <button id="tab-btn-mt5" class="app-mode-tab master-tab" title="Emulador Virtual MT5 & Prop Firm Challenge Sandbox 24/7">
+            <span class="tab-icon">🤖</span>
+            <span class="tab-text">MT5 Runner</span>
+            <span class="tab-chip">
+              <span class="live-pulse-dot"></span>24/7
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- LADO DERECHO: ESTADO CLOUD 24/7 & HORA GLOBAL UTC -->
+      <div class="master-status-bar">
+        <div class="cloud-status-indicator" title="Servicio Cuantitativo 24/7 en Render Cloud">
+          <span class="cloud-pulse-dot"></span>
+          <span class="cloud-status-text">CLOUD 24/7</span>
+        </div>
+        <div class="master-divider"></div>
+        <div id="master-clock-display" class="master-clock" title="Hora Global UTC">00:00:00 UTC</div>
+      </div>
+    </header>
+
     <!-- TOP TOOLBAR -->
     <div id="top-toolbar">
-      <div class="tv-logo">📈 <span>TradingView</span> Pro</div>
-      <div class="app-mode-tabs desktop-only">
-        <button id="tab-btn-trading" class="app-mode-tab active" title="Pantalla de Gráfico y Análisis Principal">📈 Gráfico</button>
-        <button id="tab-btn-backtest" class="app-mode-tab" title="Entorno Dedicado de Backtesting Cuantitativo">🧪 Backtesting</button>
-        <button id="tab-btn-mt5" class="app-mode-tab" title="Emulador Virtual MT5 & Prop Firm Challenge Sandbox">🤖 MT5 Runner</button>
+      <div class="toolbar-symbol-badge desktop-only">
+        <span class="symbol-badge-icon">🔍</span>
+        <span class="symbol-badge-label">SÍMBOLO:</span>
       </div>
       <input type="text" id="ticker-search" value="BTCUSDT" title="Buscar Símbolo">
       

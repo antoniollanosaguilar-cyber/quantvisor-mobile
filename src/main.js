@@ -2435,7 +2435,7 @@ function inicializarEventosUI() {
     // 10. Reloj en Tiempo Real con Zona Horaria Local (e.g. 11:57:41 UTC-3)
     function actualizarReloj() {
         const el = document.getElementById('clock-display');
-        if (!el) return;
+        const masterEl = document.getElementById('master-clock-display');
         const now = new Date();
         const hh = String(now.getHours()).padStart(2, '0');
         const mm = String(now.getMinutes()).padStart(2, '0');
@@ -2443,7 +2443,9 @@ function inicializarEventosUI() {
         const offsetMin = -now.getTimezoneOffset();
         const offsetHours = offsetMin / 60;
         const sign = offsetHours >= 0 ? '+' : '';
-        el.textContent = `${hh}:${mm}:${ss} UTC${sign}${offsetHours}`;
+        const timeStr = `${hh}:${mm}:${ss} UTC${sign}${offsetHours}`;
+        if (el) el.textContent = timeStr;
+        if (masterEl) masterEl.textContent = timeStr;
     }
     setInterval(actualizarReloj, 1000);
     actualizarReloj();
