@@ -37,6 +37,12 @@
         font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
         user-select: none;
       }
+      body.toolbar-hidden {
+        grid-template-rows: 44px 1fr 24px !important;
+      }
+      body.toolbar-hidden #top-toolbar {
+        display: none !important;
+      }
       
       /* TOP BAR TRADINGVIEW */
       #top-toolbar {
@@ -1200,6 +1206,20 @@
         #main-workspace, #backtest-workspace, #mt5-runner-workspace {
           width: 100vw !important;
           height: calc(100vh - 40px - 42px - 52px) !important;
+        }
+        body.toolbar-hidden {
+          grid-template-rows: 40px 1fr !important;
+        }
+        body.toolbar-hidden #top-toolbar {
+          display: none !important;
+        }
+        body.toolbar-hidden #main-workspace,
+        body.toolbar-hidden #backtest-workspace,
+        body.toolbar-hidden #mt5-runner-workspace {
+          height: calc(100vh - 40px - 52px) !important;
+        }
+        body.toolbar-hidden #left-sidebar {
+          top: 40px !important;
         }
         #chart-container {
           width: 100vw !important;

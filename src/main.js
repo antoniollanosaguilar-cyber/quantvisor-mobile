@@ -1463,8 +1463,11 @@ window.cambiarModoApp = function(modo) {
     const mobBtnChart = document.getElementById('mob-btn-chart');
     const mobBtnBacktest = document.getElementById('mob-btn-backtest');
     const btnBottomTester = document.getElementById('btn-bottom-tab-tester');
+    const topToolbar = document.getElementById('top-toolbar');
 
     if (modo === 'backtest') {
+        if (topToolbar) topToolbar.style.display = 'none';
+        document.body.classList.add('toolbar-hidden');
         if (mainWorkspace) mainWorkspace.style.display = 'none';
         if (mt5Workspace) {
             mt5Workspace.style.display = 'none';
@@ -1486,6 +1489,8 @@ window.cambiarModoApp = function(modo) {
             window.StrategyTester.ejecutarBacktest();
         }
     } else if (modo === 'mt5') {
+        if (topToolbar) topToolbar.style.display = 'none';
+        document.body.classList.add('toolbar-hidden');
         if (mainWorkspace) mainWorkspace.style.display = 'none';
         if (btWorkspace) {
             btWorkspace.style.display = 'none';
@@ -1509,6 +1514,9 @@ window.cambiarModoApp = function(modo) {
             }, 60);
         }
     } else {
+        // Modo 'trading' (Gráfico): Mostrar barra de símbolos e indicadores técnicos
+        document.body.classList.remove('toolbar-hidden');
+        if (topToolbar) topToolbar.style.display = '';
         if (btWorkspace) {
             btWorkspace.style.display = 'none';
             btWorkspace.classList.remove('active');
