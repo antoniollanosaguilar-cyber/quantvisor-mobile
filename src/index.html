@@ -1135,7 +1135,7 @@
         }
 
         /* Dimensiones del gráfico en móvil */
-        #main-workspace {
+        #main-workspace, #backtest-workspace, #mt5-runner-workspace {
           width: 100vw !important;
           height: calc(100vh - 42px - 52px) !important;
         }
@@ -1685,12 +1685,13 @@
         flex-direction: column;
         width: 100vw;
         height: 100%;
+        min-height: 0;
         overflow: hidden;
         position: relative;
         background-color: var(--bg-main);
       }
       #mt5-runner-workspace.active {
-        display: flex;
+        display: flex !important;
       }
       #mt5-toolbar {
         min-height: 40px;
@@ -2627,40 +2628,6 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
     </div>
 
-    <!-- MODAL CARGAR NUEVA ESTRATEGIA CUANTITATIVA -->
-    <div id="strategy-import-modal" class="modal-overlay">
-      <div class="modal-content" style="width: 580px;">
-        <div class="modal-header">
-          <h3>📂 Cargar Nueva Estrategia Cuantitativa</h3>
-          <button id="modal-strategy-close" class="close-btn">&times;</button>
-        </div>
-        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="font-size: 12px; color: var(--text-muted);">
-            Cargue un archivo <strong>.json</strong> con la definición de la estrategia o edite el código JSON en el área inferior:
-          </div>
-          <div>
-            <input type="file" id="strategy-modal-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
-          </div>
-          <textarea id="strategy-modal-editor" spellcheck="false" style="width: 100%; height: 160px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
-  "id": "mi_estrategia_custom",
-  "name": "Estrategia RSI + Bandas Bollinger",
-  "category": "Mixta",
-  "description": "Reversión extrema en bandas combinada con sobreventa/sobrecompra en RSI.",
-  "params": {
-    "period": 14,
-    "oversold": 28,
-    "overbought": 72,
-    "mult": 2.0,
-    "stopLossPct": 1.8,
-    "takeProfitPct": 3.6
-  }
-}</textarea>
-        </div>
-        <div class="modal-footer">
-          <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
-          <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
-        </div>
-      </div>
     <!-- WORKSPACE EMULADOR MT5 & PROP FIRM SANDBOX (PESTAÑA DEDICADA DE FORWARD TESTING) -->
     <div id="mt5-runner-workspace">
       <!-- BARRA DE CONTROL DEL BOT & AMBIENTE MT5 -->
@@ -2822,6 +2789,42 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <!-- TAB 4: PARÁMETROS DEL BOT -->
         <div id="mt5-tab-params" class="mt5-tab-pane">
           <div id="mt5-bot-params-grid" class="mt5-params-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CARGAR NUEVA ESTRATEGIA CUANTITATIVA -->
+    <div id="strategy-import-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 580px;">
+        <div class="modal-header">
+          <h3>📂 Cargar Nueva Estrategia Cuantitativa</h3>
+          <button id="modal-strategy-close" class="close-btn">&times;</button>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Cargue un archivo <strong>.json</strong> con la definición de la estrategia o edite el código JSON en el área inferior:
+          </div>
+          <div>
+            <input type="file" id="strategy-modal-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
+          </div>
+          <textarea id="strategy-modal-editor" spellcheck="false" style="width: 100%; height: 160px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
+  "id": "mi_estrategia_custom",
+  "name": "Estrategia RSI + Bandas Bollinger",
+  "category": "Mixta",
+  "description": "Reversión extrema en bandas combinada con sobreventa/sobrecompra en RSI.",
+  "params": {
+    "period": 14,
+    "oversold": 28,
+    "overbought": 72,
+    "mult": 2.0,
+    "stopLossPct": 1.8,
+    "takeProfitPct": 3.6
+  }
+}</textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
+          <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
         </div>
       </div>
     </div>

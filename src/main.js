@@ -1473,8 +1473,10 @@ window.cambiarModoApp = function(modo) {
         if (btnBottomTester) btnBottomTester.classList.remove('active-tab');
 
         if (window.MT5Emulator) {
-            window.MT5Emulator.resize();
-            window.MT5Emulator.cargarVelasYActualizar();
+            setTimeout(() => {
+                window.MT5Emulator.resize();
+                window.MT5Emulator.cargarVelasYActualizar();
+            }, 60);
         }
     } else {
         if (btWorkspace) {
@@ -3754,6 +3756,7 @@ function generarVelasSinteticasGenericas(sym = 'BTC-USD', count = 200) {
     }
     return candles;
 }
+window.generarVelasSinteticasGenericas = generarVelasSinteticasGenericas;
 
 function inicializarEventosReplayYMultiChart() {
     const btnReplay = document.getElementById('btn-bar-replay');

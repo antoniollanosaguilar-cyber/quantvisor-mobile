@@ -483,6 +483,9 @@ class MT5VirtualEmulator {
                     ? window.generarVelasSinteticasGenericas(this.symbol, 300)
                     : (window.historialVelas || []);
             }
+            if (!candles || candles.length < 30) {
+                candles = this.generarVelasFallback(this.symbol, 300);
+            }
             this.currentCandles = candles;
         }
 
@@ -1113,6 +1116,41 @@ class MT5VirtualEmulator {
 
     calcularEMAPrecisa(candles, period) {
         return this.calcularEMA(candles, period);
+    }
+
+    generarVelasFallback(sym = 'BTC-USD', count = 300) {
+        let basePrice = 100;
+        const s = (sym || '').toUpperCase();
+        if (s.includes('BTC')) basePrice = 83000;
+        else if (s.includes('ETH')) basePrice = 3500;
+        else if (s.includes('SOL')) basePrice = 180;
+        else if (s.includes('XAU') || s.includes('GOLD')) basePrice = 2650;
+        else if (s.includes('EUR')) basePrice = 1.085;
+        else if (s.includes('NASDAQ') || s.includes('QQQ')) basePrice = 20500;
+        else if (s.includes('SP500') || s.includes('SPY')) basePrice = 5800;
+
+        let now = Math.floor(Date.now() / 1000) - count * 3600;
+        const candles = [];
+        let price = basePrice;
+        for (let i = 0; i < count; i++) {
+            const delta = (Math.random() - 0.49) * (basePrice * 0.006);
+            const open = price;
+            const close = open + delta;
+            const high = Math.max(open, close) + Math.random() * (basePrice * 0.003);
+            const low = Math.min(open, close) - Math.random() * (basePrice * 0.003);
+            const volume = Math.floor(Math.random() * 400) + 50;
+            const digits = s.includes('EUR') ? 5 : 2;
+            candles.push({
+                time: now + (i * 3600),
+                open: parseFloat(open.toFixed(digits)),
+                high: parseFloat(high.toFixed(digits)),
+                low: parseFloat(low.toFixed(digits)),
+                close: parseFloat(close.toFixed(digits)),
+                volume: volume
+            });
+            price = close;
+        }
+        return candles;
     }
 }
 
