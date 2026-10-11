@@ -1061,6 +1061,10 @@ function recalcularYRenderizarIndicadores() {
     }
 
     actualizarLeyendaIndicadoresUI();
+
+    if (typeof sincronizarIndicadoresEnPanelesSecundarios === 'function') {
+        sincronizarIndicadoresEnPanelesSecundarios();
+    }
 }
 
 // CATÁLOGO DE INDICADORES COMPLETO (20+ TOP INDICADORES TRADINGVIEW)
@@ -2925,8 +2929,10 @@ const panelesSecundarios = {
         symbol: 'ETH-USD',
         interval: '1h',
         chart: null,
+        oscChart: null,
         series: null,
         volumeSeries: null,
+        indicatorSeriesList: [],
         containerId: 'p1-chart-body',
         selectId: 'p1-sym-select',
         legendId: 'p1-legend',
@@ -2936,8 +2942,10 @@ const panelesSecundarios = {
         symbol: 'SOL-USD',
         interval: '4h',
         chart: null,
+        oscChart: null,
         series: null,
         volumeSeries: null,
+        indicatorSeriesList: [],
         containerId: 'p2-chart-body',
         selectId: 'p2-sym-select',
         legendId: 'p2-legend',
@@ -2947,8 +2955,10 @@ const panelesSecundarios = {
         symbol: 'NVDA',
         interval: '1d',
         chart: null,
+        oscChart: null,
         series: null,
         volumeSeries: null,
+        indicatorSeriesList: [],
         containerId: 'p3-chart-body',
         selectId: 'p3-sym-select',
         legendId: 'p3-legend',
@@ -3141,9 +3151,297 @@ async function cargarDatosPanelSecundario(panelId) {
         if (rawList.length > 0) {
             actualizarLeyendaPanelSecundario(panelId, { seriesData: new Map([[config.series, rawList[rawList.length - 1]]]) });
         }
+
+        // SINCRONIZACIÓN AUTOMÁTICA DE TODOS LOS INDICADORES ACTIVOS DE LA PANTALLA PRINCIPAL
+        renderizarIndicadoresEnPanelSecundario(panelId);
     } catch (e) {
         console.warn(`Error al cargar datos del panel ${panelId}:`, e);
     }
+}
+
+function garantizarOsciladorPanelSecundario(panelId) {
+    const config = panelesSecundarios[panelId];
+    if (!config) return null;
+
+    const oscContainer = document.getElementById(`p${panelId}-osc-body`);
+    if (!oscContainer) return null;
+
+    if (!config.oscChart) {
+        const w = oscContainer.clientWidth > 0 ? oscContainer.clientWidth : 400;
+        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : 120;
+
+        config.oscChart = LightweightCharts.createChart(oscContainer, {
+            width: w,
+            height: h,
+            layout: {
+                background: { type: 'solid', color: '#131722' },
+                textColor: '#d1d4dc',
+                fontSize: 10,
+                fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+            },
+            grid: { vertLines: { color: '#1a1e29' }, horzLines: { color: '#1a1e29' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.1 } },
+            leftPriceScale: { borderColor: '#2a2e39', visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+            timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 12 },
+        });
+
+        if (config.chart && config.chart.timeScale()) {
+            config.chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+                if (config.oscChart && range) {
+                    config.oscChart.timeScale().setVisibleLogicalRange(range);
+                }
+            });
+            config.oscChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+                if (config.chart && range) {
+                    config.chart.timeScale().setVisibleLogicalRange(range);
+                }
+            });
+        }
+    } else {
+        const w = oscContainer.clientWidth > 0 ? oscContainer.clientWidth : 400;
+        const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : 120;
+        config.oscChart.applyOptions({ width: w, height: h });
+    }
+
+    return config.oscChart;
+}
+
+function renderizarIndicadoresEnPanelSecundario(panelId) {
+    const config = panelesSecundarios[panelId];
+    if (!config || !config.chart || !config.data || config.data.length === 0) return;
+
+    // 1. Limpiar series previas de indicadores
+    if (config.indicatorSeriesList && config.indicatorSeriesList.length > 0) {
+        config.indicatorSeriesList.forEach(s => {
+            try {
+                if (config.chart) config.chart.removeSeries(s);
+            } catch (e) {}
+            try {
+                if (config.oscChart) config.oscChart.removeSeries(s);
+            } catch (e) {}
+        });
+    }
+    config.indicatorSeriesList = [];
+
+    // 2. Comprobar si hay osciladores activos
+    let hayOsc = false;
+    const oscContainer = document.getElementById(`p${panelId}-osc-body`);
+
+    indicadoresActivos.forEach(ind => {
+        if (ind.visible === false) return;
+        if (ind.isOscillator || ind.type === 'SQZMOM' || ind.type === 'ADX' || ind.type === 'RSI' || ind.type === 'MACD' || ind.type === 'STOCH' || ind.type === 'ATR' || ind.type === 'CCI' || ind.type === 'ROC' || ind.type === 'MFI' || ind.type === 'OBV') {
+            hayOsc = true;
+        }
+    });
+
+    let oscChart = null;
+    if (hayOsc) {
+        if (oscContainer) oscContainer.style.display = 'block';
+        oscChart = garantizarOsciladorPanelSecundario(panelId);
+    } else {
+        if (oscContainer) oscContainer.style.display = 'none';
+    }
+
+    const cData = config.data;
+
+    // 3. Renderizar cada indicador activo en este panel secundario
+    indicadoresActivos.forEach(ind => {
+        if (ind.visible === false) return;
+        try {
+            if (ind.type === 'EMA') {
+                const data = window.IndicatorsEngine.calcularEMA(cData, ind.params?.period || 20);
+                const s = config.chart.addLineSeries({
+                    color: ind.params?.color || '#ff9800',
+                    lineWidth: 2,
+                    title: `EMA ${ind.params?.period || 20}`
+                });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'SMA') {
+                const data = window.IndicatorsEngine.calcularSMA(cData, ind.params?.period || 50);
+                const s = config.chart.addLineSeries({
+                    color: ind.params?.color || '#2962ff',
+                    lineWidth: 2,
+                    title: `SMA ${ind.params?.period || 50}`
+                });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'WMA') {
+                const data = window.IndicatorsEngine.calcularWMA(cData, ind.params?.period || 20);
+                const s = config.chart.addLineSeries({
+                    color: ind.params?.color || '#00bcd4',
+                    lineWidth: 2,
+                    title: `WMA ${ind.params?.period || 20}`
+                });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'HMA') {
+                const data = window.IndicatorsEngine.calcularHMA(cData, ind.params?.period || 9);
+                const s = config.chart.addLineSeries({
+                    color: ind.params?.color || '#00e676',
+                    lineWidth: 2,
+                    title: `HMA ${ind.params?.period || 9}`
+                });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'BB') {
+                const { basis, upper, lower } = window.IndicatorsEngine.calcularBollinger(cData, ind.params?.period || 20, ind.params?.mult || 2.0);
+                const sUpper = config.chart.addLineSeries({ color: ind.params?.color || '#2196f3', lineWidth: 1.5, title: `BB Upper` });
+                const sBasis = config.chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: `BB Basis` });
+                const sLower = config.chart.addLineSeries({ color: ind.params?.color || '#2196f3', lineWidth: 1.5, title: `BB Lower` });
+                sUpper.setData(upper); sBasis.setData(basis); sLower.setData(lower);
+                config.indicatorSeriesList.push(sUpper, sBasis, sLower);
+            }
+            else if (ind.type === 'DONCHIAN') {
+                const { upper, basis, lower } = window.IndicatorsEngine.calcularDonchian(cData, ind.params?.period || 20);
+                const sUpper = config.chart.addLineSeries({ color: ind.params?.color || '#00bcd4', lineWidth: 1.5, title: `Donchian Upper` });
+                const sBasis = config.chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: `Donchian Basis` });
+                const sLower = config.chart.addLineSeries({ color: ind.params?.color || '#00bcd4', lineWidth: 1.5, title: `Donchian Lower` });
+                sUpper.setData(upper); sBasis.setData(basis); sLower.setData(lower);
+                config.indicatorSeriesList.push(sUpper, sBasis, sLower);
+            }
+            else if (ind.type === 'KELTNER') {
+                const { upper, basis, lower } = window.IndicatorsEngine.calcularKeltner(cData, ind.params?.period || 20, ind.params?.mult || 2.0);
+                const sUpper = config.chart.addLineSeries({ color: ind.params?.color || '#4caf50', lineWidth: 1.5, title: `Keltner Upper` });
+                const sBasis = config.chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: `Keltner Basis` });
+                const sLower = config.chart.addLineSeries({ color: ind.params?.color || '#4caf50', lineWidth: 1.5, title: `Keltner Lower` });
+                sUpper.setData(upper); sBasis.setData(basis); sLower.setData(lower);
+                config.indicatorSeriesList.push(sUpper, sBasis, sLower);
+            }
+            else if (ind.type === 'SUPERTREND') {
+                const data = window.IndicatorsEngine.calcularSupertrend(cData, ind.params?.period || 10, ind.params?.mult || 3.0);
+                const s = config.chart.addLineSeries({ color: ind.params?.color || '#089981', lineWidth: 2, title: `Supertrend` });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'VWAP') {
+                const data = window.IndicatorsEngine.calcularVWAP(cData);
+                const s = config.chart.addLineSeries({ color: ind.params?.color || '#e91e63', lineWidth: 2, title: `VWAP` });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'SQZMOM' && oscChart) {
+                const { histogram, dots } = window.IndicatorsEngine.calcularSqueezeMomentum(
+                    cData,
+                    ind.params?.period || 20,
+                    ind.params?.mult || 2.0,
+                    ind.params?.kcPeriod || 20,
+                    ind.params?.kcMult || 1.5,
+                    ind.params?.useTrueRange !== false,
+                    ind.styleParams || {}
+                );
+                const sHist = oscChart.addHistogramSeries({ priceScaleId: 'left', title: 'SQZMOM' });
+                sHist.setData(histogram);
+                const sDots = oscChart.addLineSeries({ priceScaleId: 'left', color: 'rgba(0,0,0,0)', lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+                sDots.setData(dots.map(d => ({ time: d.time, value: 0 })));
+                if (dots.length > 0) {
+                    sDots.setMarkers(dots.map(d => ({ time: d.time, position: 'inBar', color: d.color, shape: 'circle', size: 1 })));
+                }
+                config.indicatorSeriesList.push(sHist, sDots);
+            }
+            else if (ind.type === 'ADX' && oscChart) {
+                const { adx, keyLevel } = window.IndicatorsEngine.calcularADX(cData, ind.params?.period || 14, ind.params?.keyLevel || 23);
+                const sAdx = oscChart.addLineSeries({ color: ind.styleParams?.colorADX || '#ffffff', lineWidth: 2, title: 'ADX', priceScaleId: 'right' });
+                const sKl = oscChart.addLineSeries({ color: ind.styleParams?.colorKL || '#787b86', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, title: 'Key Level', priceScaleId: 'right' });
+                sAdx.setData(adx);
+                sKl.setData(keyLevel);
+                config.indicatorSeriesList.push(sAdx, sKl);
+            }
+            else if (ind.type === 'RSI' && oscChart) {
+                const data = window.IndicatorsEngine.calcularRSI(cData, ind.params?.period || 14);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#e91e63', lineWidth: 2, title: `RSI ${ind.params?.period || 14}`, priceScaleId: 'right' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'MACD' && oscChart) {
+                const { macdLine, signalLine, histogram } = window.IndicatorsEngine.calcularMACD(cData, ind.params?.fastP || 12, ind.params?.slowP || 26, ind.params?.sigP || 9);
+                const sMacd = oscChart.addLineSeries({ color: ind.params?.color || '#2962ff', lineWidth: 2, title: `MACD`, priceScaleId: 'right' });
+                const sSig = oscChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: `Signal`, priceScaleId: 'right' });
+                const sHist = oscChart.addHistogramSeries({ priceScaleId: 'right', title: 'MACD Hist' });
+                sMacd.setData(macdLine);
+                sSig.setData(signalLine);
+                sHist.setData(histogram);
+                config.indicatorSeriesList.push(sMacd, sSig, sHist);
+            }
+            else if (ind.type === 'STOCH' && oscChart) {
+                const { k, d } = window.IndicatorsEngine.calcularStoch(cData, ind.params?.period || 14, ind.params?.smoothK || 3, ind.params?.smoothD || 3);
+                const sK = oscChart.addLineSeries({ color: ind.params?.color || '#ff9800', lineWidth: 2, title: `Stoch %K`, priceScaleId: 'right' });
+                const sD = oscChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5, title: `Stoch %D`, priceScaleId: 'right' });
+                sK.setData(k);
+                sD.setData(d);
+                config.indicatorSeriesList.push(sK, sD);
+            }
+            else if (ind.type === 'ATR' && oscChart) {
+                const data = window.IndicatorsEngine.calcularATR(cData, ind.params?.period || 14);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#9c27b0', lineWidth: 2, title: `ATR ${ind.params?.period || 14}`, priceScaleId: 'left' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'CCI' && oscChart) {
+                const data = window.IndicatorsEngine.calcularCCI(cData, ind.params?.period || 20);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#ff9800', lineWidth: 2, title: `CCI ${ind.params?.period || 20}`, priceScaleId: 'right' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'ROC' && oscChart) {
+                const data = window.IndicatorsEngine.calcularROC(cData, ind.params?.period || 12);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#00bcd4', lineWidth: 2, title: `ROC ${ind.params?.period || 12}`, priceScaleId: 'right' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'MFI' && oscChart) {
+                const data = window.IndicatorsEngine.calcularMFI(cData, ind.params?.period || 14);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#9c27b0', lineWidth: 2, title: `MFI ${ind.params?.period || 14}`, priceScaleId: 'right' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+            else if (ind.type === 'OBV' && oscChart) {
+                const data = window.IndicatorsEngine.calcularOBV(cData);
+                const s = oscChart.addLineSeries({ color: ind.params?.color || '#ff9800', lineWidth: 2, title: `OBV`, priceScaleId: 'left' });
+                s.setData(data);
+                config.indicatorSeriesList.push(s);
+            }
+        } catch (eInd) {
+            console.warn(`Error al renderizar indicador en panel ${panelId}:`, ind.name, eInd);
+        }
+    });
+
+    // 4. Actualizar badge de indicadores en el header del panel
+    const badge = document.getElementById(`p${panelId}-ind-indicator`);
+    if (badge) {
+        const activeNames = indicadoresActivos
+            .filter(i => i.visible !== false)
+            .map(i => {
+                if (ind.type === 'EMA') return `EMA(${i.params?.period || 20})`;
+                if (ind.type === 'SMA') return `SMA(${i.params?.period || 50})`;
+                if (ind.type === 'SQZMOM') return `SQZ`;
+                if (ind.type === 'ADX') return `ADX`;
+                return i.type;
+            });
+        badge.textContent = activeNames.length > 0 ? `fx: ${activeNames.join(', ')}` : '';
+    }
+
+    // 5. Ajustar rangos
+    if (oscChart && config.chart && config.chart.timeScale()) {
+        try {
+            const range = config.chart.timeScale().getVisibleLogicalRange();
+            if (range) oscChart.timeScale().setVisibleLogicalRange(range);
+        } catch (e) {}
+    }
+}
+
+function sincronizarIndicadoresEnPanelesSecundarios() {
+    [1, 2, 3].forEach(id => {
+        const config = panelesSecundarios[id];
+        if (config && config.chart && config.data && config.data.length > 0) {
+            renderizarIndicadoresEnPanelSecundario(id);
+        }
+    });
 }
 
 function actualizarLeyendaPanelSecundario(panelId, param) {
@@ -3173,18 +3471,46 @@ function actualizarLeyendaPanelSecundario(panelId, param) {
     const color = isUp ? '#089981' : '#f23645';
 
     legendEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${config.symbol}</span> <span style="color:#787b86;">${config.interval}</span> O:<span style="color:${color};">${formatPrice(open)}</span> H:<span style="color:${color};">${formatPrice(high)}</span> L:<span style="color:${color};">${formatPrice(low)}</span> C:<span style="color:${color};">${formatPrice(close)}</span>`;
+
+    // Actualizar leyenda de indicadores del panel si está disponible
+    const indLegendEl = document.getElementById(`p${panelId}-ind-legend`);
+    if (indLegendEl && param && param.seriesData && config.indicatorSeriesList) {
+        let indStrings = [];
+        config.indicatorSeriesList.forEach(s => {
+            const val = param.seriesData.get(s);
+            if (val && val.value !== undefined) {
+                const title = s.options ? (s.options().title || '') : '';
+                const color = s.options ? (s.options().color || '#787b86') : '#787b86';
+                if (title) {
+                    indStrings.push(`<span style="color: ${color};">${title}: ${formatPrice(val.value)}</span>`);
+                }
+            }
+        });
+        indLegendEl.innerHTML = indStrings.join(' &nbsp; ');
+    }
 }
 
 function redimensionarPanelesSecundarios() {
     [1, 2, 3].forEach(id => {
         const config = panelesSecundarios[id];
-        if (config && config.chart) {
-            const container = document.getElementById(config.containerId);
-            if (container && container.clientWidth > 0 && container.clientHeight > 0) {
-                config.chart.applyOptions({
-                    width: container.clientWidth,
-                    height: container.clientHeight
-                });
+        if (config) {
+            if (config.chart) {
+                const container = document.getElementById(config.containerId);
+                if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+                    config.chart.applyOptions({
+                        width: container.clientWidth,
+                        height: container.clientHeight
+                    });
+                }
+            }
+            if (config.oscChart) {
+                const oscContainer = document.getElementById(`p${id}-osc-body`);
+                if (oscContainer && oscContainer.style.display !== 'none' && oscContainer.clientWidth > 0 && oscContainer.clientHeight > 0) {
+                    config.oscChart.applyOptions({
+                        width: oscContainer.clientWidth,
+                        height: oscContainer.clientHeight
+                    });
+                }
             }
         }
     });
