@@ -19,8 +19,8 @@ class MT5VirtualEmulator {
             maxTotalLossPct: 10.0,     // 10% max total trailing drawdown
             profitTargetPct: 8.0,      // 8% target (Fase 1)
             leverage: 100,             // 1:100 leverage
-            riskMode: 'percent',       // 'percent' or 'fixed_lot'
-            riskValue: 1.0             // 1% per trade or 1.0 lot
+            riskMode: 'PCT',           // 'PCT' (Porcentaje %) o 'LOTS' (Lotes Fijos)
+            riskValue: 1.0             // 1.0% o 0.10 lotes según el modo
         };
 
         // Account State
@@ -37,6 +37,13 @@ class MT5VirtualEmulator {
             floatingPnL: 0,
             status: 'ACTIVE'           // 'ACTIVE', 'WARNING', 'PASSED', 'VIOLATED'
         };
+
+        // Historial de Equidad para la Curva de Rendimiento
+        this.equityHistory = [{
+            time: Math.floor(Date.now() / 1000),
+            balance: 100000,
+            equity: 100000
+        }];
 
         // Order Book & History
         this.openPositions = [];       // Active positions
@@ -165,11 +172,36 @@ class MT5VirtualEmulator {
             workspace: document.getElementById('mt5-runner-workspace'),
             botSelect: document.getElementById('mt5-bot-select'),
             symbolSelect: document.getElementById('mt5-symbol-select'),
+            tfSelect: document.getElementById('mt5-tf-select'),
             tierSelect: document.getElementById('mt5-tier-select'),
+            riskModeSelect: document.getElementById('mt5-risk-mode'),
             riskInput: document.getElementById('mt5-risk-input'),
             btnToggleRun: document.getElementById('btn-mt5-toggle-run'),
             btnPanicCloseAll: document.getElementById('btn-mt5-panic-close'),
             btnResetChallenge: document.getElementById('btn-mt5-reset-challenge'),
+            btnManualBuy: document.getElementById('btn-mt5-manual-buy'),
+            btnManualSell: document.getElementById('btn-mt5-manual-sell'),
+            btnImportBot: document.getElementById('btn-mt5-import-bot'),
+            botFileInput: document.getElementById('mt5-bot-file-input'),
+            modalImportBot: document.getElementById('mt5-bot-import-modal'),
+            btnCloseImportBot: document.getElementById('btn-close-mt5-import-modal'),
+            btnCancelImportBot: document.getElementById('btn-cancel-mt5-import'),
+            btnApplyImportBot: document.getElementById('btn-apply-mt5-import'),
+            editorImportBot: document.getElementById('mt5-modal-bot-editor'),
+            modalBotFileInput: document.getElementById('mt5-modal-bot-file'),
+            equityCanvas: document.getElementById('mt5-equity-chart'),
+            equitySummary: document.getElementById('mt5-equity-stats-summary'),
+
+            // KPIs
+            statTrades: document.getElementById('mt5-stat-trades'),
+            statWinrate: document.getElementById('mt5-stat-winrate'),
+            statPF: document.getElementById('mt5-stat-pf'),
+            statNetPnL: document.getElementById('mt5-stat-netpnl'),
+            statMaxDD: document.getElementById('mt5-stat-maxdd'),
+            statAvgWin: document.getElementById('mt5-stat-avgwin'),
+            statAvgLoss: document.getElementById('mt5-stat-avgloss'),
+            statRR: document.getElementById('mt5-stat-rr'),
+
             chartContainer: document.getElementById('mt5-chart-container'),
             legend: document.getElementById('mt5-chart-legend'),
             
@@ -201,11 +233,137 @@ class MT5VirtualEmulator {
             panel: document.getElementById('mt5-terminal-panel')
         };
 
+        this.cargarBotsCustom();
+        this.cargarEstadoPersistente();
         this.initEventos();
         this.poblarSelectores();
         this.actualizarUI();
         this.renderizarFormularioParametros();
-        this.logJournal(`[OnInit] Emulador Virtual MT5 v1.0 inicializado. Listo para Forward-Testing.`);
+        this.logJournal(`[OnInit] Emulador Virtual MT5 v2.0 inicializado. Listo para Forward-Testing & Prop Firm Sandbox.`);
+    }
+
+    cargarBotsCustom() {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                const raw = localStorage.getItem('quantvisor_custom_mt5_bots');
+                if (raw) {
+                    const custom = JSON.parse(raw);
+                    if (custom && typeof custom === 'object') {
+                        Object.values(custom).forEach(bot => {
+                            if (bot && bot.id) {
+                                this.botsCatalog[bot.id] = bot;
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Error cargando bots custom de localStorage:', e);
+        }
+    }
+
+    guardarBotsCustom() {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                const customBots = {};
+                const defaultIds = ['gold_rush', 'btc_vcp', 'sqz_momentum', 'eurusd_vcp', 'cruce_ema'];
+                Object.keys(this.botsCatalog).forEach(k => {
+                    if (!defaultIds.includes(k)) {
+                        customBots[k] = this.botsCatalog[k];
+                    }
+                });
+                localStorage.setItem('quantvisor_custom_mt5_bots', JSON.stringify(customBots));
+            }
+        } catch (e) {
+            console.warn('Error guardando bots custom:', e);
+        }
+    }
+
+    importarBotDesdeEditor() {
+        if (!this.dom.editorImportBot) return;
+        try {
+            const text = this.dom.editorImportBot.value.trim();
+            if (!text) {
+                alert('Por favor ingrese la definición en JSON del bot.');
+                return;
+            }
+            const bot = JSON.parse(text);
+            if (!bot.name || !bot.params) {
+                alert('La configuración del bot debe contener al menos "name" y "params".');
+                return;
+            }
+
+            if (!bot.id) {
+                bot.id = 'bot_' + Date.now();
+            }
+            if (!bot.symbol) bot.symbol = this.symbol || 'BTC-USD';
+            if (!bot.timeframe) bot.timeframe = this.timeframe || '1h';
+            if (!bot.magic) bot.magic = Math.floor(1000 + Math.random() * 9000);
+            if (!bot.description) bot.description = 'Bot MT5 importado por el usuario.';
+
+            this.botsCatalog[bot.id] = bot;
+            this.guardarBotsCustom();
+            this.poblarSelectores();
+            this.seleccionarBot(bot.id);
+
+            if (this.dom.modalImportBot) {
+                this.dom.modalImportBot.style.display = 'none';
+            }
+
+            this.logJournal(`[BotImported] Bot '${bot.name}' importado con éxito e instalado en el catálogo.`);
+            alert(`¡Bot "${bot.name}" importado e instalado exitosamente!`);
+        } catch (err) {
+            alert('Error al parsear el JSON del bot: ' + err.message);
+        }
+    }
+
+    cargarEstadoPersistente() {
+        try {
+            if (typeof localStorage === 'undefined') return;
+            const raw = localStorage.getItem('quantvisor_mt5_state');
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            if (saved && saved.account) {
+                this.account = Object.assign(this.account, saved.account);
+                if (Array.isArray(saved.openPositions)) this.openPositions = saved.openPositions;
+                if (Array.isArray(saved.closedPositions)) this.closedPositions = saved.closedPositions;
+                if (Array.isArray(saved.equityHistory) && saved.equityHistory.length > 0) {
+                    this.equityHistory = saved.equityHistory;
+                }
+                if (saved.challengeConfig) {
+                    this.challengeConfig = Object.assign(this.challengeConfig, saved.challengeConfig);
+                    if (this.dom.riskModeSelect) this.dom.riskModeSelect.value = this.challengeConfig.riskMode || 'PCT';
+                    if (this.dom.riskInput) this.dom.riskInput.value = this.challengeConfig.riskValue || 1.0;
+                }
+                if (saved.symbol) this.symbol = saved.symbol;
+                if (saved.timeframe) {
+                    this.timeframe = saved.timeframe;
+                    if (this.dom.tfSelect) this.dom.tfSelect.value = this.timeframe;
+                }
+                if (saved.selectedBotId && this.botsCatalog[saved.selectedBotId]) {
+                    this.selectedBotId = saved.selectedBotId;
+                }
+            }
+        } catch (e) {
+            console.warn('Error cargando estado persistente MT5:', e);
+        }
+    }
+
+    guardarEstadoPersistente() {
+        try {
+            if (typeof localStorage === 'undefined') return;
+            const state = {
+                account: this.account,
+                openPositions: this.openPositions,
+                closedPositions: this.closedPositions.slice(0, 50),
+                equityHistory: this.equityHistory.slice(-500),
+                challengeConfig: this.challengeConfig,
+                symbol: this.symbol,
+                timeframe: this.timeframe,
+                selectedBotId: this.selectedBotId
+            };
+            localStorage.setItem('quantvisor_mt5_state', JSON.stringify(state));
+        } catch (e) {}
     }
 
     initEventos() {
@@ -220,6 +378,16 @@ class MT5VirtualEmulator {
                 this.symbol = e.target.value;
                 this.currentCandles = [];
                 this.cargarVelasYActualizar();
+                this.logJournal(`[SymbolChanged] Símbolo activo cambiado a ${this.symbol}.`);
+            });
+        }
+
+        if (this.dom.tfSelect) {
+            this.dom.tfSelect.addEventListener('change', (e) => {
+                this.timeframe = e.target.value;
+                this.currentCandles = [];
+                this.cargarVelasYActualizar();
+                this.logJournal(`[TimeframeChanged] Temporalidad cambiada a ${this.timeframe}.`);
             });
         }
 
@@ -231,9 +399,89 @@ class MT5VirtualEmulator {
             });
         }
 
+        if (this.dom.riskModeSelect) {
+            this.dom.riskModeSelect.addEventListener('change', (e) => {
+                this.challengeConfig.riskMode = e.target.value;
+                if (this.dom.riskInput) {
+                    if (this.challengeConfig.riskMode === 'LOTS') {
+                        this.dom.riskInput.step = '0.01';
+                        this.dom.riskInput.min = '0.01';
+                        this.dom.riskInput.value = '0.10';
+                        this.challengeConfig.riskValue = 0.10;
+                    } else {
+                        this.dom.riskInput.step = '0.1';
+                        this.dom.riskInput.min = '0.1';
+                        this.dom.riskInput.value = '1.0';
+                        this.challengeConfig.riskValue = 1.0;
+                    }
+                }
+                this.logJournal(`[RiskMode] Modo de dimensionamiento: ${this.challengeConfig.riskMode === 'LOTS' ? 'Lotes Fijos' : 'Porcentaje de Riesgo (%)'}.`);
+            });
+        }
+
         if (this.dom.riskInput) {
             this.dom.riskInput.addEventListener('change', (e) => {
-                this.challengeConfig.riskValue = Math.max(0.1, parseFloat(e.target.value) || 1.0);
+                const isLots = this.challengeConfig.riskMode === 'LOTS';
+                const minVal = isLots ? 0.01 : 0.1;
+                this.challengeConfig.riskValue = Math.max(minVal, parseFloat(e.target.value) || (isLots ? 0.10 : 1.0));
+                this.logJournal(`[RiskUpdate] Valor de riesgo fijado a: ${this.challengeConfig.riskValue}${isLots ? ' Lotes' : '%'}`);
+            });
+        }
+
+        // Trading Manual Rápido (Discretionary Execution en Prop Sandbox)
+        if (this.dom.btnManualBuy) {
+            this.dom.btnManualBuy.addEventListener('click', () => {
+                this.ejecutarOrdenManual('BUY');
+            });
+        }
+        if (this.dom.btnManualSell) {
+            this.dom.btnManualSell.addEventListener('click', () => {
+                this.ejecutarOrdenManual('SELL');
+            });
+        }
+
+        // Modal de Carga de Bots MT5
+        if (this.dom.btnImportBot && this.dom.modalImportBot) {
+            this.dom.btnImportBot.addEventListener('click', () => {
+                this.dom.modalImportBot.style.display = 'flex';
+            });
+        }
+        if (this.dom.botFileInput) {
+            this.dom.botFileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    if (this.dom.editorImportBot) this.dom.editorImportBot.value = evt.target.result;
+                    if (this.dom.modalImportBot) this.dom.modalImportBot.style.display = 'flex';
+                };
+                reader.readAsText(file);
+            });
+        }
+        if (this.dom.btnCloseImportBot && this.dom.modalImportBot) {
+            this.dom.btnCloseImportBot.addEventListener('click', () => {
+                this.dom.modalImportBot.style.display = 'none';
+            });
+        }
+        if (this.dom.btnCancelImportBot && this.dom.modalImportBot) {
+            this.dom.btnCancelImportBot.addEventListener('click', () => {
+                this.dom.modalImportBot.style.display = 'none';
+            });
+        }
+        if (this.dom.modalBotFileInput && this.dom.editorImportBot) {
+            this.dom.modalBotFileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    this.dom.editorImportBot.value = evt.target.result;
+                };
+                reader.readAsText(file);
+            });
+        }
+        if (this.dom.btnApplyImportBot && this.dom.editorImportBot) {
+            this.dom.btnApplyImportBot.addEventListener('click', () => {
+                this.importarBotDesdeEditor();
             });
         }
 
@@ -316,11 +564,23 @@ class MT5VirtualEmulator {
             ).join('');
         }
 
+        if (this.dom.tfSelect) {
+            this.dom.tfSelect.value = this.timeframe || '1h';
+        }
+
         if (this.dom.tierSelect) {
             const tiers = [10000, 25000, 50000, 100000, 200000];
             this.dom.tierSelect.innerHTML = tiers.map(t => 
                 `<option value="${t}" ${t === this.challengeConfig.tier ? 'selected' : ''}>Cuenta $${t.toLocaleString()} USD</option>`
             ).join('');
+        }
+
+        if (this.dom.riskModeSelect) {
+            this.dom.riskModeSelect.value = this.challengeConfig.riskMode || 'PCT';
+        }
+
+        if (this.dom.riskInput) {
+            this.dom.riskInput.value = this.challengeConfig.riskValue || (this.challengeConfig.riskMode === 'LOTS' ? 0.10 : 1.0);
         }
     }
 
@@ -333,6 +593,7 @@ class MT5VirtualEmulator {
         this.magicNumber = bot.magic;
 
         if (this.dom.symbolSelect) this.dom.symbolSelect.value = this.symbol;
+        if (this.dom.tfSelect) this.dom.tfSelect.value = this.timeframe;
         this.renderizarFormularioParametros();
         this.currentCandles = [];
         this.cargarVelasYActualizar();
@@ -390,6 +651,11 @@ class MT5VirtualEmulator {
             this.dom.tabPanes.forEach(pane => {
                 pane.classList.toggle('active', pane.id === tabId);
             });
+        }
+        if (tabId === 'mt5-tab-equity') {
+            this.renderizarCurvaEquidad();
+        } else if (tabId === 'mt5-tab-stats') {
+            this.renderizarEstadisticas();
         }
     }
 
@@ -463,6 +729,9 @@ class MT5VirtualEmulator {
             const w = container.clientWidth;
             const h = container.clientHeight;
             if (w > 0 && h > 0) this.chart.applyOptions({ width: w, height: h });
+        }
+        if (this.activeTab === 'mt5-tab-equity') {
+            this.renderizarCurvaEquidad();
         }
     }
 
@@ -634,6 +903,20 @@ class MT5VirtualEmulator {
         this.account.peakEquity = Math.max(this.account.peakEquity, this.account.equity);
         this.account.freeMargin = this.account.equity - this.account.margin;
         this.account.marginLevel = this.account.margin > 0 ? (this.account.equity / this.account.margin) * 100 : 0;
+
+        // Registrar punto en la curva de capital si hay operaciones activas
+        if (this.openPositions.length > 0) {
+            const lastPoint = this.equityHistory[this.equityHistory.length - 1];
+            const nowSec = Math.floor(Date.now() / 1000);
+            if (!lastPoint || Math.abs(lastPoint.equity - this.account.equity) >= 1 || (nowSec - lastPoint.time >= 5)) {
+                this.equityHistory.push({
+                    time: nowSec,
+                    balance: this.account.balance,
+                    equity: this.account.equity
+                });
+                if (this.equityHistory.length > 1000) this.equityHistory.shift();
+            }
+        }
     }
 
     evaluarLogicaBot() {
@@ -649,74 +932,140 @@ class MT5VirtualEmulator {
         const lastBar = candles[candles.length - 2];
         const curBar = candles[candles.length - 1];
         const curPrice = curBar.close;
-        const spec = this.symbolSpecs[this.symbol] || { contractSize: 1, pointVal: 1, spread: 1.0, digits: 2 };
 
         let signal = null; // 'BUY' o 'SELL'
         let slPrice = 0;
         let tpPrice = 0;
 
-        // 1. Hobbiecode Gold Rush Breakout (XAUUSD H1)
-        if (bot.id === 'gold_rush') {
-            const period = bot.params.donchianPeriod || 51;
+        const stratType = bot.strategyType || bot.id;
+
+        // 1. Donchian Breakout (Gold Rush, EURUSD VCP o Custom)
+        if (stratType === 'donchian_breakout' || bot.id === 'gold_rush' || bot.id === 'eurusd_vcp') {
+            const period = bot.params.donchianPeriod || (bot.id === 'eurusd_vcp' ? 10 : 51);
             const lookback = candles.slice(-period - 2, -2);
             if (lookback.length >= period) {
                 const maxHigh = Math.max(...lookback.map(c => c.high));
                 const minLow = Math.min(...lookback.map(c => c.low));
-                const atr = this.calcularATR(candles, 14);
+                const atr = this.calcularATR(candles, bot.params.atrPeriod || 14);
+                const slMult = bot.params.slAtrMult || 1.5;
+                const tpMult = bot.params.tpAtrMult || 3.0;
 
                 if (curBar.high >= maxHigh && curBar.close > lastBar.close) {
                     signal = 'BUY';
-                    slPrice = curPrice - (atr * (bot.params.slAtrMult || 1.5));
-                    tpPrice = curPrice + (atr * (bot.params.tpAtrMult || 3.0));
+                    slPrice = curPrice - (atr * slMult);
+                    tpPrice = curPrice + (atr * tpMult);
+                } else if (curBar.low <= minLow && curBar.close < lastBar.close) {
+                    signal = 'SELL';
+                    slPrice = curPrice + (atr * slMult);
+                    tpPrice = curPrice - (atr * tpMult);
                 }
             }
         }
 
-        // 2. Bitcoin VCP Breakout & Expansion (BTC-USD)
-        else if (bot.id === 'btc_vcp') {
-            const ema200 = this.calcularEMA(candles, 200);
-            const atr = this.calcularATR(candles, 14);
+        // 2. Bitcoin VCP Breakout & Expansion (BTC-USD o VCP Squeeze)
+        else if (stratType === 'vcp_squeeze' || bot.id === 'btc_vcp') {
+            const emaPeriod = bot.params.emaPeriod || 200;
+            const emaVal = this.calcularEMA(candles, emaPeriod);
+            const atr = this.calcularATR(candles, bot.params.atrPeriod || 14);
             const period = bot.params.donchianPeriod || 24;
             const lookback = candles.slice(-period - 2, -2);
 
             if (lookback.length >= period) {
                 const maxH = Math.max(...lookback.map(c => c.high));
-                if (curPrice > ema200 && curBar.high >= maxH) {
+                const minL = Math.min(...lookback.map(c => c.low));
+                const slMult = bot.params.slAtrMult || 1.25;
+                const tpMult = bot.params.tpAtrMult || 3.2;
+
+                if (curPrice > emaVal && curBar.high >= maxH) {
                     signal = 'BUY';
-                    slPrice = curPrice - (atr * (bot.params.slAtrMult || 1.25));
-                    tpPrice = curPrice + (atr * (bot.params.tpAtrMult || 3.2));
+                    slPrice = curPrice - (atr * slMult);
+                    tpPrice = curPrice + (atr * tpMult);
+                } else if (curPrice < emaVal && curBar.low <= minL) {
+                    signal = 'SELL';
+                    slPrice = curPrice + (atr * slMult);
+                    tpPrice = curPrice - (atr * tpMult);
                 }
             }
         }
 
         // 3. Cruce EMA Tendencial
-        else if (bot.id === 'cruce_ema') {
-            const emaFastPrev = this.calcularEMAPrecisa(candles.slice(0, -1), bot.params.fastPeriod || 20);
-            const emaSlowPrev = this.calcularEMAPrecisa(candles.slice(0, -1), bot.params.slowPeriod || 50);
-            const emaFastCur = this.calcularEMAPrecisa(candles, bot.params.fastPeriod || 20);
-            const emaSlowCur = this.calcularEMAPrecisa(candles, bot.params.slowPeriod || 50);
-            const atr = this.calcularATR(candles, 14);
+        else if (stratType === 'ema_cross' || bot.id === 'cruce_ema') {
+            const fastP = bot.params.fastPeriod || 20;
+            const slowP = bot.params.slowPeriod || 50;
+            const emaFastPrev = this.calcularEMAPrecisa(candles.slice(0, -1), fastP);
+            const emaSlowPrev = this.calcularEMAPrecisa(candles.slice(0, -1), slowP);
+            const emaFastCur = this.calcularEMAPrecisa(candles, fastP);
+            const emaSlowCur = this.calcularEMAPrecisa(candles, slowP);
+            const atr = this.calcularATR(candles, bot.params.atrPeriod || 14);
+            const slMult = bot.params.slAtrMult || 2.0;
+            const tpMult = bot.params.tpAtrMult || 4.0;
 
             if (emaFastPrev <= emaSlowPrev && emaFastCur > emaSlowCur) {
                 signal = 'BUY';
-                slPrice = curPrice - (atr * (bot.params.slAtrMult || 2.0));
-                tpPrice = curPrice + (atr * (bot.params.tpAtrMult || 4.0));
+                slPrice = curPrice - (atr * slMult);
+                tpPrice = curPrice + (atr * tpMult);
             } else if (emaFastPrev >= emaSlowPrev && emaFastCur < emaSlowCur) {
                 signal = 'SELL';
-                slPrice = curPrice + (atr * (bot.params.slAtrMult || 2.0));
-                tpPrice = curPrice - (atr * (bot.params.tpAtrMult || 4.0));
+                slPrice = curPrice + (atr * slMult);
+                tpPrice = curPrice - (atr * tpMult);
+            }
+        }
+
+        // 4. Squeeze Momentum Breakout
+        else if (stratType === 'sqz_momentum' || bot.id === 'sqz_momentum') {
+            const len = bot.params.bbLength || 20;
+            const atr = this.calcularATR(candles, 14);
+            const ema = this.calcularEMA(candles, len);
+            const slPct = (bot.params.slPct || 2.0) / 100;
+            const tpPct = (bot.params.tpPct || 4.5) / 100;
+
+            if (curBar.close > lastBar.high && curBar.close > ema) {
+                signal = 'BUY';
+                slPrice = curPrice * (1 - slPct);
+                tpPrice = curPrice * (1 + tpPct);
+            } else if (curBar.close < lastBar.low && curBar.close < ema) {
+                signal = 'SELL';
+                slPrice = curPrice * (1 + slPct);
+                tpPrice = curPrice * (1 - tpPct);
+            }
+        }
+
+        // 5. Fallback genérico para bot personalizado
+        else {
+            const atr = this.calcularATR(candles, 14);
+            const period = bot.params.donchianPeriod || bot.params.period || 20;
+            const lookback = candles.slice(-period - 2, -2);
+            if (lookback.length >= period) {
+                const maxHigh = Math.max(...lookback.map(c => c.high));
+                const minLow = Math.min(...lookback.map(c => c.low));
+                if (curBar.close > maxHigh) {
+                    signal = 'BUY';
+                    slPrice = curPrice - (atr * 1.5);
+                    tpPrice = curPrice + (atr * 3.0);
+                } else if (curBar.close < minLow) {
+                    signal = 'SELL';
+                    slPrice = curPrice + (atr * 1.5);
+                    tpPrice = curPrice - (atr * 3.0);
+                }
             }
         }
 
         // Si hay señal válida, ejecutar OrderSend virtual de MT5
         if (signal) {
             const lots = this.calcularLotajeSeguro(curPrice, slPrice);
-            this.orderSend(this.symbol, signal, lots, curPrice, slPrice, tpPrice, `[${bot.id}] Signal`);
+            this.orderSend(this.symbol, signal, lots, curPrice, slPrice, tpPrice, `[${bot.name || bot.id}] Signal`);
         }
     }
 
     calcularLotajeSeguro(entryPrice, slPrice) {
         const spec = this.symbolSpecs[this.symbol] || { contractSize: 1, pointVal: 1, digits: 2 };
+
+        if (this.challengeConfig.riskMode === 'LOTS') {
+            const fixedLots = Math.max(0.01, parseFloat(this.challengeConfig.riskValue) || 0.10);
+            return Math.min(50.0, Math.round(fixedLots * 100) / 100);
+        }
+
+        // Modo Porcentaje (%)
         const riskUSD = (this.challengeConfig.riskValue / 100) * this.account.balance;
         const slDist = Math.abs(entryPrice - slPrice);
 
@@ -725,6 +1074,31 @@ class MT5VirtualEmulator {
         let lots = riskUSD / (slDist * spec.pointVal);
         lots = Math.max(0.01, Math.min(20.0, Math.round(lots * 100) / 100));
         return lots;
+    }
+
+    ejecutarOrdenManual(tipo) {
+        if (this.account.status === 'VIOLATED') {
+            alert("No es posible operar: La cuenta ha sido reprobada por exceder los límites de riesgo del Prop Firm.");
+            return;
+        }
+
+        const candles = this.currentCandles;
+        if (!candles || candles.length === 0) {
+            alert("No hay datos de velas cargados en el gráfico para ejecutar la orden.");
+            return;
+        }
+
+        const curPrice = candles[candles.length - 1].close;
+        const atr = this.calcularATR(candles, 14);
+        const isBuy = tipo === 'BUY';
+        const slPrice = isBuy ? (curPrice - (atr * 1.5)) : (curPrice + (atr * 1.5));
+        const tpPrice = isBuy ? (curPrice + (atr * 3.0)) : (curPrice - (atr * 3.0));
+
+        const lots = this.calcularLotajeSeguro(curPrice, slPrice);
+        const ticket = this.orderSend(this.symbol, tipo, lots, curPrice, slPrice, tpPrice, 'Manual Discretionary');
+        if (ticket) {
+            this.logJournal(`[ManualTrade] Orden #${ticket} ${tipo} ${lots} lotes abierta manualmente en ${this.symbol}.`);
+        }
     }
 
     // =========================================================================
@@ -809,6 +1183,15 @@ class MT5VirtualEmulator {
         this.account.margin = Math.max(0, this.account.margin - freedMargin);
         this.account.equity = this.account.balance + this.openPositions.reduce((acc, p) => acc + p.profit, 0);
         this.account.freeMargin = this.account.equity - this.account.margin;
+
+        // Registrar punto en la curva de capital y guardar estado
+        this.equityHistory.push({
+            time: Math.floor(Date.now() / 1000),
+            balance: this.account.balance,
+            equity: this.account.equity
+        });
+        if (this.equityHistory.length > 1000) this.equityHistory.shift();
+        this.guardarEstadoPersistente();
 
         this.logJournal(`[OrderClose] Ticket #${ticket} cerrado a ${finalPrice.toFixed(spec.digits)} | PnL: ${netProfit >= 0 ? '+' : ''}$${netProfit.toFixed(2)} [${exitReason}]`);
 
@@ -964,12 +1347,19 @@ class MT5VirtualEmulator {
         this.account.status = 'ACTIVE';
         this.isRunning = false;
 
+        this.equityHistory = [{
+            time: Math.floor(Date.now() / 1000),
+            balance: monto,
+            equity: monto
+        }];
+
         if (this.dom.btnToggleRun) {
             this.dom.btnToggleRun.innerHTML = '▶ Iniciar Bot en Vivo';
             this.dom.btnToggleRun.classList.add('primary');
             this.dom.btnToggleRun.classList.remove('secondary');
         }
 
+        this.guardarEstadoPersistente();
         this.logJournal(`[ChallengeReset] Cuenta reiniciada con capital de $${monto.toLocaleString()} USD.`);
         this.actualizarLineasPosiciones();
         this.evaluarReglasPropFirm();
@@ -1009,6 +1399,175 @@ class MT5VirtualEmulator {
 
         this.renderizarTablaPosiciones();
         this.renderizarTablaHistorial();
+        if (this.activeTab === 'mt5-tab-equity') {
+            this.renderizarCurvaEquidad();
+        } else if (this.activeTab === 'mt5-tab-stats') {
+            this.renderizarEstadisticas();
+        }
+    }
+
+    renderizarCurvaEquidad() {
+        const canvas = this.dom.equityCanvas;
+        if (!canvas) return;
+        const parent = canvas.parentElement;
+        if (!parent) return;
+
+        const w = parent.clientWidth || 600;
+        const h = parent.clientHeight || 200;
+        if (w <= 0 || h <= 0) return;
+
+        const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.scale(dpr, dpr);
+
+        // Fondo oscuro institucional
+        ctx.fillStyle = '#131722';
+        ctx.fillRect(0, 0, w, h);
+
+        const history = this.equityHistory;
+        if (!history || history.length === 0) return;
+
+        // Calcular min y max para escala vertical
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+        history.forEach(p => {
+            if (p.balance < minVal) minVal = p.balance;
+            if (p.equity < minVal) minVal = p.equity;
+            if (p.balance > maxVal) maxVal = p.balance;
+            if (p.equity > maxVal) maxVal = p.equity;
+        });
+
+        const initBal = this.account.initialBalance;
+        minVal = Math.min(minVal, initBal * 0.96);
+        maxVal = Math.max(maxVal, initBal * 1.04);
+
+        const padTop = 18;
+        const padBottom = 22;
+        const padLeft = 10;
+        const padRight = 65;
+        const chartW = Math.max(10, w - padLeft - padRight);
+        const chartH = Math.max(10, h - padTop - padBottom);
+        const valRange = (maxVal - minVal) || 1;
+
+        // Cuadrícula y etiquetas
+        ctx.strokeStyle = '#1e222d';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#787b86';
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif';
+        ctx.textAlign = 'left';
+
+        const steps = 4;
+        for (let i = 0; i <= steps; i++) {
+            const y = padTop + (chartH / steps) * i;
+            const val = maxVal - (valRange / steps) * i;
+            ctx.beginPath();
+            ctx.moveTo(padLeft, y);
+            ctx.lineTo(w - padRight, y);
+            ctx.stroke();
+
+            ctx.fillText(`$${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, w - padRight + 5, y + 3);
+        }
+
+        // Línea base del balance inicial (dashed)
+        const yInit = padTop + ((maxVal - initBal) / valRange) * chartH;
+        ctx.strokeStyle = '#2a2e39';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, yInit);
+        ctx.lineTo(w - padRight, yInit);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const getX = (idx) => padLeft + (idx / Math.max(1, history.length - 1)) * chartW;
+        const getY = (val) => padTop + ((maxVal - val) / valRange) * chartH;
+
+        // 1. Trazar Curva de Equidad (Verde esmeralda)
+        ctx.strokeStyle = '#089981';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        history.forEach((pt, idx) => {
+            const x = getX(idx);
+            const y = getY(pt.equity);
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // 2. Trazar Curva de Balance (Azul acento)
+        ctx.strokeStyle = '#3888ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        history.forEach((pt, idx) => {
+            const x = getX(idx);
+            const y = getY(pt.balance);
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Actualizar Resumen de Estadísticas en el encabezado del tab
+        if (this.dom.equitySummary) {
+            const retPct = ((this.account.equity - initBal) / initBal) * 100;
+            const pnlSign = retPct >= 0 ? '+' : '';
+            this.dom.equitySummary.innerHTML = `
+                Balance: <strong style="color:#3888ff;">$${this.account.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> &nbsp;|&nbsp; 
+                Equity: <strong style="color:#089981;">$${this.account.equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> &nbsp;|&nbsp; 
+                Retorno: <strong style="color:${retPct >= 0 ? '#089981' : '#f23645'};">${pnlSign}${retPct.toFixed(2)}%</strong>
+            `;
+        }
+    }
+
+    renderizarEstadisticas() {
+        const totalTrades = this.closedPositions.length;
+        let wins = 0;
+        let losses = 0;
+        let grossProfit = 0;
+        let grossLoss = 0;
+
+        this.closedPositions.forEach(p => {
+            if (p.profit > 0) {
+                wins++;
+                grossProfit += p.profit;
+            } else if (p.profit < 0) {
+                losses++;
+                grossLoss += Math.abs(p.profit);
+            }
+        });
+
+        const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+        const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 99.99 : 0);
+        const netPnL = this.account.balance - this.account.initialBalance;
+        const avgWin = wins > 0 ? grossProfit / wins : 0;
+        const avgLoss = losses > 0 ? grossLoss / losses : 0;
+        const ratioRR = avgLoss > 0 ? avgWin / avgLoss : (avgWin > 0 ? 99.99 : 0);
+
+        let peak = this.account.initialBalance;
+        let maxDDPct = 0;
+        if (this.equityHistory && this.equityHistory.length > 0) {
+            this.equityHistory.forEach(h => {
+                if (h.equity > peak) peak = h.equity;
+                const dd = peak > 0 ? ((peak - h.equity) / peak) * 100 : 0;
+                if (dd > maxDDPct) maxDDPct = dd;
+            });
+        }
+
+        if (this.dom.statTrades) this.dom.statTrades.innerText = totalTrades;
+        if (this.dom.statWinrate) this.dom.statWinrate.innerText = `${winRate.toFixed(1)}%`;
+        if (this.dom.statPF) this.dom.statPF.innerText = profitFactor >= 99 ? '∞' : profitFactor.toFixed(2);
+        if (this.dom.statNetPnL) {
+            this.dom.statNetPnL.innerText = `${netPnL >= 0 ? '+' : ''}$${netPnL.toFixed(2)}`;
+            this.dom.statNetPnL.className = `mt5-kpi-val ${netPnL >= 0 ? 'pnl-pos' : 'pnl-neg'}`;
+        }
+        if (this.dom.statMaxDD) this.dom.statMaxDD.innerText = `${maxDDPct.toFixed(1)}%`;
+        if (this.dom.statAvgWin) this.dom.statAvgWin.innerText = `+$${avgWin.toFixed(2)}`;
+        if (this.dom.statAvgLoss) this.dom.statAvgLoss.innerText = `-$${avgLoss.toFixed(2)}`;
+        if (this.dom.statRR) this.dom.statRR.innerText = `1 : ${ratioRR.toFixed(2)}`;
     }
 
     renderizarTablaPosiciones() {

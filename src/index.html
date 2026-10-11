@@ -1991,6 +1991,82 @@
         color: var(--text-muted);
         font-weight: 500;
       }
+
+      /* CURVA DE CAPITAL & ESTADÍSTICAS MT5 */
+      #mt5-equity-container {
+        width: 100%;
+        height: 100%;
+        min-height: 200px;
+        position: relative;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      #mt5-equity-chart {
+        width: 100%;
+        flex: 1;
+        min-height: 160px;
+        background: #131722;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+      }
+      .mt5-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        padding: 14px;
+      }
+      .mt5-kpi-card {
+        background: #171b26;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .mt5-kpi-lbl {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+      }
+      .mt5-kpi-val {
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      }
+      .mt5-btn-trade {
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .mt5-btn-trade.buy {
+        background: rgba(8, 153, 129, 0.2);
+        border: 1px solid #089981;
+        color: #089981;
+      }
+      .mt5-btn-trade.buy:hover {
+        background: #089981;
+        color: #fff;
+      }
+      .mt5-btn-trade.sell {
+        background: rgba(242, 54, 69, 0.2);
+        border: 1px solid #f23645;
+        color: #f23645;
+      }
+      .mt5-btn-trade.sell:hover {
+        background: #f23645;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -2633,31 +2709,56 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- BARRA DE CONTROL DEL BOT & AMBIENTE MT5 -->
       <div id="mt5-toolbar">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot MT5:</span>
-          <select id="mt5-bot-select" class="bt-select" style="min-width: 210px;"></select>
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot:</span>
+          <select id="mt5-bot-select" class="bt-select" style="min-width: 190px;"></select>
+          <button id="btn-mt5-import-bot" class="bt-btn desktop-only" title="Cargar bot MT5 personalizado (.json/.js)">📂 Cargar Bot</button>
+          <input type="file" id="mt5-bot-file-input" accept=".json,.js" style="display:none;" />
         </div>
         <div class="toolbar-divider desktop-only"></div>
         <div style="display: flex; align-items: center; gap: 6px;">
           <span style="font-size: 12px; color: var(--text-muted);">Símbolo:</span>
-          <select id="mt5-symbol-select" class="bt-select" style="min-width: 110px;"></select>
+          <select id="mt5-symbol-select" class="bt-select" style="min-width: 100px;"></select>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 12px; color: var(--text-muted);">Plan Fondeo:</span>
-          <select id="mt5-tier-select" class="bt-select" style="min-width: 170px;"></select>
+          <span style="font-size: 12px; color: var(--text-muted);">TF:</span>
+          <select id="mt5-tf-select" class="bt-select">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h" selected>1h</option>
+            <option value="2h">2h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1D</option>
+          </select>
         </div>
+        <div class="toolbar-divider desktop-only"></div>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 12px; color: var(--text-muted);" title="Riesgo por operación en %">Riesgo %:</span>
-          <input type="number" id="mt5-risk-input" value="1.0" min="0.1" max="5.0" step="0.1" class="bt-select" style="width: 60px;" title="Porcentaje de riesgo por trade" />
+          <span style="font-size: 12px; color: var(--text-muted);">Fondeo:</span>
+          <select id="mt5-tier-select" class="bt-select" style="min-width: 160px;"></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <select id="mt5-risk-mode" class="bt-select" style="min-width: 95px;" title="Modo de dimensionamiento de posición">
+            <option value="PCT">Riesgo (%)</option>
+            <option value="LOTS">Lotes Fijos</option>
+          </select>
+          <input type="number" id="mt5-risk-input" value="1.0" min="0.01" step="0.1" class="bt-select" style="width: 65px;" title="Valor de riesgo (% o lotaje según el modo)" />
+        </div>
+        <div class="toolbar-divider desktop-only"></div>
+        <!-- BOTONES DE TRADING MANUAL RÁPIDO EN EL SANDBOX -->
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button id="btn-mt5-manual-buy" class="mt5-btn-trade buy" title="Abrir orden virtual manual de COMPRA">▲ Buy</button>
+          <button id="btn-mt5-manual-sell" class="mt5-btn-trade sell" title="Abrir orden virtual manual de VENTA">▼ Sell</button>
         </div>
         <div class="toolbar-divider desktop-only"></div>
         <button id="btn-mt5-toggle-run" class="bt-btn primary" title="Iniciar o pausar ejecución en vivo del bot">
           ▶ Iniciar Bot en Vivo
         </button>
         <button id="btn-mt5-panic-close" class="bt-btn" style="background: rgba(242, 54, 69, 0.2); border: 1px solid #f23645; color: #f23645;" title="Cierre de pánico de todas las órdenes de mercado">
-          🚨 Pánico: Cerrar Todo
+          🚨 Pánico
         </button>
         <button id="btn-mt5-reset-challenge" class="bt-btn" title="Reiniciar cuenta y estadísticas del challenge">
-          🔄 Reiniciar Sandbox
+          🔄 Reiniciar
         </button>
         <div style="margin-left: auto;">
           <span id="mt5-badge-status" class="mt5-badge-status status-active">🟢 ACTIVA (CUMPLIENDO REGLAS)</span>
@@ -2729,6 +2830,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="mt5-terminal-header">
           <button class="mt5-tab-btn active" data-tab="mt5-tab-positions">📋 Operaciones Abiertas</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-history">📜 Historial de Cuenta</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-equity">📈 Curva de Capital (Balance/Equity)</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-stats">📊 Estadísticas Rendimiento</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-journal">📑 Journal & Logs MT5</button>
           <button class="mt5-tab-btn" data-tab="mt5-tab-params">⚙️ Parámetros del Bot</button>
         </div>
@@ -2781,12 +2884,40 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           </table>
         </div>
 
-        <!-- TAB 3: JOURNAL & LOGS -->
+        <!-- TAB 3: CURVA DE CAPITAL (BALANCE & EQUITY CHART) -->
+        <div id="mt5-tab-equity" class="mt5-tab-pane">
+          <div id="mt5-equity-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:11px;">
+              <div>
+                <span style="color:#2962ff; font-weight:bold;">━ Balance</span> &nbsp;|&nbsp;
+                <span style="color:#089981; font-weight:bold;">━ Equidad Flotante</span>
+              </div>
+              <div id="mt5-equity-stats-summary" style="color:var(--text-muted);">Evolución de cuenta en tiempo real</div>
+            </div>
+            <canvas id="mt5-equity-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- TAB 4: ESTADÍSTICAS CUANTITATIVAS DE RENDIMIENTO -->
+        <div id="mt5-tab-stats" class="mt5-tab-pane">
+          <div class="mt5-kpi-grid">
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Total Operaciones</span><span id="mt5-stat-trades" class="mt5-kpi-val">0</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Tasa de Acierto (Win Rate)</span><span id="mt5-stat-winrate" class="mt5-kpi-val">0.0%</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Factor de Beneficio (Profit Factor)</span><span id="mt5-stat-pf" class="mt5-kpi-val">0.00</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Ganancia Neta Total</span><span id="mt5-stat-netpnl" class="mt5-kpi-val">$0.00</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Max Drawdown Histórico</span><span id="mt5-stat-maxdd" class="mt5-kpi-val">0.0%</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Beneficio Promedio</span><span id="mt5-stat-avgwin" class="mt5-kpi-val">$0.00</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Pérdida Promedio</span><span id="mt5-stat-avgloss" class="mt5-kpi-val">$0.00</span></div>
+            <div class="mt5-kpi-card"><span class="mt5-kpi-lbl">Ratio Riesgo / Beneficio Real</span><span id="mt5-stat-rr" class="mt5-kpi-val">1 : 0.00</span></div>
+          </div>
+        </div>
+
+        <!-- TAB 5: JOURNAL & LOGS -->
         <div id="mt5-tab-journal" class="mt5-tab-pane">
           <div id="mt5-journal-logs" class="mt5-journal-container"></div>
         </div>
 
-        <!-- TAB 4: PARÁMETROS DEL BOT -->
+        <!-- TAB 6: PARÁMETROS DEL BOT -->
         <div id="mt5-tab-params" class="mt5-tab-pane">
           <div id="mt5-bot-params-grid" class="mt5-params-grid"></div>
         </div>
@@ -2825,6 +2956,45 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="modal-footer">
           <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
           <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CARGAR BOT MT5 PERSONALIZADO -->
+    <div id="mt5-bot-import-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 600px;">
+        <div class="modal-header">
+          <h3>🤖 Cargar Bot MT5 Personalizado</h3>
+          <button id="btn-close-mt5-import-modal" class="close-btn">&times;</button>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Cargue un archivo <strong>.json</strong> con la definición del bot de MetaTrader 5 o edite la configuración en el editor:
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="file" id="mt5-modal-bot-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
+          </div>
+          <textarea id="mt5-modal-bot-editor" spellcheck="false" style="width: 100%; height: 180px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
+  "id": "mi_bot_breakout",
+  "name": "Mi Bot Breakout Asimétrico MT5",
+  "symbol": "BTC-USD",
+  "timeframe": "1h",
+  "magic": 8801,
+  "description": "Estrategia de ruptura de rango con stop dinámico y filtro de volatilidad.",
+  "strategyType": "donchian_breakout",
+  "params": {
+    "donchianPeriod": 30,
+    "atrPeriod": 14,
+    "slAtrMult": 1.5,
+    "tpAtrMult": 3.0,
+    "useTrailing": true,
+    "trailingAtrMult": 1.2
+  }
+}</textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-mt5-import" class="editor-btn secondary">Cancelar</button>
+          <button id="btn-apply-mt5-import" class="editor-btn">✨ Importar e Instalar Bot</button>
         </div>
       </div>
     </div>
