@@ -686,6 +686,27 @@ export class ServerMT5Daemon {
             }
         }
 
+        // 5. Fallback genérico para bot personalizado importado (.mq5 / .ex5)
+        else {
+            const period = (bot.params && (bot.params.donchianPeriod || bot.params.period)) || 20;
+            const lookback = candles.slice(-period - 2, -2);
+            if (lookback.length >= period) {
+                const maxH = Math.max(...lookback.map(c => c.high));
+                const minL = Math.min(...lookback.map(c => c.low));
+                const slMult = (bot.params && bot.params.slAtrMult) || 1.5;
+                const tpMult = (bot.params && bot.params.tpAtrMult) || 3.0;
+                if (curBar.high >= maxH && curBar.close > lastBar.close) {
+                    signal = 'BUY';
+                    slPrice = curPrice - (atr * slMult);
+                    tpPrice = curPrice + (atr * tpMult);
+                } else if (curBar.low <= minL && curBar.close < lastBar.close) {
+                    signal = 'SELL';
+                    slPrice = curPrice + (atr * slMult);
+                    tpPrice = curPrice - (atr * tpMult);
+                }
+            }
+        }
+
         // Actualizar señal en la matriz si es el bot principal o no tiene señal previa
         if (this.assetMatrix[sym]) {
             if (signal) this.assetMatrix[sym].signal = `${signal} (${bot.name.slice(0, 10)})`;

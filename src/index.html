@@ -2711,8 +2711,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div style="display: flex; align-items: center; gap: 6px;">
           <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot:</span>
           <select id="mt5-bot-select" class="bt-select" style="min-width: 190px;"></select>
-          <button id="btn-mt5-import-bot" class="bt-btn desktop-only" title="Cargar bot MT5 personalizado (.json/.js)">📂 Cargar Bot</button>
-          <input type="file" id="mt5-bot-file-input" accept=".json,.js" style="display:none;" />
+          <button id="btn-mt5-import-bot" class="bt-btn desktop-only" title="Cargar bot MetaTrader 5 (.mq5 / .ex5 / .json)">📂 Cargar Bot (.mq5/.ex5)</button>
+          <input type="file" id="mt5-bot-file-input" accept=".mq5,.ex5,.json,.txt" style="display:none;" />
         </div>
         <div class="toolbar-divider desktop-only"></div>
         <div style="display: flex; align-items: center; gap: 6px;">
@@ -3042,42 +3042,103 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
     </div>
 
-    <!-- MODAL CARGAR BOT MT5 PERSONALIZADO -->
+    <!-- MODAL CARGAR BOT MT5 PERSONALIZADO (.MQ5 / .EX5 / .JSON) -->
     <div id="mt5-bot-import-modal" class="modal-overlay">
-      <div class="modal-content" style="width: 600px;">
+      <div class="modal-content" style="width: 660px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
-          <h3>🤖 Cargar Bot MT5 Personalizado</h3>
+          <h3 style="display: flex; align-items: center; gap: 8px;">
+            <span>🤖</span> Cargar Bot de MetaTrader 5 (.mq5 / .ex5 / .json)
+          </h3>
           <button id="btn-close-mt5-import-modal" class="close-btn">&times;</button>
         </div>
-        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="font-size: 12px; color: var(--text-muted);">
-            Cargue un archivo <strong>.json</strong> con la definición del bot de MetaTrader 5 o edite la configuración en el editor:
+        <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1;">
+          <!-- ZONA DE ARRASTRE NATIVA (DRAG & DROP) PARA MQ5 Y EX5 -->
+          <div id="mt5-dropzone" style="border: 2px dashed #2962ff; border-radius: 8px; padding: 18px 12px; text-align: center; background: rgba(41, 98, 255, 0.06); cursor: pointer; transition: all 0.2s;" title="Haga clic o arrastre un archivo .mq5 o .ex5 aquí">
+            <div style="font-size: 26px; margin-bottom: 4px;">📥</div>
+            <div style="font-size: 13px; font-weight: bold; color: #fff;">
+              Arrastre aquí su archivo <span style="color:#089981;">.mq5</span> (código fuente) o <span style="color:#3888ff;">.ex5</span> (compilado)
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              Haga clic para examinar archivos de su carpeta <code>MQL5/Experts</code> de MetaTrader 5
+            </div>
+            <div style="display: flex; justify-content: center; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <span class="mt5-tag" style="background: rgba(8, 153, 129, 0.22); color: #089981; font-size: 10px;">✔ .mq5 Código Fuente</span>
+              <span class="mt5-tag" style="background: rgba(56, 136, 255, 0.22); color: #5b8cff; font-size: 10px;">✔ .ex5 Binario MT5</span>
+              <span class="mt5-tag" style="background: rgba(255, 152, 0, 0.22); color: #ff9800; font-size: 10px;">✔ .json Definición</span>
+            </div>
+            <input type="file" id="mt5-modal-bot-file" accept=".mq5,.ex5,.json,.txt" style="display: none;" />
           </div>
-          <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
-            <input type="file" id="mt5-modal-bot-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
-            <button id="btn-mt5-load-multiasset-template" class="editor-btn secondary" style="font-size: 11px; padding: 4px 8px;">🌐 Plantilla Multi-Activo 24/7</button>
+
+          <!-- BANNER DE ESTADO / DETECCIÓN -->
+          <div id="mt5-import-status" style="display: none; padding: 8px 12px; border-radius: 6px; font-size: 11px; line-height: 1.4;"></div>
+
+          <!-- FORMULARIO DE DETECCIÓN Y EDICIÓN RÁPIDA -->
+          <div id="mt5-import-form-preview" style="background: #181b24; border: 1px solid #2a2e39; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2e39; padding-bottom: 6px;">
+              <span style="font-size: 11px; font-weight: bold; color: #d1d4dc;">⚙️ Configuración y Parámetros Extraídos del Bot</span>
+              <button id="btn-mt5-load-multiasset-template" class="editor-btn secondary" style="font-size: 10px; padding: 2px 6px;">🌐 Cargar Plantilla 24/7</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div>
+                <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Nombre del Bot / EA:</label>
+                <input type="text" id="mt5-import-name" value="Mi Bot MT5" style="width: 100%; background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;" />
+              </div>
+              <div>
+                <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Magic Number (Identificador):</label>
+                <input type="number" id="mt5-import-magic" value="8801" style="width: 100%; background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;" />
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+              <div>
+                <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Estrategia Detectada:</label>
+                <select id="mt5-import-strat" style="width: 100%; background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 6px; border-radius: 4px; font-size: 11px;">
+                  <option value="donchian_breakout">Ruptura Donchian / Rango</option>
+                  <option value="vcp_squeeze">VCP Squeeze & Expansion</option>
+                  <option value="sqz_momentum">Squeeze Momentum</option>
+                  <option value="ema_cross">Cruce EMA Tendencial</option>
+                  <option value="rsi_reversion">Reversión RSI Extrema</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Símbolo(s) Asignado(s):</label>
+                <input type="text" id="mt5-import-symbols" value="BTC-USD" title="Un solo símbolo o lista separada por comas (ej. BTC-USD, XAUUSD)" style="width: 100%; background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;" />
+              </div>
+              <div>
+                <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Gestión de Riesgo:</label>
+                <div style="display: flex; gap: 4px;">
+                  <select id="mt5-import-risk-mode" style="background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px; border-radius: 4px; font-size: 10px;">
+                    <option value="LOTS">Lotes</option>
+                    <option value="PCT">% Bal</option>
+                  </select>
+                  <input type="number" id="mt5-import-risk-val" value="0.10" step="0.01" style="width: 60px; background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px; border-radius: 4px; font-size: 11px; text-align: right;" />
+                </div>
+              </div>
+            </div>
+
+            <!-- PARÁMETROS 'INPUT' EXTRAÍDOS DE MQL5 -->
+            <div style="margin-top: 4px;">
+              <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 4px; font-weight: bold;">
+                Variables de Entrada MQL5 (Inputs):
+              </div>
+              <div id="mt5-import-params-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 120px; overflow-y: auto; background: #131722; border: 1px solid #2a2e39; padding: 8px; border-radius: 4px;">
+                <!-- Dinámicamente poblado con los inputs del .mq5 -->
+              </div>
+            </div>
           </div>
-          <textarea id="mt5-modal-bot-editor" spellcheck="false" style="width: 100%; height: 180px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
-  "id": "mi_bot_breakout",
-  "name": "Mi Bot Breakout Asimétrico MT5",
-  "symbol": "BTC-USD",
-  "timeframe": "1h",
-  "magic": 8801,
-  "description": "Estrategia de ruptura de rango con stop dinámico y filtro de volatilidad.",
-  "strategyType": "donchian_breakout",
-  "params": {
-    "donchianPeriod": 30,
-    "atrPeriod": 14,
-    "slAtrMult": 1.5,
-    "tpAtrMult": 3.0,
-    "useTrailing": true,
-    "trailingAtrMult": 1.2
-  }
-}</textarea>
+
+          <!-- DETALLES AVANZADOS / CÓDIGO FUENTE PEGADO -->
+          <details id="mt5-import-details" style="background: #131722; border: 1px solid #2a2e39; border-radius: 6px; padding: 8px;">
+            <summary style="font-size: 11px; color: var(--text-muted); cursor: pointer; font-weight: bold;">
+              📝 Editor de Código MQL5 (.mq5) / Definición JSON
+            </summary>
+            <div style="margin-top: 8px;">
+              <textarea id="mt5-modal-bot-editor" spellcheck="false" placeholder="Pegue aquí el código fuente .mq5 o la definición en JSON..." style="width: 100%; height: 130px; background: #0c0e14; border: 1px solid #2a2e39; color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;"></textarea>
+            </div>
+          </details>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="padding: 10px 18px; border-top: 1px solid #2a2e39; display: flex; justify-content: flex-end; gap: 8px;">
           <button id="btn-cancel-mt5-import" class="editor-btn secondary">Cancelar</button>
-          <button id="btn-apply-mt5-import" class="editor-btn">✨ Importar e Instalar Bot</button>
+          <button id="btn-apply-mt5-import" class="editor-btn primary" style="background: #2962ff; color: #fff;">✨ Importar e Instalar Bot en MT5</button>
         </div>
       </div>
     </div>

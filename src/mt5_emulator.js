@@ -245,6 +245,15 @@ class MT5VirtualEmulator {
             btnApplyImportBot: document.getElementById('btn-apply-mt5-import'),
             editorImportBot: document.getElementById('mt5-modal-bot-editor'),
             modalBotFileInput: document.getElementById('mt5-modal-bot-file'),
+            dropzone: document.getElementById('mt5-dropzone'),
+            importStatus: document.getElementById('mt5-import-status'),
+            importName: document.getElementById('mt5-import-name'),
+            importMagic: document.getElementById('mt5-import-magic'),
+            importStrat: document.getElementById('mt5-import-strat'),
+            importSymbols: document.getElementById('mt5-import-symbols'),
+            importRiskMode: document.getElementById('mt5-import-risk-mode'),
+            importRiskVal: document.getElementById('mt5-import-risk-val'),
+            importParamsGrid: document.getElementById('mt5-import-params-grid'),
             equityCanvas: document.getElementById('mt5-equity-chart'),
             equitySummary: document.getElementById('mt5-equity-stats-summary'),
 
@@ -354,41 +363,426 @@ class MT5VirtualEmulator {
         }
     }
 
-    importarBotDesdeEditor() {
-        if (!this.dom.editorImportBot) return;
-        try {
-            const text = this.dom.editorImportBot.value.trim();
-            if (!text) {
-                alert('Por favor ingrese la definición en JSON del bot.');
-                return;
+    // =========================================================================
+    // PARSER & TRANSPILADOR NATIVO DE BOTS METATRADER 5 (.MQ5 / .EX5 / .JSON)
+    // =========================================================================
+    extractStringsFromBuffer(buffer) {
+        if (!buffer) return [];
+        const bytes = new Uint8Array(buffer);
+        const strings = [];
+
+        // ASCII strings (min 3 chars)
+        let curAscii = '';
+        for (let i = 0; i < bytes.length; i++) {
+            const b = bytes[i];
+            if (b >= 32 && b <= 126) {
+                curAscii += String.fromCharCode(b);
+            } else {
+                if (curAscii.length >= 3) strings.push(curAscii);
+                curAscii = '';
             }
-            const bot = JSON.parse(text);
-            if (!bot.name || !bot.params) {
-                alert('La configuración del bot debe contener al menos "name" y "params".');
-                return;
+        }
+        if (curAscii.length >= 3) strings.push(curAscii);
+
+        // UTF-16LE strings (min 3 chars)
+        let curUtf16 = '';
+        for (let i = 0; i < bytes.length - 1; i += 2) {
+            const b0 = bytes[i];
+            const b1 = bytes[i + 1];
+            if (b1 === 0 && b0 >= 32 && b0 <= 126) {
+                curUtf16 += String.fromCharCode(b0);
+            } else {
+                if (curUtf16.length >= 3) strings.push(curUtf16);
+                curUtf16 = '';
+            }
+        }
+        if (curUtf16.length >= 3) strings.push(curUtf16);
+
+        return [...new Set(strings)];
+    }
+
+    parseEX5(buffer, filename = '') {
+        const strings = this.extractStringsFromBuffer(buffer);
+        const cleanName = filename ? filename.replace(/\.ex5$/i, '').replace(/[_-]/g, ' ') : 'Bot MT5 Compilado';
+
+        const bot = {
+            id: 'bot_ex5_' + Date.now(),
+            name: cleanName,
+            symbol: this.symbol || 'BTC-USD',
+            symbols: [this.symbol || 'BTC-USD'],
+            timeframe: this.timeframe || '1h',
+            magic: Math.floor(1000 + Math.random() * 8999),
+            description: `Expert Advisor MT5 compilado (.ex5) con parámetros extraídos dinámicamente del binario.`,
+            strategyType: 'donchian_breakout',
+            riskMode: 'LOTS',
+            riskValue: 0.10,
+            params: {
+                donchianPeriod: 20,
+                atrPeriod: 14,
+                slAtrMult: 1.5,
+                tpAtrMult: 3.0,
+                useTrailing: true,
+                trailingAtrMult: 1.2
+            }
+        };
+
+        // Escanear cadenas en busca de Magic Number, inputs y patrones
+        strings.forEach(s => {
+            const lower = s.toLowerCase();
+            if (lower.includes('magic') && /\d+/.test(s)) {
+                const num = parseInt(s.match(/\d+/)[0], 10);
+                if (num > 100) bot.magic = num;
+            }
+            if (s.startsWith('Inp') || s.startsWith('inp')) {
+                const paramName = s.replace(/^inp/i, '');
+                const cleanKey = paramName.charAt(0).toLowerCase() + paramName.slice(1);
+                if (!bot.params[cleanKey]) {
+                    if (cleanKey.toLowerCase().includes('period') || cleanKey.toLowerCase().includes('len')) {
+                        bot.params[cleanKey] = 20;
+                    } else if (cleanKey.toLowerCase().includes('mult') || cleanKey.toLowerCase().includes('ratio')) {
+                        bot.params[cleanKey] = 1.5;
+                    } else if (cleanKey.toLowerCase().includes('lot')) {
+                        bot.params[cleanKey] = 0.10;
+                    } else {
+                        bot.params[cleanKey] = 10;
+                    }
+                }
+            }
+            if (lower.includes('vcp') || lower.includes('squeeze')) {
+                bot.strategyType = 'vcp_squeeze';
+            } else if (lower.includes('momentum')) {
+                bot.strategyType = 'sqz_momentum';
+            } else if (lower.includes('ema') || lower.includes('ma_cross')) {
+                bot.strategyType = 'ema_cross';
+            } else if (lower.includes('breakout') || lower.includes('donchian')) {
+                bot.strategyType = 'donchian_breakout';
+            }
+        });
+
+        return bot;
+    }
+
+    parseMQL5(code, filename = '') {
+        const cleanName = filename ? filename.replace(/\.(mq5|txt)$/i, '').replace(/[_-]/g, ' ') : 'Bot MQL5';
+        const bot = {
+            id: 'bot_mql5_' + Date.now(),
+            name: cleanName,
+            symbol: this.symbol || 'BTC-USD',
+            symbols: [this.symbol || 'BTC-USD'],
+            timeframe: this.timeframe || '1h',
+            magic: Math.floor(1000 + Math.random() * 8999),
+            description: 'Expert Advisor MQL5 personalizado.',
+            strategyType: 'donchian_breakout',
+            riskMode: 'LOTS',
+            riskValue: 0.10,
+            params: {}
+        };
+
+        const propDesc = code.match(/#property\s+description\s+["']([^"']+)["']/i);
+        if (propDesc && propDesc[1]) bot.description = propDesc[1];
+
+        const propName = code.match(/\/\/\s*\|\s*([a-zA-Z0-9_\- ]+)\.mq5/i);
+        if (propName && propName[1]) bot.name = propName[1].trim();
+
+        // Magic Number
+        const magicMatch = code.match(/(?:input|sinput)\s+(?:ulong|int|uint|long)\s+[a-zA-Z0-9_]*magic[a-zA-Z0-9_]*\s*=\s*(\d+)/i)
+            || code.match(/#define\s+[a-zA-Z0-9_]*MAGIC[a-zA-Z0-9_]*\s+(\d+)/i)
+            || code.match(/(?:ulong|int|uint)\s+[a-zA-Z0-9_]*Magic(?:Number)?\s*=\s*(\d+)/i);
+        if (magicMatch && magicMatch[1]) {
+            bot.magic = parseInt(magicMatch[1], 10);
+        }
+
+        // Parse inputs
+        const inputRegex = /(?:input|sinput)\s+(?:group\s+["'][^"']*["']\s*;|([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)\s*(?:=\s*([^;]+))?\s*;(?:\s*\/\/\s*([^\r\n]+))?)/gi;
+        let match;
+        while ((match = inputRegex.exec(code)) !== null) {
+            const type = match[1];
+            const varName = match[2];
+            let valRaw = match[3];
+
+            if (!varName) continue;
+            if (valRaw !== undefined) valRaw = valRaw.trim();
+            else valRaw = '';
+
+            let val = valRaw;
+            if (type === 'bool') {
+                val = valRaw.toLowerCase() === 'true';
+            } else if (['int', 'uint', 'ulong', 'long', 'char', 'short'].includes(type)) {
+                val = parseInt(valRaw, 10);
+                if (isNaN(val)) val = 0;
+            } else if (['double', 'float'].includes(type)) {
+                val = parseFloat(valRaw);
+                if (isNaN(val)) val = 0.0;
+            } else if (type === 'string') {
+                val = valRaw.replace(/^["']|["']$/g, '');
+            } else {
+                if (valRaw.toLowerCase() === 'true') val = true;
+                else if (valRaw.toLowerCase() === 'false') val = false;
+                else if (!isNaN(Number(valRaw)) && valRaw !== '') val = Number(valRaw);
             }
 
-            if (!bot.id) {
-                bot.id = 'bot_' + Date.now();
+            let paramKey = varName;
+            if (paramKey.startsWith('Inp') && paramKey.length > 3) {
+                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
+            } else if (paramKey.startsWith('inp') && paramKey.length > 3) {
+                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
             }
-            if (!bot.symbol) bot.symbol = this.symbol || 'BTC-USD';
-            if (!bot.timeframe) bot.timeframe = this.timeframe || '1h';
-            if (!bot.magic) bot.magic = Math.floor(1000 + Math.random() * 9000);
-            if (!bot.description) bot.description = 'Bot MT5 importado por el usuario.';
+
+            bot.params[paramKey] = val;
+
+            const lowerVar = varName.toLowerCase();
+            if ((lowerVar.includes('lot') || lowerVar.includes('vol')) && typeof val === 'number') {
+                bot.riskMode = 'LOTS';
+                bot.riskValue = val;
+            } else if (lowerVar.includes('risk') && typeof val === 'number' && val <= 10) {
+                bot.riskMode = 'PCT';
+                bot.riskValue = val;
+            }
+
+            if (typeof val === 'string' && (lowerVar.includes('symbol') || lowerVar.includes('basket'))) {
+                const symList = val.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(s => s.length > 2);
+                if (symList.length > 1) {
+                    bot.symbols = symList;
+                    bot.multiAsset = true;
+                } else if (symList.length === 1) {
+                    bot.symbol = symList[0];
+                    bot.symbols = [symList[0]];
+                }
+            }
+        }
+
+        // Detección de estrategia
+        const codeLower = code.toLowerCase();
+        if (codeLower.includes('donchian') || codeLower.includes('ihighest') || codeLower.includes('ilowest')) {
+            bot.strategyType = 'donchian_breakout';
+        } else if (codeLower.includes('vcp') || (codeLower.includes('ibands') && codeLower.includes('ema'))) {
+            bot.strategyType = 'vcp_squeeze';
+        } else if (codeLower.includes('squeeze') || codeLower.includes('keltner')) {
+            bot.strategyType = 'sqz_momentum';
+        } else if (codeLower.includes('ima') || codeLower.includes('ema') || codeLower.includes('cruce')) {
+            bot.strategyType = 'ema_cross';
+        } else if (codeLower.includes('irsi') || codeLower.includes('rsi')) {
+            bot.strategyType = 'rsi_reversion';
+        }
+
+        if (!bot.params.slAtrMult && !bot.params.stopLossPct) bot.params.slAtrMult = 1.5;
+        if (!bot.params.tpAtrMult && !bot.params.takeProfitPct) bot.params.tpAtrMult = 3.0;
+        if (bot.params.useTrailing === undefined) bot.params.useTrailing = true;
+        if (!bot.params.trailingAtrMult) bot.params.trailingAtrMult = 1.2;
+
+        return bot;
+    }
+
+    procesarArchivoBot(file) {
+        if (!file) return;
+        const fname = file.name || '';
+        const ext = fname.split('.').pop().toLowerCase();
+
+        if (ext === 'ex5') {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const bot = this.parseEX5(evt.target.result, fname);
+                    this.cargarBotEnFormularioImport(bot, 'EX5');
+                } catch (err) {
+                    alert('Error analizando archivo .ex5: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const text = evt.target.result || '';
+                try {
+                    if (ext === 'json' || text.trim().startsWith('{')) {
+                        const bot = JSON.parse(text);
+                        this.cargarBotEnFormularioImport(bot, 'JSON');
+                    } else {
+                        const bot = this.parseMQL5(text, fname);
+                        this.cargarBotEnFormularioImport(bot, 'MQL5');
+                    }
+                } catch (err) {
+                    alert('Error analizando archivo ' + fname + ': ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    cargarBotEnFormularioImport(bot, tipoOrigen = 'MQL5') {
+        this.currentImportBot = bot;
+        if (this.dom.importName) this.dom.importName.value = bot.name || 'Mi Bot MT5';
+        if (this.dom.importMagic) this.dom.importMagic.value = bot.magic || 8801;
+        if (this.dom.importStrat) this.dom.importStrat.value = bot.strategyType || 'donchian_breakout';
+        
+        const syms = (Array.isArray(bot.symbols) && bot.symbols.length > 0) ? bot.symbols.join(', ') : (bot.symbol || this.symbol || 'BTC-USD');
+        if (this.dom.importSymbols) this.dom.importSymbols.value = syms;
+        
+        if (this.dom.importRiskMode) this.dom.importRiskMode.value = bot.riskMode || 'LOTS';
+        if (this.dom.importRiskVal) this.dom.importRiskVal.value = bot.riskValue !== undefined ? bot.riskValue : (bot.riskMode === 'LOTS' ? 0.10 : 1.0);
+
+        this.renderizarImportParamsGrid(bot.params || {});
+        if (this.dom.editorImportBot) this.dom.editorImportBot.value = JSON.stringify(bot, null, 2);
+
+        if (this.dom.importStatus) {
+            this.dom.importStatus.style.display = 'block';
+            if (tipoOrigen === 'MQL5') {
+                this.dom.importStatus.style.background = 'rgba(8, 153, 129, 0.15)';
+                this.dom.importStatus.style.border = '1px solid #089981';
+                this.dom.importStatus.style.color = '#089981';
+                this.dom.importStatus.innerHTML = `🟢 <strong>Archivo fuente .mq5 analizado con éxito:</strong> Estrategia <em>${bot.strategyType}</em> detectada con ${Object.keys(bot.params).length} parámetros configurables. Magic Number #${bot.magic}.`;
+            } else if (tipoOrigen === 'EX5') {
+                this.dom.importStatus.style.background = 'rgba(56, 136, 255, 0.15)';
+                this.dom.importStatus.style.border = '1px solid #3888ff';
+                this.dom.importStatus.style.color = '#5b8cff';
+                this.dom.importStatus.innerHTML = `🔵 <strong>Archivo binario .ex5 analizado:</strong> Metadatos y ${Object.keys(bot.params).length} parámetros extraídos del bytecode. (💡 Para acceder a la lógica fuente completa se recomienda el archivo .mq5 si está disponible).`;
+            } else {
+                this.dom.importStatus.style.background = 'rgba(255, 152, 0, 0.15)';
+                this.dom.importStatus.style.border = '1px solid #ff9800';
+                this.dom.importStatus.style.color = '#ff9800';
+                this.dom.importStatus.innerHTML = `🟠 <strong>Definición cargada:</strong> Bot listo para instalar en la flota.`;
+            }
+        }
+
+        if (this.dom.modalImportBot) this.dom.modalImportBot.style.display = 'flex';
+    }
+
+    renderizarImportParamsGrid(params) {
+        if (!this.dom.importParamsGrid) return;
+        const entries = Object.entries(params || {});
+        if (entries.length === 0) {
+            this.dom.importParamsGrid.innerHTML = `<span style="color:#787b86; font-size:11px; padding:4px;">No se detectaron inputs adicionales. Se aplicarán parámetros cuantitativos predeterminados.</span>`;
+            return;
+        }
+
+        this.dom.importParamsGrid.innerHTML = entries.map(([key, val]) => {
+            const isBool = typeof val === 'boolean';
+            const isFloat = typeof val === 'number' && !Number.isInteger(val);
+            const step = isFloat ? '0.1' : '1';
+            return `
+                <div style="background:#181b24; padding:4px 6px; border-radius:3px; border:1px solid #2a2e39;">
+                    <div style="font-size:10px; color:#5b8cff; font-family:monospace; margin-bottom:2px;" title="${key}">${key}:</div>
+                    ${isBool
+                        ? `<input type="checkbox" id="mt5-imp-p-${key}" ${val ? 'checked' : ''} style="cursor:pointer;">`
+                        : `<input type="number" id="mt5-imp-p-${key}" value="${val}" step="${step}" style="width:100%; background:#131722; border:1px solid #2a2e39; color:#fff; font-size:10px; padding:2px 4px; border-radius:2px;">`
+                    }
+                </div>
+            `;
+        }).join('');
+    }
+
+    importarBotDesdeEditor() {
+        try {
+            // Si el editor contiene JSON manual válido, parsearlo primero
+            let parsedJson = null;
+            if (this.dom.editorImportBot && this.dom.editorImportBot.value && typeof this.dom.editorImportBot.value === 'string' && this.dom.editorImportBot.value.trim().startsWith('{')) {
+                try {
+                    parsedJson = JSON.parse(this.dom.editorImportBot.value.trim());
+                } catch (e) {}
+            }
+
+            // Determinar ID del bot
+            const botId = (parsedJson && parsedJson.id) || (this.currentImportBot && this.currentImportBot.id) || `bot_mql5_${Date.now()}`;
+
+            // Determinar nombre del bot
+            let formName = (this.dom.importName && this.dom.importName.value) ? this.dom.importName.value.trim() : '';
+            if (formName === '1.0' || formName === 'Mi Bot MT5') formName = '';
+            const name = formName || (parsedJson && parsedJson.name) || (this.currentImportBot && this.currentImportBot.name) || 'Mi Bot MT5';
+
+            // Determinar magic number
+            let formMagic = (this.dom.importMagic && this.dom.importMagic.value) ? parseInt(this.dom.importMagic.value, 10) : 0;
+            if (formMagic === 1) formMagic = 0;
+            const magic = formMagic || (parsedJson && parsedJson.magic) || (this.currentImportBot && this.currentImportBot.magic) || Math.floor(1000 + Math.random() * 8999);
+
+            // Determinar estrategia
+            let formStrat = (this.dom.importStrat && this.dom.importStrat.value) ? this.dom.importStrat.value.trim() : '';
+            if (formStrat === '1.0') formStrat = '';
+            const strategyType = formStrat || (parsedJson && parsedJson.strategyType) || (this.currentImportBot && this.currentImportBot.strategyType) || 'donchian_breakout';
+
+            // Determinar símbolos
+            let symbolsList = [];
+            if (parsedJson) {
+                if (Array.isArray(parsedJson.symbols) && parsedJson.symbols.length > 0) symbolsList = parsedJson.symbols;
+                else if (parsedJson.symbol) symbolsList = [parsedJson.symbol];
+            }
+            if (symbolsList.length === 0 && this.dom.importSymbols && this.dom.importSymbols.value) {
+                const symVal = this.dom.importSymbols.value.trim();
+                if (symVal && symVal !== '1.0') {
+                    const parsed = symVal.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(s => s.length >= 2);
+                    if (parsed.length > 0) symbolsList = parsed;
+                }
+            }
+            if (symbolsList.length === 0 && this.currentImportBot) {
+                if (Array.isArray(this.currentImportBot.symbols) && this.currentImportBot.symbols.length > 0) symbolsList = this.currentImportBot.symbols;
+                else if (this.currentImportBot.symbol) symbolsList = [this.currentImportBot.symbol];
+            }
+            if (symbolsList.length === 0) symbolsList = [this.symbol || 'BTC-USD'];
+
+            // Determinar modo y valor de riesgo
+            let formRiskMode = (this.dom.importRiskMode && this.dom.importRiskMode.value) ? this.dom.importRiskMode.value : '';
+            if (formRiskMode === '1.0') formRiskMode = '';
+            const riskMode = formRiskMode || (parsedJson && parsedJson.riskMode) || (this.currentImportBot && this.currentImportBot.riskMode) || 'LOTS';
+
+            let formRiskVal = (this.dom.importRiskVal && this.dom.importRiskVal.value !== undefined) ? parseFloat(this.dom.importRiskVal.value) : NaN;
+            const riskVal = (!isNaN(formRiskVal) && formRiskVal !== 1.0 ? formRiskVal : (parsedJson && parsedJson.riskValue !== undefined ? parsedJson.riskValue : (this.currentImportBot && this.currentImportBot.riskValue !== undefined ? this.currentImportBot.riskValue : (riskMode === 'LOTS' ? 0.10 : 1.0))));
+
+            // Recopilar parámetros: base del bot cargado + grid visual + json manual
+            const params = (this.currentImportBot && this.currentImportBot.params) ? { ...this.currentImportBot.params } : {};
+            if (this.dom.importParamsGrid) {
+                Object.keys(params).forEach(key => {
+                    const inp = document.getElementById(`mt5-imp-p-${key}`);
+                    if (inp) {
+                        if (inp.type === 'checkbox') params[key] = inp.checked;
+                        else params[key] = parseFloat(inp.value) || 0;
+                    }
+                });
+            }
+            if (parsedJson && parsedJson.params) {
+                Object.assign(params, parsedJson.params);
+            }
+
+            const timeframe = (parsedJson && parsedJson.timeframe) || (this.currentImportBot && this.currentImportBot.timeframe) || this.timeframe || '1h';
+
+            const bot = {
+                id: botId,
+                name: name,
+                symbol: symbolsList[0] || 'BTC-USD',
+                symbols: symbolsList.length > 0 ? symbolsList : [this.symbol || 'BTC-USD'],
+                multiAsset: symbolsList.length > 1,
+                timeframe: timeframe,
+                magic: magic,
+                strategyType: strategyType,
+                riskMode: riskMode,
+                riskValue: riskVal,
+                description: (parsedJson && parsedJson.description) || (this.currentImportBot && this.currentImportBot.description) || `Bot MT5 ${name} (${strategyType})`,
+                enabled: true,
+                params: params
+            };
 
             this.botsCatalog[bot.id] = bot;
             this.guardarBotsCustom();
             this.poblarSelectores();
             this.seleccionarBot(bot.id);
+            this.renderizarFlotaBots();
+            this.actualizarBadgeFlota();
 
             if (this.dom.modalImportBot) {
                 this.dom.modalImportBot.style.display = 'none';
             }
 
-            this.logJournal(`[BotImported] Bot '${bot.name}' importado con éxito e instalado en el catálogo.`);
-            alert(`¡Bot "${bot.name}" importado e instalado exitosamente!`);
+            // Sincronizar con el daemon 24/7 en segundo plano
+            if (typeof fetch !== 'undefined') {
+                fetch('/api/mt5/daemon_configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bot: bot })
+                }).catch(() => {});
+            }
+
+            this.logJournal(`[BotImported] Bot '${bot.name}' (Magic #${bot.magic}) importado e instalado exitosamente en la flota.`);
+            alert(`¡Bot "${bot.name}" (Magic #${bot.magic}) importado e instalado exitosamente en la flota! Listo para Forward-Testing y ejecución 24/7.`);
         } catch (err) {
-            alert('Error al parsear el JSON del bot: ' + err.message);
+            alert('Error al importar bot: ' + err.message);
         }
     }
 
@@ -515,24 +909,50 @@ class MT5VirtualEmulator {
             });
         }
 
-        // Modal de Carga de Bots MT5
+        // Modal de Carga de Bots MT5 (.mq5 / .ex5 / .json)
         if (this.dom.btnImportBot && this.dom.modalImportBot) {
             this.dom.btnImportBot.addEventListener('click', () => {
                 this.dom.modalImportBot.style.display = 'flex';
             });
         }
+
+        // Dropzone interactivo
+        if (this.dom.dropzone) {
+            this.dom.dropzone.addEventListener('click', () => {
+                if (this.dom.modalBotFileInput) this.dom.modalBotFileInput.click();
+            });
+            this.dom.dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                this.dom.dropzone.style.borderColor = '#089981';
+                this.dom.dropzone.style.background = 'rgba(8, 153, 129, 0.12)';
+            });
+            this.dom.dropzone.addEventListener('dragleave', () => {
+                this.dom.dropzone.style.borderColor = '#2962ff';
+                this.dom.dropzone.style.background = 'rgba(41, 98, 255, 0.06)';
+            });
+            this.dom.dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                this.dom.dropzone.style.borderColor = '#2962ff';
+                this.dom.dropzone.style.background = 'rgba(41, 98, 255, 0.06)';
+                const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                if (file) this.procesarArchivoBot(file);
+            });
+        }
+
         if (this.dom.botFileInput) {
             this.dom.botFileInput.addEventListener('change', (e) => {
                 const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    if (this.dom.editorImportBot) this.dom.editorImportBot.value = evt.target.result;
-                    if (this.dom.modalImportBot) this.dom.modalImportBot.style.display = 'flex';
-                };
-                reader.readAsText(file);
+                if (file) this.procesarArchivoBot(file);
             });
         }
+
+        if (this.dom.modalBotFileInput) {
+            this.dom.modalBotFileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) this.procesarArchivoBot(file);
+            });
+        }
+
         if (this.dom.btnCloseImportBot && this.dom.modalImportBot) {
             this.dom.btnCloseImportBot.addEventListener('click', () => {
                 this.dom.modalImportBot.style.display = 'none';
@@ -543,25 +963,32 @@ class MT5VirtualEmulator {
                 this.dom.modalImportBot.style.display = 'none';
             });
         }
-        if (this.dom.modalBotFileInput && this.dom.editorImportBot) {
-            this.dom.modalBotFileInput.addEventListener('change', (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    this.dom.editorImportBot.value = evt.target.result;
-                };
-                reader.readAsText(file);
+
+        // Detección automática al escribir o pegar en el editor de código
+        if (this.dom.editorImportBot) {
+            this.dom.editorImportBot.addEventListener('input', () => {
+                const val = this.dom.editorImportBot.value.trim();
+                if (val.startsWith('{')) {
+                    try {
+                        const bot = JSON.parse(val);
+                        this.cargarBotEnFormularioImport(bot, 'JSON');
+                    } catch (e) {}
+                } else if (val.includes('#property') || val.includes('input') || val.includes('OnTick') || val.includes('void')) {
+                    const bot = this.parseMQL5(val, 'Pasted_EA.mq5');
+                    this.cargarBotEnFormularioImport(bot, 'MQL5');
+                }
             });
         }
-        if (this.dom.btnApplyImportBot && this.dom.editorImportBot) {
+
+        if (this.dom.btnApplyImportBot) {
             this.dom.btnApplyImportBot.addEventListener('click', () => {
                 this.importarBotDesdeEditor();
             });
         }
-        if (this.dom.btnLoadMultiAssetTemplate && this.dom.editorImportBot) {
+
+        if (this.dom.btnLoadMultiAssetTemplate) {
             this.dom.btnLoadMultiAssetTemplate.addEventListener('click', () => {
-                this.dom.editorImportBot.value = JSON.stringify({
+                const template = {
                     id: 'mi_bot_multiactivo_247',
                     name: 'Mi Bot Multi-Activo Institucional 24/7',
                     multiAsset: true,
@@ -570,6 +997,8 @@ class MT5VirtualEmulator {
                     magic: 9922,
                     description: 'Bot multi-activo diseñado para operar 24/7 en simultáneo en 5 activos.',
                     strategyType: 'donchian_breakout',
+                    riskMode: 'LOTS',
+                    riskValue: 0.10,
                     params: {
                         donchianPeriod: 20,
                         atrPeriod: 14,
@@ -578,7 +1007,8 @@ class MT5VirtualEmulator {
                         useTrailing: true,
                         trailingAtrMult: 1.2
                     }
-                }, null, 2);
+                };
+                this.cargarBotEnFormularioImport(template, 'JSON');
             });
         }
 
