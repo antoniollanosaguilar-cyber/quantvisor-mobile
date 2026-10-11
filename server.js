@@ -7,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { ServerMT5Daemon } from './server_mt5_engine.js';
+import { guardRequest, isAuthConfigured } from './auth_guard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,9 +242,38 @@ try {
         cacheDir: CACHE_DIR,
         fetchCandlesFn: fetchYahooCandles
     });
-    mt5Daemon.start();
+    const persistence = mt5Daemon.getPersistenceInfo();
+    if (persistence.backend === 'file') {
+        console.warn(`[Persistence] ⚠️ ${persistence.warning}`);
+    }
+    // Restaurar primero el estado remoto (si existe) y luego arrancar
+    mt5Daemon.cargarEstadoRemoto()
+        .catch(e => console.error('[Persistence] Error inesperado:', e))
+        .finally(() => mt5Daemon.start());
 } catch (e) {
     console.error('Error al arrancar mt5Daemon:', e);
+}
+
+// Volcar estado remoto antes de que Render detenga/reinicie el proceso
+let shuttingDown = false;
+async function apagadoOrdenado(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Shutdown] ${signal} recibido. Guardando estado...`);
+    try {
+        if (mt5Daemon) {
+            mt5Daemon.guardarEstadoPersistente();
+            await Promise.race([mt5Daemon.guardarEstadoRemoto(), new Promise(r => setTimeout(r, 8000))]);
+        }
+    } catch (e) {
+        console.error('[Shutdown] Error al guardar estado:', e.message);
+    }
+    process.exit(0);
+}
+process.on('SIGTERM', () => apagadoOrdenado('SIGTERM'));
+process.on('SIGINT', () => apagadoOrdenado('SIGINT'));
+if (!isAuthConfigured()) {
+    console.warn('[Auth] ⚠️ QV_PASSWORD no está configurada: la interfaz y la API permanecerán bloqueadas hasta definirla.');
 }
 
 // 5. Tipos MIME
@@ -273,6 +303,9 @@ const server = http.createServer(async (req, res) => {
 
     const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = parsedUrl.pathname;
+
+    // Control de acceso (Basic Auth + anti-CSRF). /health y /api/ping quedan públicos para keep-alive.
+    if (!guardRequest(req, res, pathname, 'cloud')) return;
 
     // API: /api/mt5/daemon_state
     if (pathname === '/api/mt5/daemon_state') {
@@ -641,16 +674,27 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: /api/status, /api/ping, /health (Keep-Alive institucional)
-    if (pathname === '/api/status' || pathname === '/api/ping' || pathname === '/health') {
+    // Keep-alive público: no expone información de la cuenta
+    if (pathname === '/api/ping' || pathname === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+        return;
+    }
+
+    // API: /api/status (protegido por guardRequest)
+    if (pathname === '/api/status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
             server: 'QuantVisor Cloud Engine',
-            version: '2.0.0',
+            version: '2.1.0',
+            mode: 'SIMULATION',
+            dataSource: 'Yahoo Finance (puede tener retraso)',
             uptime: Math.floor(process.uptime()),
             daemonStatus: mt5Daemon?.account?.status || 'UNKNOWN',
             openPositions: mt5Daemon?.openPositions?.length || 0,
+            persistence: mt5Daemon?.getPersistenceInfo ? mt5Daemon.getPersistenceInfo() : 'file',
+            authEnabled: isAuthConfigured(),
             platform: process.platform
         }));
         return;

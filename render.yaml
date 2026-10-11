@@ -5,6 +5,22 @@ services:
     plan: free
     buildCommand: ""
     startCommand: "node server.js"
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
+      # Acceso: usuario y contraseña que pedirá el navegador
+      - key: QV_USER
+        value: admin
+      - key: QV_PASSWORD
+        sync: false
+      # Persistencia (recomendado en plan Free, disco efímero): https://console.upstash.com
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # Notificaciones opcionales por Telegram
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false

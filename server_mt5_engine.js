@@ -13,6 +13,20 @@ export class ServerMT5Daemon {
         this.stateFile = path.join(this.cacheDir, 'mt5_daemon_state.json');
         this.fetchCandlesFn = options.fetchCandlesFn || null;
 
+        // Persistencia remota opcional (Upstash Redis REST)
+        this.remoteUrl = String(options.redisUrl || process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
+        this.remoteToken = options.redisToken || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+        this.remoteKey = options.redisKey || process.env.QV_STATE_KEY || 'quantvisor:mt5_daemon_state';
+        this.remoteSaveDelayMs = options.remoteSaveDelayMs || 15000;
+        this.remoteSaveTimer = null;
+        this.remoteReady = false; // solo true tras una lectura remota exitosa
+        this.remoteLastSavedAt = null;
+        this.remoteLastError = null;
+
+        // Notificaciones opcionales por Telegram
+        this.telegramToken = options.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '';
+        this.telegramChatId = options.telegramChatId || process.env.TELEGRAM_CHAT_ID || '';
+
         this.isRunning = false;
         this.timer = null;
         this.pollIntervalMs = options.pollIntervalMs || 10000; // 10 segundos por ciclo
@@ -225,55 +239,153 @@ export class ServerMT5Daemon {
         try {
             if (fs.existsSync(this.stateFile)) {
                 const raw = fs.readFileSync(this.stateFile, 'utf8');
-                const saved = JSON.parse(raw);
-                if (saved) {
-                    if (saved.account) this.account = Object.assign(this.account, saved.account);
-                    if (Array.isArray(saved.openPositions)) this.openPositions = saved.openPositions;
-                    if (Array.isArray(saved.closedPositions)) this.closedPositions = saved.closedPositions;
-                    if (Array.isArray(saved.equityHistory)) this.equityHistory = saved.equityHistory;
-                    if (Array.isArray(saved.symbols) && saved.symbols.length > 0) this.symbols = saved.symbols;
-                    if (saved.activeBotId && this.botsCatalog[saved.activeBotId]) this.activeBotId = saved.activeBotId;
-                    if (saved.botsCatalog && typeof saved.botsCatalog === 'object') {
-                        Object.keys(saved.botsCatalog).forEach(k => {
-                            if (this.botsCatalog[k]) {
-                                Object.assign(this.botsCatalog[k], saved.botsCatalog[k]);
-                            } else {
-                                this.botsCatalog[k] = saved.botsCatalog[k];
-                            }
-                        });
-                    }
-                    if (saved.challengeConfig) this.challengeConfig = Object.assign(this.challengeConfig, saved.challengeConfig);
-                    if (saved.nextTicket) this.nextTicket = saved.nextTicket;
-                    if (saved.isRunning !== undefined) this.isRunning = saved.isRunning;
-                }
+                this.aplicarEstadoGuardado(JSON.parse(raw));
             }
         } catch (e) {
             console.warn('[Daemon] Error al cargar estado persistente:', e.message);
         }
     }
 
+    aplicarEstadoGuardado(saved) {
+        if (!saved || typeof saved !== 'object') return;
+        if (saved.account) this.account = Object.assign(this.account, saved.account);
+        if (Array.isArray(saved.openPositions)) this.openPositions = saved.openPositions;
+        if (Array.isArray(saved.closedPositions)) this.closedPositions = saved.closedPositions;
+        if (Array.isArray(saved.equityHistory)) this.equityHistory = saved.equityHistory;
+        if (Array.isArray(saved.symbols) && saved.symbols.length > 0) this.symbols = saved.symbols;
+        if (saved.botsCatalog && typeof saved.botsCatalog === 'object') {
+            Object.keys(saved.botsCatalog).forEach(k => {
+                if (this.botsCatalog[k]) {
+                    Object.assign(this.botsCatalog[k], saved.botsCatalog[k]);
+                } else {
+                    this.botsCatalog[k] = saved.botsCatalog[k];
+                }
+            });
+        }
+        if (saved.activeBotId && this.botsCatalog[saved.activeBotId]) this.activeBotId = saved.activeBotId;
+        if (saved.challengeConfig) this.challengeConfig = Object.assign(this.challengeConfig, saved.challengeConfig);
+        if (saved.nextTicket) this.nextTicket = saved.nextTicket;
+        if (saved.isRunning !== undefined) this.isRunning = saved.isRunning;
+    }
+
+    serializarEstado() {
+        return {
+            account: this.account,
+            openPositions: this.openPositions,
+            closedPositions: this.closedPositions.slice(0, 100),
+            equityHistory: this.equityHistory.slice(-500),
+            symbols: this.symbols,
+            activeBotId: this.activeBotId,
+            botsCatalog: this.botsCatalog,
+            challengeConfig: this.challengeConfig,
+            nextTicket: this.nextTicket,
+            isRunning: this.isRunning,
+            lastSavedAt: new Date().toISOString()
+        };
+    }
+
     guardarEstadoPersistente() {
         try {
-            const data = {
-                account: this.account,
-                openPositions: this.openPositions,
-                closedPositions: this.closedPositions.slice(0, 100),
-                equityHistory: this.equityHistory.slice(-500),
-                symbols: this.symbols,
-                activeBotId: this.activeBotId,
-                botsCatalog: this.botsCatalog,
-                challengeConfig: this.challengeConfig,
-                nextTicket: this.nextTicket,
-                isRunning: this.isRunning,
-                lastSavedAt: new Date().toISOString()
-            };
             if (!fs.existsSync(this.cacheDir)) {
                 fs.mkdirSync(this.cacheDir, { recursive: true });
             }
-            fs.writeFileSync(this.stateFile, JSON.stringify(data, null, 2), 'utf8');
+            fs.writeFileSync(this.stateFile, JSON.stringify(this.serializarEstado(), null, 2), 'utf8');
         } catch (e) {
             console.warn('[Daemon] Error al guardar estado persistente:', e.message);
         }
+        this.programarGuardadoRemoto();
+    }
+
+    // =========================================================================
+    // PERSISTENCIA REMOTA (Upstash Redis REST - opcional, plan gratuito)
+    // Necesaria en hosts con disco efímero (Render Free): sin ella el estado
+    // se pierde en cada reinicio/redeploy.
+    // =========================================================================
+    hasRemoteStore() {
+        return Boolean(this.remoteUrl && this.remoteToken);
+    }
+
+    getPersistenceInfo() {
+        if (this.hasRemoteStore()) {
+            return { backend: 'upstash-redis', key: this.remoteKey, lastSavedAt: this.remoteLastSavedAt, lastError: this.remoteLastError };
+        }
+        return { backend: 'file', path: this.stateFile, warning: 'En hosts con disco efímero (Render Free) el estado se pierde al reiniciar. Configure UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN.' };
+    }
+
+    async cargarEstadoRemoto(maxAttempts = 3) {
+        if (!this.hasRemoteStore()) return false;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const resp = await fetch(`${this.remoteUrl}/get/${encodeURIComponent(this.remoteKey)}`, {
+                    headers: { Authorization: `Bearer ${this.remoteToken}` }
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const json = await resp.json();
+                this.remoteReady = true;
+                this.remoteLastError = null;
+                if (json && typeof json.result === 'string' && json.result.length > 0) {
+                    this.aplicarEstadoGuardado(JSON.parse(json.result));
+                    this.log(`[Persistence] Estado restaurado desde Upstash Redis (balance $${Number(this.account.balance).toFixed(2)}, ${this.openPositions.length} posiciones abiertas).`);
+                    return true;
+                }
+                this.log('[Persistence] Upstash Redis conectado, sin estado previo. Se usa el estado inicial.');
+                return false;
+            } catch (e) {
+                this.remoteLastError = e.message;
+                if (attempt < maxAttempts) {
+                    await new Promise(r => setTimeout(r, 1000 * attempt * attempt));
+                }
+            }
+        }
+        // No se habilitan escrituras remotas para no sobrescribir un estado válido que no pudimos leer
+        this.log(`[Persistence ERROR] No se pudo leer el estado remoto tras ${maxAttempts} intentos (${this.remoteLastError}). Guardado remoto desactivado hasta reiniciar.`);
+        return false;
+    }
+
+    programarGuardadoRemoto() {
+        if (!this.hasRemoteStore() || !this.remoteReady || this.remoteSaveTimer) return;
+        // Agrupa escrituras para respetar la cuota gratuita de Upstash
+        this.remoteSaveTimer = setTimeout(() => {
+            this.remoteSaveTimer = null;
+            this.guardarEstadoRemoto();
+        }, this.remoteSaveDelayMs);
+        if (typeof this.remoteSaveTimer.unref === 'function') this.remoteSaveTimer.unref();
+    }
+
+    async guardarEstadoRemoto() {
+        if (!this.hasRemoteStore() || !this.remoteReady) return false;
+        if (this.remoteSaveTimer) {
+            clearTimeout(this.remoteSaveTimer);
+            this.remoteSaveTimer = null;
+        }
+        try {
+            const resp = await fetch(`${this.remoteUrl}/set/${encodeURIComponent(this.remoteKey)}`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${this.remoteToken}`, 'Content-Type': 'text/plain' },
+                body: JSON.stringify(this.serializarEstado())
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            this.remoteLastSavedAt = new Date().toISOString();
+            this.remoteLastError = null;
+            return true;
+        } catch (e) {
+            this.remoteLastError = e.message;
+            console.warn('[Daemon] Error al guardar estado remoto:', e.message);
+            return false;
+        }
+    }
+
+    // =========================================================================
+    // NOTIFICACIONES TELEGRAM (opcional)
+    // =========================================================================
+    notificar(msg) {
+        if (!this.telegramToken || !this.telegramChatId || typeof fetch === 'undefined') return;
+        if (!/OrderSend SUCCESS|OrderClose|PanicClose|ChallengeReset|ACCOUNT VIOLATED|CHALLENGE PASSED|Persistence ERROR/.test(msg)) return;
+        fetch(`https://api.telegram.org/bot${this.telegramToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: this.telegramChatId, text: `QuantVisor (SIMULACIÓN)\n${msg}`, disable_web_page_preview: true })
+        }).catch(e => console.warn('[Telegram] Error al enviar:', e.message));
     }
 
     log(msg) {
@@ -282,6 +394,7 @@ export class ServerMT5Daemon {
         this.journalLogs.unshift(entry);
         if (this.journalLogs.length > 300) this.journalLogs.pop();
         console.log(`[MT5 24/7] ${timeStr} - ${msg}`);
+        this.notificar(msg);
     }
 
     // =========================================================================
@@ -670,7 +783,7 @@ export class ServerMT5Daemon {
             } else if (curBar.close < lastBar.low && curBar.close < ema) {
                 signal = 'SELL';
                 slPrice = curPrice * (1 + slPct);
-                tpPrice = curPrice - (tpPct);
+                tpPrice = curPrice * (1 - tpPct);
             }
         }
 
@@ -756,6 +869,14 @@ export class ServerMT5Daemon {
         const isBuy = type === 'BUY';
         const spreadOffset = isBuy ? (spec.spread * 0.5) : (-spec.spread * 0.5);
         const execPrice = parseFloat((price + spreadOffset).toFixed(spec.digits));
+
+        // Guardia direccional: SL y TP deben estar del lado correcto de la entrada
+        const slBad = sl > 0 && (isBuy ? sl >= execPrice : sl <= execPrice);
+        const tpBad = tp > 0 && (isBuy ? tp <= execPrice : tp >= execPrice);
+        if (slBad || tpBad || !Number.isFinite(execPrice) || !(lots > 0)) {
+            this.log(`[OrderSend REJECTED] Niveles inválidos para ${type} ${symbol} @ ${execPrice} | SL: ${sl} TP: ${tp} | Lotes: ${lots}`);
+            return null;
+        }
 
         const requiredMargin = (lots * spec.contractSize * execPrice) / this.challengeConfig.leverage;
         if (requiredMargin > this.account.freeMargin) {
@@ -850,28 +971,34 @@ export class ServerMT5Daemon {
     }
 
     evaluarReglasPropFirm() {
+        // VIOLATED es un estado terminal: solo resetChallenge() lo revierte.
+        // (Antes, el reset diario a medianoche devolvía una cuenta violada a ACTIVE.)
+        if (this.account.status === 'VIOLATED') return;
+
         const initial = this.account.initialBalance;
         const dayStart = this.account.dayStartEquity;
         const currentEquity = this.account.equity;
 
         const dailyLossUSD = Math.max(0, dayStart - currentEquity);
-        const dailyLossPct = (dailyLossUSD / dayStart) * 100;
+        const dailyLossPct = dayStart > 0 ? (dailyLossUSD / dayStart) * 100 : 0;
         const totalLossUSD = Math.max(0, initial - currentEquity);
-        const totalLossPct = (totalLossUSD / initial) * 100;
+        const totalLossPct = initial > 0 ? (totalLossUSD / initial) * 100 : 0;
         const profitUSD = Math.max(0, currentEquity - initial);
-        const profitPct = (profitUSD / initial) * 100;
+        const profitPct = initial > 0 ? (profitUSD / initial) * 100 : 0;
 
         if (dailyLossPct >= this.challengeConfig.dailyLossLimitPct) {
             this.account.status = 'VIOLATED';
             this.isRunning = false;
-            this.cerrarTodasLasPosiciones('Prop Firm Rule: Pérdida Diaria Superada (5%)');
-            this.log(`🚨 [ACCOUNT VIOLATED] Has alcanzado el límite de pérdida diaria (${dailyLossPct.toFixed(2)}% >= 5%).`);
+            this.cerrarTodasLasPosiciones(`Prop Firm Rule: Pérdida Diaria Superada (${this.challengeConfig.dailyLossLimitPct}%)`);
+            this.log(`🚨 [ACCOUNT VIOLATED] Has alcanzado el límite de pérdida diaria (${dailyLossPct.toFixed(2)}% >= ${this.challengeConfig.dailyLossLimitPct}%).`);
         } else if (totalLossPct >= this.challengeConfig.maxTotalLossPct) {
             this.account.status = 'VIOLATED';
             this.isRunning = false;
-            this.cerrarTodasLasPosiciones('Prop Firm Rule: Max Drawdown Total Superado (10%)');
-            this.log(`🚨 [ACCOUNT VIOLATED] Has alcanzado el Drawdown Máximo Total (${totalLossPct.toFixed(2)}% >= 10%).`);
-        } else if (profitPct >= this.challengeConfig.profitTargetPct && this.account.status !== 'PASSED') {
+            this.cerrarTodasLasPosiciones(`Prop Firm Rule: Max Drawdown Total Superado (${this.challengeConfig.maxTotalLossPct}%)`);
+            this.log(`🚨 [ACCOUNT VIOLATED] Has alcanzado el Drawdown Máximo Total (${totalLossPct.toFixed(2)}% >= ${this.challengeConfig.maxTotalLossPct}%).`);
+        } else if (this.account.status === 'PASSED') {
+            // Objetivo ya alcanzado: se mantiene PASSED (antes volvía a ACTIVE y se re-anunciaba en bucle)
+        } else if (profitPct >= this.challengeConfig.profitTargetPct) {
             this.account.status = 'PASSED';
             this.log(`🏆 [CHALLENGE PASSED!] ¡Felicidades! Objetivo alcanzado: +${profitPct.toFixed(2)}% en cuenta.`);
         } else if (dailyLossPct >= 3.8 || totalLossPct >= 8.0) {

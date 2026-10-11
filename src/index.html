@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#131722" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <link rel="apple-touch-icon" href="/assets/icon-128.png" />
     <title>QuantVisor TradingView Pro Mobile</title>
     <style>
@@ -2791,6 +2791,9 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button id="btn-mt5-toggle-247" class="bt-btn" style="background: rgba(56, 136, 255, 0.15); border: 1px solid #3888ff; color: #5b8cff;" title="Alternar ejecución 24/7 en Servidor Cloud o Local">
           ☁️ 24/7 Cloud: OFF
         </button>
+        <span id="mt5-simulation-badge" title="Las órdenes son virtuales: no se envían a ningún broker. Precios de Yahoo Finance, algunos activos (p. ej. futuros de oro) pueden llegar con retraso." style="font-size:11px; color:#f0b90b; background:rgba(240,185,11,0.12); padding:4px 8px; border-radius:4px; border:1px solid rgba(240,185,11,0.35); font-weight:bold; white-space:nowrap; cursor:help;">
+          ⚠️ SIMULACIÓN · datos Yahoo (pueden tener retraso)
+        </span>
         <button id="btn-mt5-wakelock" class="bt-btn desktop-only" style="background: #1e222d; border: 1px solid #2a2e39; color: #787b86;" title="Evitar suspensión de pantalla (Screen Wake Lock)">
           🛡️ Pantalla Activa
         </button>
