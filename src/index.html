@@ -1676,6 +1676,320 @@
         margin-top: 12px;
         grid-column: 1 / -1;
       }
+
+      /* =========================================================================
+         WORKSPACE EMULADOR MT5 & PROP FIRM SANDBOX
+         ========================================================================= */
+      #mt5-runner-workspace {
+        display: none;
+        flex-direction: column;
+        width: 100vw;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+        background-color: var(--bg-main);
+      }
+      #mt5-runner-workspace.active {
+        display: flex;
+      }
+      #mt5-toolbar {
+        min-height: 40px;
+        background-color: var(--bg-panel);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        gap: 8px;
+        z-index: 50;
+        flex-wrap: wrap;
+      }
+      #mt5-prop-stats-bar {
+        min-height: 54px;
+        background: #171b26;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        padding: 6px 14px;
+        gap: 16px;
+        flex-wrap: wrap;
+        overflow-x: auto;
+      }
+      .mt5-stat-card {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 90px;
+      }
+      .mt5-stat-lbl {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+      }
+      .mt5-stat-val {
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      }
+      .mt5-stat-val.pnl-pos { color: #089981 !important; }
+      .mt5-stat-val.pnl-neg { color: #f23645 !important; }
+
+      .mt5-gauge-container {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 140px;
+        flex: 1;
+        max-width: 200px;
+      }
+      .mt5-gauge-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 10px;
+      }
+      .mt5-gauge-title {
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+      .mt5-gauge-lbl {
+        color: #d1d4dc;
+        font-weight: 600;
+        font-size: 10px;
+      }
+      .mt5-gauge-bar {
+        height: 6px;
+        background: #2a2e39;
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+      }
+      .mt5-gauge-fill {
+        height: 100%;
+        width: 0%;
+        background-color: #089981;
+        transition: width 0.3s ease, background-color 0.3s ease;
+      }
+
+      .mt5-badge-status {
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .status-active {
+        background: rgba(8, 153, 129, 0.15);
+        border: 1px solid rgba(8, 153, 129, 0.5);
+        color: #089981;
+      }
+      .status-warning {
+        background: rgba(255, 152, 0, 0.15);
+        border: 1px solid rgba(255, 152, 0, 0.5);
+        color: #ff9800;
+      }
+      .status-passed {
+        background: rgba(41, 98, 255, 0.2);
+        border: 1px solid #2962ff;
+        color: #5b8cff;
+      }
+      .status-violated {
+        background: rgba(242, 54, 69, 0.2);
+        border: 1px solid #f23645;
+        color: #f23645;
+      }
+
+      #mt5-chart-area {
+        flex: 1;
+        position: relative;
+        background: #131722;
+        min-height: 200px;
+        overflow: hidden;
+      }
+      .mt5-chart-legend {
+        position: absolute;
+        top: 10px;
+        left: 12px;
+        z-index: 10;
+        background: rgba(19, 23, 34, 0.85);
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(42, 46, 57, 0.6);
+        font-size: 11px;
+        color: #d1d4dc;
+        pointer-events: none;
+      }
+
+      .mt5-splitter {
+        height: 5px;
+        background-color: var(--border-color);
+        cursor: row-resize;
+        transition: background-color 0.2s;
+        z-index: 30;
+      }
+      .mt5-splitter:hover {
+        background-color: var(--brand-blue);
+      }
+
+      .mt5-terminal-panel {
+        height: 260px;
+        min-height: 120px;
+        max-height: 85vh;
+        background: var(--bg-panel);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .mt5-terminal-header {
+        height: 34px;
+        min-height: 34px;
+        background: #171b26;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        gap: 4px;
+      }
+      .mt5-tab-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+      }
+      .mt5-tab-btn:hover {
+        color: #fff;
+      }
+      .mt5-tab-btn.active {
+        color: #5b8cff;
+        border-bottom-color: #2962ff;
+        background: rgba(41, 98, 255, 0.08);
+      }
+
+      .mt5-tab-pane {
+        display: none;
+        flex: 1;
+        overflow: auto;
+        padding: 0;
+      }
+      .mt5-tab-pane.active {
+        display: block;
+      }
+
+      .mt5-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        text-align: left;
+      }
+      .mt5-table th {
+        background: #171b26;
+        color: var(--text-muted);
+        padding: 7px 10px;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+      }
+      .mt5-table td {
+        padding: 6px 10px;
+        border-bottom: 1px solid rgba(42, 46, 57, 0.4);
+        color: #d1d4dc;
+        white-space: nowrap;
+      }
+      .mt5-table tr:hover {
+        background-color: rgba(41, 98, 255, 0.05);
+      }
+
+      .mt5-tag {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .mt5-tag.buy {
+        background: rgba(8, 153, 129, 0.2);
+        color: #089981;
+        border: 1px solid rgba(8, 153, 129, 0.4);
+      }
+      .mt5-tag.sell {
+        background: rgba(242, 54, 69, 0.2);
+        color: #f23645;
+        border: 1px solid rgba(242, 54, 69, 0.4);
+      }
+
+      .mt5-btn-close {
+        background: rgba(242, 54, 69, 0.15);
+        border: 1px solid rgba(242, 54, 69, 0.4);
+        color: #f23645;
+        border-radius: 3px;
+        font-size: 10px;
+        padding: 2px 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .mt5-btn-close:hover {
+        background: #f23645;
+        color: #fff;
+      }
+
+      .mt5-journal-container {
+        padding: 8px 12px;
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .mt5-journal-entry {
+        display: flex;
+        gap: 10px;
+        border-bottom: 1px solid rgba(42, 46, 57, 0.3);
+        padding-bottom: 2px;
+      }
+      .mt5-log-time {
+        color: #787b86;
+        font-weight: bold;
+      }
+      .mt5-log-msg {
+        color: #d1d4dc;
+      }
+
+      .mt5-params-grid {
+        padding: 14px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .mt5-param-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #171b26;
+        padding: 8px 12px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        font-size: 11px;
+      }
+      .mt5-param-item label {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
     </style>
   </head>
   <body>
@@ -1839,6 +2153,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <div class="app-mode-tabs desktop-only">
         <button id="tab-btn-trading" class="app-mode-tab active" title="Pantalla de Gráfico y Análisis Principal">📈 Gráfico</button>
         <button id="tab-btn-backtest" class="app-mode-tab" title="Entorno Dedicado de Backtesting Cuantitativo">🧪 Backtesting</button>
+        <button id="tab-btn-mt5" class="app-mode-tab" title="Emulador Virtual MT5 & Prop Firm Challenge Sandbox">🤖 MT5 Runner</button>
       </div>
       <input type="text" id="ticker-search" value="BTCUSDT" title="Buscar Símbolo">
       
@@ -2346,6 +2661,169 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
         </div>
       </div>
+    <!-- WORKSPACE EMULADOR MT5 & PROP FIRM SANDBOX (PESTAÑA DEDICADA DE FORWARD TESTING) -->
+    <div id="mt5-runner-workspace">
+      <!-- BARRA DE CONTROL DEL BOT & AMBIENTE MT5 -->
+      <div id="mt5-toolbar">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot MT5:</span>
+          <select id="mt5-bot-select" class="bt-select" style="min-width: 210px;"></select>
+        </div>
+        <div class="toolbar-divider desktop-only"></div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: var(--text-muted);">Símbolo:</span>
+          <select id="mt5-symbol-select" class="bt-select" style="min-width: 110px;"></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: var(--text-muted);">Plan Fondeo:</span>
+          <select id="mt5-tier-select" class="bt-select" style="min-width: 170px;"></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: var(--text-muted);" title="Riesgo por operación en %">Riesgo %:</span>
+          <input type="number" id="mt5-risk-input" value="1.0" min="0.1" max="5.0" step="0.1" class="bt-select" style="width: 60px;" title="Porcentaje de riesgo por trade" />
+        </div>
+        <div class="toolbar-divider desktop-only"></div>
+        <button id="btn-mt5-toggle-run" class="bt-btn primary" title="Iniciar o pausar ejecución en vivo del bot">
+          ▶ Iniciar Bot en Vivo
+        </button>
+        <button id="btn-mt5-panic-close" class="bt-btn" style="background: rgba(242, 54, 69, 0.2); border: 1px solid #f23645; color: #f23645;" title="Cierre de pánico de todas las órdenes de mercado">
+          🚨 Pánico: Cerrar Todo
+        </button>
+        <button id="btn-mt5-reset-challenge" class="bt-btn" title="Reiniciar cuenta y estadísticas del challenge">
+          🔄 Reiniciar Sandbox
+        </button>
+        <div style="margin-left: auto;">
+          <span id="mt5-badge-status" class="mt5-badge-status status-active">🟢 ACTIVA (CUMPLIENDO REGLAS)</span>
+        </div>
+      </div>
+
+      <!-- BANNER DE REGLAS DE CUENTA DE FONDEO (PROP FIRM COMPLIANCE GAUGES) -->
+      <div id="mt5-prop-stats-bar">
+        <div class="mt5-stat-card">
+          <span class="mt5-stat-lbl">Balance</span>
+          <span id="mt5-val-balance" class="mt5-stat-val">$100,000.00</span>
+        </div>
+        <div class="mt5-stat-card">
+          <span class="mt5-stat-lbl">Equidad</span>
+          <span id="mt5-val-equity" class="mt5-stat-val">$100,000.00</span>
+        </div>
+        <div class="mt5-stat-card">
+          <span class="mt5-stat-lbl">Margen Libre</span>
+          <span id="mt5-val-free-margin" class="mt5-stat-val">$100,000.00</span>
+        </div>
+        <div class="mt5-stat-card">
+          <span class="mt5-stat-lbl">PnL Flotante</span>
+          <span id="mt5-val-floating-pnl" class="mt5-stat-val">$0.00</span>
+        </div>
+        <div class="toolbar-divider" style="height: 30px;"></div>
+        <!-- MEDIDOR: PÉRDIDA DIARIA (MAX 5%) -->
+        <div class="mt5-gauge-container">
+          <div class="mt5-gauge-header">
+            <span class="mt5-gauge-title">Pérdida Diaria (Max 5%)</span>
+            <span id="mt5-gauge-daily-lbl" class="mt5-gauge-lbl">-$0 / -$5,000 (0.0% / 5%)</span>
+          </div>
+          <div class="mt5-gauge-bar">
+            <div id="mt5-gauge-daily-bar" class="mt5-gauge-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <!-- MEDIDOR: DRAWDOWN MÁXIMO TOTAL (MAX 10%) -->
+        <div class="mt5-gauge-container">
+          <div class="mt5-gauge-header">
+            <span class="mt5-gauge-title">Max Drawdown (Max 10%)</span>
+            <span id="mt5-gauge-total-lbl" class="mt5-gauge-lbl">-$0 / -$10,000 (0.0% / 10%)</span>
+          </div>
+          <div class="mt5-gauge-bar">
+            <div id="mt5-gauge-total-bar" class="mt5-gauge-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <!-- MEDIDOR: PROFIT TARGET (8% FASE 1) -->
+        <div class="mt5-gauge-container">
+          <div class="mt5-gauge-header">
+            <span class="mt5-gauge-title">Objetivo Ganancia (8%)</span>
+            <span id="mt5-gauge-target-lbl" class="mt5-gauge-lbl">+$0 / +$8,000 (0.0% / 8%)</span>
+          </div>
+          <div class="mt5-gauge-bar">
+            <div id="mt5-gauge-target-bar" class="mt5-gauge-fill" style="background-color: #2962ff; width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ÁREA DE GRÁFICO DEDICADO DE MT5 CON LÍNEAS VISUALES DE ÓRDENES -->
+      <div id="mt5-chart-area">
+        <div id="mt5-chart-legend" class="mt5-chart-legend">Cargando gráfico virtual MT5...</div>
+        <div id="mt5-chart-container" style="width: 100%; height: 100%;"></div>
+      </div>
+
+      <!-- RESIZABLE SPLITTER -->
+      <div id="mt5-splitter" class="mt5-splitter"></div>
+
+      <!-- TERMINAL DE METATRADER 5 INFERIOR (BLOTTER, HISTORIAL, JOURNAL, INPUTS) -->
+      <div id="mt5-terminal-panel" class="mt5-terminal-panel">
+        <div class="mt5-terminal-header">
+          <button class="mt5-tab-btn active" data-tab="mt5-tab-positions">📋 Operaciones Abiertas</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-history">📜 Historial de Cuenta</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-journal">📑 Journal & Logs MT5</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-params">⚙️ Parámetros del Bot</button>
+        </div>
+
+        <!-- TAB 1: POSICIONES ABIERTAS -->
+        <div id="mt5-tab-positions" class="mt5-tab-pane active">
+          <table class="mt5-table">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Hora</th>
+                <th>Tipo</th>
+                <th>Lotes</th>
+                <th>Símbolo</th>
+                <th>Precio Apertura</th>
+                <th>S / L</th>
+                <th>T / P</th>
+                <th>Precio Actual</th>
+                <th>Comisión</th>
+                <th>Beneficio PnL</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="mt5-positions-body">
+              <tr><td colspan="12" style="text-align:center; padding:24px; color:#787b86;">Sin operaciones abiertas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 2: HISTORIAL -->
+        <div id="mt5-tab-history" class="mt5-tab-pane">
+          <table class="mt5-table">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Hora Cierre</th>
+                <th>Tipo</th>
+                <th>Lotes</th>
+                <th>Símbolo</th>
+                <th>Entrada</th>
+                <th>Salida</th>
+                <th>Comisión</th>
+                <th>Beneficio Neto</th>
+                <th>Motivo de Salida</th>
+              </tr>
+            </thead>
+            <tbody id="mt5-history-body">
+              <tr><td colspan="10" style="text-align:center; padding:24px; color:#787b86;">Sin historial en la sesión.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 3: JOURNAL & LOGS -->
+        <div id="mt5-tab-journal" class="mt5-tab-pane">
+          <div id="mt5-journal-logs" class="mt5-journal-container"></div>
+        </div>
+
+        <!-- TAB 4: PARÁMETROS DEL BOT -->
+        <div id="mt5-tab-params" class="mt5-tab-pane">
+          <div id="mt5-bot-params-grid" class="mt5-params-grid"></div>
+        </div>
+      </div>
     </div>
 
     <!-- STATUS BAR INFERIOR -->
@@ -2404,6 +2882,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button id="btn-close-more-sheet" style="background: none; border: none; color: #787b86; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
       </div>
         <button class="mobile-sheet-btn" id="sheet-btn-backtest">🧪 Entorno de Backtesting Dedicado</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-mt5">🤖 Emulador MT5 & Prop Firm Sandbox</button>
         <button class="mobile-sheet-btn" id="sheet-btn-magnet">🧲 Modo Imán: OFF</button>
         <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">📲 Instalar como Aplicación</button>
         <button class="mobile-sheet-btn" id="sheet-btn-replay">⏱️ Modo Bar Replay (Repetición)</button>
@@ -2419,6 +2898,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <script src="./drawing_canvas.js"></script>
     <script src="./pine_editor.js"></script>
     <script src="./strategy_tester.js"></script>
+    <script src="./mt5_emulator.js"></script>
     <script src="./main.js"></script>
     <script>
       // 1. Registro de Service Worker para PWA

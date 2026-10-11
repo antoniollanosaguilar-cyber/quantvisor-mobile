@@ -647,6 +647,9 @@ function iniciarMotorEnVivoYahoo() {
                             });
                         }
                         mostrarLeyendaOHLCV(updated);
+                        if (window.MT5Emulator && (window.MT5Emulator.symbol === currentSymbol || !window.MT5Emulator.symbol)) {
+                            window.MT5Emulator.onTick(updated);
+                        }
                     } else if (timeDiff >= threshold) {
                         // Período nominal cumplido: Apertura legítima de nueva vela
                         historialVelas.push(latest);
@@ -659,6 +662,9 @@ function iniciarMotorEnVivoYahoo() {
                             });
                         }
                         mostrarLeyendaOHLCV(latest);
+                        if (window.MT5Emulator && (window.MT5Emulator.symbol === currentSymbol || !window.MT5Emulator.symbol)) {
+                            window.MT5Emulator.onTick(latest);
+                        }
                     }
                     if (drawingEngine) drawingEngine.redraw();
                 }
@@ -764,6 +770,10 @@ async function cargarDatosVelas(candles) {
     // Inyectar datos completos de velas en CandlestickSeries
     if (activePriceSeries) {
         activePriceSeries.setData(historialVelas);
+    }
+
+    if (window.MT5Emulator && (window.MT5Emulator.symbol === currentSymbol || !window.MT5Emulator.symbol)) {
+        window.MT5Emulator.setCandles(historialVelas);
     }
 
     if (volumeSeries) {
@@ -1412,23 +1422,30 @@ function cambiarEstiloGrafico(nuevoEstilo) {
     }
 }
 
-// Alternar Modo de la Aplicación: Gráfico Principal de Trading vs Backtesting Cuantitativo Dedicado
+// Alternar Modo de la Aplicación: Gráfico Principal de Trading vs Backtesting Cuantitativo Dedicado vs MT5 Runner
 window.cambiarModoApp = function(modo) {
     const mainWorkspace = document.getElementById('main-workspace');
     const btWorkspace = document.getElementById('backtest-workspace');
+    const mt5Workspace = document.getElementById('mt5-runner-workspace');
     const tabTrading = document.getElementById('tab-btn-trading');
     const tabBacktest = document.getElementById('tab-btn-backtest');
+    const tabMT5 = document.getElementById('tab-btn-mt5');
     const mobBtnChart = document.getElementById('mob-btn-chart');
     const mobBtnBacktest = document.getElementById('mob-btn-backtest');
     const btnBottomTester = document.getElementById('btn-bottom-tab-tester');
 
     if (modo === 'backtest') {
         if (mainWorkspace) mainWorkspace.style.display = 'none';
+        if (mt5Workspace) {
+            mt5Workspace.style.display = 'none';
+            mt5Workspace.classList.remove('active');
+        }
         if (btWorkspace) {
             btWorkspace.style.display = 'flex';
             btWorkspace.classList.add('active');
         }
         if (tabTrading) tabTrading.classList.remove('active');
+        if (tabMT5) tabMT5.classList.remove('active');
         if (tabBacktest) tabBacktest.classList.add('active');
         if (mobBtnChart) mobBtnChart.classList.remove('active');
         if (mobBtnBacktest) mobBtnBacktest.classList.add('active');
@@ -1438,16 +1455,42 @@ window.cambiarModoApp = function(modo) {
             window.StrategyTester.resize();
             window.StrategyTester.ejecutarBacktest();
         }
+    } else if (modo === 'mt5') {
+        if (mainWorkspace) mainWorkspace.style.display = 'none';
+        if (btWorkspace) {
+            btWorkspace.style.display = 'none';
+            btWorkspace.classList.remove('active');
+        }
+        if (mt5Workspace) {
+            mt5Workspace.style.display = 'flex';
+            mt5Workspace.classList.add('active');
+        }
+        if (tabTrading) tabTrading.classList.remove('active');
+        if (tabBacktest) tabBacktest.classList.remove('active');
+        if (tabMT5) tabMT5.classList.add('active');
+        if (mobBtnChart) mobBtnChart.classList.remove('active');
+        if (mobBtnBacktest) mobBtnBacktest.classList.remove('active');
+        if (btnBottomTester) btnBottomTester.classList.remove('active-tab');
+
+        if (window.MT5Emulator) {
+            window.MT5Emulator.resize();
+            window.MT5Emulator.cargarVelasYActualizar();
+        }
     } else {
         if (btWorkspace) {
             btWorkspace.style.display = 'none';
             btWorkspace.classList.remove('active');
+        }
+        if (mt5Workspace) {
+            mt5Workspace.style.display = 'none';
+            mt5Workspace.classList.remove('active');
         }
         if (mainWorkspace) {
             mainWorkspace.style.display = 'flex';
         }
         if (tabTrading) tabTrading.classList.add('active');
         if (tabBacktest) tabBacktest.classList.remove('active');
+        if (tabMT5) tabMT5.classList.remove('active');
         if (mobBtnBacktest) mobBtnBacktest.classList.remove('active');
         if (mobBtnChart) mobBtnChart.classList.add('active');
         if (btnBottomTester) btnBottomTester.classList.remove('active-tab');
@@ -1459,7 +1502,7 @@ window.cambiarModoApp = function(modo) {
 };
 
 function inicializarEventosUI() {
-    // 0. Pestañas Superiores de Modo (Trading vs Backtesting)
+    // 0. Pestañas Superiores de Modo (Trading vs Backtesting vs MT5)
     const tabTrading = document.getElementById('tab-btn-trading');
     if (tabTrading) {
         tabTrading.addEventListener('click', () => window.cambiarModoApp('trading'));
@@ -1467,6 +1510,10 @@ function inicializarEventosUI() {
     const tabBacktest = document.getElementById('tab-btn-backtest');
     if (tabBacktest) {
         tabBacktest.addEventListener('click', () => window.cambiarModoApp('backtest'));
+    }
+    const tabMT5 = document.getElementById('tab-btn-mt5');
+    if (tabMT5) {
+        tabMT5.addEventListener('click', () => window.cambiarModoApp('mt5'));
     }
     const btnBottomTester = document.getElementById('btn-bottom-tab-tester');
     if (btnBottomTester) {
@@ -2613,6 +2660,14 @@ function inicializarEventosUI() {
         sheetBtnBacktest.addEventListener('click', () => {
             cerrarPanelesMoviles();
             window.cambiarModoApp('backtest');
+        });
+    }
+
+    const sheetBtnMT5 = document.getElementById('sheet-btn-mt5');
+    if (sheetBtnMT5) {
+        sheetBtnMT5.addEventListener('click', () => {
+            cerrarPanelesMoviles();
+            window.cambiarModoApp('mt5');
         });
     }
 
