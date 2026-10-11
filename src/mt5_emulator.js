@@ -401,19 +401,118 @@ class MT5VirtualEmulator {
         return [...new Set(strings)];
     }
 
+    detectarSimbolosDeBot(fuente, filename = '') {
+        const encontrados = new Set();
+
+        const mapaAlias = {
+            'XAUUSD': 'XAUUSD', 'GOLD': 'XAUUSD', 'ORO': 'XAUUSD',
+            'XAGUSD': 'XAGUSD', 'SILVER': 'XAGUSD', 'PLATA': 'XAGUSD',
+            'BTCUSD': 'BTC-USD', 'BTCUSDT': 'BTC-USD', 'BTC-USD': 'BTC-USD', 'BITCOIN': 'BTC-USD',
+            'ETHUSD': 'ETH-USD', 'ETHUSDT': 'ETH-USD', 'ETH-USD': 'ETH-USD', 'ETHEREUM': 'ETH-USD',
+            'SOLUSD': 'SOL-USD', 'SOLUSDT': 'SOL-USD', 'SOL-USD': 'SOL-USD', 'SOLANA': 'SOL-USD',
+            'XRPUSD': 'XRP-USD', 'BNBUSD': 'BNB-USD', 'ADAUSD': 'ADA-USD',
+            'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'AUDUSD': 'AUDUSD',
+            'USDCAD': 'USDCAD', 'USDCHF': 'USDCHF', 'NZDUSD': 'NZDUSD',
+            'EURGBP': 'EURGBP', 'EURJPY': 'EURJPY', 'GBPJPY': 'GBPJPY', 'AUDJPY': 'AUDJPY',
+            'NASDAQ': 'NASDAQ', 'US100': 'NASDAQ', 'USTEC': 'NASDAQ', 'NQ': 'NASDAQ', 'NDX': 'NASDAQ',
+            'SP500': 'SP500', 'US500': 'SP500', 'ES': 'SP500', 'SPX': 'SP500',
+            'US30': 'US30', 'DOW': 'US30', 'DJI': 'US30', 'YM': 'US30',
+            'DAX': 'DAX', 'GER40': 'DAX',
+            'NVDA': 'NVDA', 'AAPL': 'AAPL', 'TSLA': 'TSLA', 'MSFT': 'MSFT', 'AMZN': 'AMZN', 'GOOGL': 'GOOGL'
+        };
+
+        const normalizar = (raw) => {
+            if (!raw) return null;
+            const clean = raw.trim().toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+            if (mapaAlias[clean]) return mapaAlias[clean];
+            const noGuion = clean.replace('-', '');
+            if (mapaAlias[noGuion]) return mapaAlias[noGuion];
+            if (/^[A-Z]{6}$/.test(clean)) return clean;
+            return null;
+        };
+
+        // 1. Extraer de inputs de MQL5 o variables explícitas
+        if (typeof fuente === 'string') {
+            const regexInputString = /(?:input|sinput)\s+string\s+[a-zA-Z0-9_]*(?:symbol|symbols|pair|pairs|basket|instruments|asset|assets)[a-zA-Z0-9_]*\s*=\s*["']([^"']+)["']/gi;
+            let m;
+            while ((m = regexInputString.exec(fuente)) !== null) {
+                const lista = m[1].split(/[,;\s|]+/);
+                lista.forEach(item => {
+                    const norm = normalizar(item);
+                    if (norm) encontrados.add(norm);
+                });
+            }
+
+            const regexFuncSymbol = /(?:SymbolInfoDouble|SymbolInfoInteger|SymbolInfoString|iClose|iOpen|iHigh|iLow|iVolume|iTime|iMA|iRSI|iATR|iBands|OrderSend)\s*\(\s*["']([A-Z0-9_\-]+)["']/gi;
+            let mf;
+            while ((mf = regexFuncSymbol.exec(fuente)) !== null) {
+                const norm = normalizar(mf[1]);
+                if (norm) encontrados.add(norm);
+            }
+        }
+
+        // 2. Extraer de array de cadenas (EX5)
+        if (Array.isArray(fuente)) {
+            fuente.forEach(str => {
+                const norm = normalizar(str);
+                if (norm) encontrados.add(norm);
+                if (str.includes(',') || str.includes(';')) {
+                    str.split(/[,;\s]+/).forEach(p => {
+                        const n = normalizar(p);
+                        if (n) encontrados.add(n);
+                    });
+                }
+            });
+        }
+
+        // 3. Extraer de nombre de archivo
+        if (filename) {
+            const cleanFn = filename.toUpperCase().replace(/\.(MQ5|EX5|JSON|TXT)$/i, '');
+            Object.keys(mapaAlias).forEach(k => {
+                if (k.length <= 3) {
+                    const reg = new RegExp(`(^|[^A-Z0-9])${k}([^A-Z0-9]|$)`, 'i');
+                    if (reg.test(cleanFn)) encontrados.add(mapaAlias[k]);
+                } else if (cleanFn.includes(k)) {
+                    encontrados.add(mapaAlias[k]);
+                }
+            });
+        }
+
+        // 4. Si el texto completo menciona símbolos conocidos
+        if (typeof fuente === 'string' && encontrados.size === 0) {
+            const upperCode = fuente.toUpperCase();
+            const prioritized = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'BTCUSD', 'ETHUSD', 'SOLUSD', 'NASDAQ', 'US100', 'SP500', 'US500', 'US30'];
+            prioritized.forEach(sym => {
+                const reg = new RegExp(`\\b${sym.replace('-', '[-]?')}\\b`, 'i');
+                if (reg.test(upperCode)) {
+                    const norm = normalizar(sym);
+                    if (norm) encontrados.add(norm);
+                }
+            });
+        }
+
+        return Array.from(encontrados);
+    }
+
     parseEX5(buffer, filename = '') {
         const strings = this.extractStringsFromBuffer(buffer);
         const cleanName = filename ? filename.replace(/\.ex5$/i, '').replace(/[_-]/g, ' ') : 'Bot MT5 Compilado';
+        const detectedSymbols = this.detectarSimbolosDeBot(strings, filename);
+        const isMulti = detectedSymbols.length > 1;
+        const primarySymbol = detectedSymbols[0] || this.symbol || 'BTC-USD';
+        const symbolsList = detectedSymbols.length > 0 ? detectedSymbols : [primarySymbol];
 
         const bot = {
             id: 'bot_ex5_' + Date.now(),
             name: cleanName,
-            symbol: this.symbol || 'BTC-USD',
-            symbols: [this.symbol || 'BTC-USD'],
+            symbol: primarySymbol,
+            symbols: symbolsList,
+            multiAsset: isMulti,
             timeframe: this.timeframe || '1h',
             magic: Math.floor(1000 + Math.random() * 8999),
             description: `Expert Advisor MT5 compilado (.ex5) con parámetros extraídos dinámicamente del binario.`,
             strategyType: 'donchian_breakout',
+            category: isMulti ? 'Bot MT5 Multi-Activo (.ex5)' : 'Bot MT5 (.ex5)',
             riskMode: 'LOTS',
             riskValue: 0.10,
             params: {
@@ -464,15 +563,22 @@ class MT5VirtualEmulator {
 
     parseMQL5(code, filename = '') {
         const cleanName = filename ? filename.replace(/\.(mq5|txt)$/i, '').replace(/[_-]/g, ' ') : 'Bot MQL5';
+        const detectedSymbols = this.detectarSimbolosDeBot(code, filename);
+        const isMulti = detectedSymbols.length > 1;
+        const primarySymbol = detectedSymbols[0] || this.symbol || 'BTC-USD';
+        const symbolsList = detectedSymbols.length > 0 ? detectedSymbols : [primarySymbol];
+
         const bot = {
             id: 'bot_mql5_' + Date.now(),
             name: cleanName,
-            symbol: this.symbol || 'BTC-USD',
-            symbols: [this.symbol || 'BTC-USD'],
+            symbol: primarySymbol,
+            symbols: symbolsList,
+            multiAsset: isMulti,
             timeframe: this.timeframe || '1h',
             magic: Math.floor(1000 + Math.random() * 8999),
             description: 'Expert Advisor MQL5 personalizado.',
             strategyType: 'donchian_breakout',
+            category: isMulti ? 'Bot MT5 Multi-Activo (.mq5)' : 'Bot MT5 (.mq5)',
             riskMode: 'LOTS',
             riskValue: 0.10,
             params: {}

@@ -2356,20 +2356,120 @@ class StrategyTester {
         return [...new Set(strings)];
     }
 
+    detectarSimbolosDeBot(fuente, filename = '') {
+        const encontrados = new Set();
+
+        const mapaAlias = {
+            'XAUUSD': 'XAUUSD', 'GOLD': 'XAUUSD', 'ORO': 'XAUUSD',
+            'XAGUSD': 'XAGUSD', 'SILVER': 'XAGUSD', 'PLATA': 'XAGUSD',
+            'BTCUSD': 'BTC-USD', 'BTCUSDT': 'BTC-USD', 'BTC-USD': 'BTC-USD', 'BITCOIN': 'BTC-USD',
+            'ETHUSD': 'ETH-USD', 'ETHUSDT': 'ETH-USD', 'ETH-USD': 'ETH-USD', 'ETHEREUM': 'ETH-USD',
+            'SOLUSD': 'SOL-USD', 'SOLUSDT': 'SOL-USD', 'SOL-USD': 'SOL-USD', 'SOLANA': 'SOL-USD',
+            'XRPUSD': 'XRP-USD', 'BNBUSD': 'BNB-USD', 'ADAUSD': 'ADA-USD',
+            'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'AUDUSD': 'AUDUSD',
+            'USDCAD': 'USDCAD', 'USDCHF': 'USDCHF', 'NZDUSD': 'NZDUSD',
+            'EURGBP': 'EURGBP', 'EURJPY': 'EURJPY', 'GBPJPY': 'GBPJPY', 'AUDJPY': 'AUDJPY',
+            'NASDAQ': 'NASDAQ', 'US100': 'NASDAQ', 'USTEC': 'NASDAQ', 'NQ': 'NASDAQ', 'NDX': 'NASDAQ',
+            'SP500': 'SP500', 'US500': 'SP500', 'ES': 'SP500', 'SPX': 'SP500',
+            'US30': 'US30', 'DOW': 'US30', 'DJI': 'US30', 'YM': 'US30',
+            'DAX': 'DAX', 'GER40': 'DAX',
+            'NVDA': 'NVDA', 'AAPL': 'AAPL', 'TSLA': 'TSLA', 'MSFT': 'MSFT', 'AMZN': 'AMZN', 'GOOGL': 'GOOGL'
+        };
+
+        const normalizar = (raw) => {
+            if (!raw) return null;
+            const clean = raw.trim().toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+            if (mapaAlias[clean]) return mapaAlias[clean];
+            const noGuion = clean.replace('-', '');
+            if (mapaAlias[noGuion]) return mapaAlias[noGuion];
+            if (/^[A-Z]{6}$/.test(clean)) return clean;
+            return null;
+        };
+
+        // 1. Extraer de inputs de MQL5 o variables explícitas
+        if (typeof fuente === 'string') {
+            const regexInputString = /(?:input|sinput)\s+string\s+[a-zA-Z0-9_]*(?:symbol|symbols|pair|pairs|basket|instruments|asset|assets)[a-zA-Z0-9_]*\s*=\s*["']([^"']+)["']/gi;
+            let m;
+            while ((m = regexInputString.exec(fuente)) !== null) {
+                const lista = m[1].split(/[,;\s|]+/);
+                lista.forEach(item => {
+                    const norm = normalizar(item);
+                    if (norm) encontrados.add(norm);
+                });
+            }
+
+            // Llamadas MQL5 con símbolo explícito: SymbolInfo..., iClose("EURUSD"...
+            const regexFuncSymbol = /(?:SymbolInfoDouble|SymbolInfoInteger|SymbolInfoString|iClose|iOpen|iHigh|iLow|iVolume|iTime|iMA|iRSI|iATR|iBands|OrderSend)\s*\(\s*["']([A-Z0-9_\-]+)["']/gi;
+            let mf;
+            while ((mf = regexFuncSymbol.exec(fuente)) !== null) {
+                const norm = normalizar(mf[1]);
+                if (norm) encontrados.add(norm);
+            }
+        }
+
+        // 2. Extraer de array de cadenas (EX5)
+        if (Array.isArray(fuente)) {
+            fuente.forEach(str => {
+                const norm = normalizar(str);
+                if (norm) encontrados.add(norm);
+                if (str.includes(',') || str.includes(';')) {
+                    str.split(/[,;\s]+/).forEach(p => {
+                        const n = normalizar(p);
+                        if (n) encontrados.add(n);
+                    });
+                }
+            });
+        }
+
+        // 3. Extraer de nombre de archivo
+        if (filename) {
+            const cleanFn = filename.toUpperCase().replace(/\.(MQ5|EX5|JSON|TXT)$/i, '');
+            Object.keys(mapaAlias).forEach(k => {
+                if (k.length <= 3) {
+                    const reg = new RegExp(`(^|[^A-Z0-9])${k}([^A-Z0-9]|$)`, 'i');
+                    if (reg.test(cleanFn)) encontrados.add(mapaAlias[k]);
+                } else if (cleanFn.includes(k)) {
+                    encontrados.add(mapaAlias[k]);
+                }
+            });
+        }
+
+        // 4. Si el texto completo menciona símbolos conocidos (en comentarios, #property, etc.)
+        if (typeof fuente === 'string' && encontrados.size === 0) {
+            const upperCode = fuente.toUpperCase();
+            const prioritized = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'BTCUSD', 'ETHUSD', 'SOLUSD', 'NASDAQ', 'US100', 'SP500', 'US500', 'US30'];
+            prioritized.forEach(sym => {
+                const reg = new RegExp(`\\b${sym.replace('-', '[-]?')}\\b`, 'i');
+                if (reg.test(upperCode)) {
+                    const norm = normalizar(sym);
+                    if (norm) encontrados.add(norm);
+                }
+            });
+        }
+
+        return Array.from(encontrados);
+    }
+
     parseEX5(buffer, filename = '') {
         const strings = this.extractStringsFromBuffer(buffer);
         const cleanName = filename ? filename.replace(/\.ex5$/i, '').replace(/[_-]/g, ' ') : 'Bot MT5 Compilado';
+        const detectedSymbols = this.detectarSimbolosDeBot(strings, filename);
+        const isMulti = detectedSymbols.length > 1;
+        const fallbackSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD');
+        const primarySymbol = detectedSymbols[0] || fallbackSym;
+        const symbolsList = detectedSymbols.length > 0 ? detectedSymbols : [primarySymbol];
 
         const bot = {
             id: 'bot_ex5_' + Date.now(),
             name: cleanName,
-            symbol: (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
-            symbols: [(this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD')],
+            symbol: primarySymbol,
+            symbols: symbolsList,
+            multiAsset: isMulti,
             timeframe: (this.dom.selectTf ? this.dom.selectTf.value : '1h'),
             magic: Math.floor(1000 + Math.random() * 8999),
             description: `Expert Advisor MT5 compilado (.ex5) con parámetros extraídos dinámicamente del binario.`,
             strategyType: 'donchian_breakout',
-            category: 'Bot MT5 (.ex5)',
+            category: isMulti ? 'Bot MT5 Multi-Activo (.ex5)' : 'Bot MT5 (.ex5)',
             riskMode: 'LOTS',
             riskValue: 0.10,
             params: {
@@ -2422,16 +2522,23 @@ class StrategyTester {
 
     parseMQL5(code, filename = '') {
         const cleanName = filename ? filename.replace(/\.(mq5|txt)$/i, '').replace(/[_-]/g, ' ') : 'Bot MQL5';
+        const detectedSymbols = this.detectarSimbolosDeBot(code, filename);
+        const isMulti = detectedSymbols.length > 1;
+        const fallbackSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD');
+        const primarySymbol = detectedSymbols[0] || fallbackSym;
+        const symbolsList = detectedSymbols.length > 0 ? detectedSymbols : [primarySymbol];
+
         const bot = {
             id: 'bot_mql5_' + Date.now(),
             name: cleanName,
-            symbol: (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
-            symbols: [(this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD')],
+            symbol: primarySymbol,
+            symbols: symbolsList,
+            multiAsset: isMulti,
             timeframe: (this.dom.selectTf ? this.dom.selectTf.value : '1h'),
             magic: Math.floor(1000 + Math.random() * 8999),
             description: 'Expert Advisor MQL5 personalizado.',
             strategyType: 'donchian_breakout',
-            category: 'Bot MT5 (.mq5)',
+            category: isMulti ? 'Bot MT5 Multi-Activo (.mq5)' : 'Bot MT5 (.mq5)',
             riskMode: 'LOTS',
             riskValue: 0.10,
             params: {}
@@ -2538,9 +2645,6 @@ class StrategyTester {
                 const code = e.target.result;
                 const bot = this.parseMQL5(code, name);
                 this.cargarBotEnFormularioImport(bot);
-                if (statusEl) {
-                    statusEl.innerText = `✅ Bot MQL5 '${bot.name}' analizado: ${Object.keys(bot.params).length} parámetros detectados.`;
-                }
             };
             reader.readAsText(file);
         } else if (lower.endsWith('.ex5')) {
@@ -2549,9 +2653,6 @@ class StrategyTester {
                 const buffer = e.target.result;
                 const bot = this.parseEX5(buffer, name);
                 this.cargarBotEnFormularioImport(bot);
-                if (statusEl) {
-                    statusEl.innerText = `✅ Binario MT5 (.ex5) '${bot.name}' descompilado: Magic ${bot.magic}, ${Object.keys(bot.params).length} parámetros descubiertos.`;
-                }
             };
             reader.readAsArrayBuffer(file);
         } else if (lower.endsWith('.json')) {
@@ -2559,22 +2660,28 @@ class StrategyTester {
             reader.onload = (e) => {
                 try {
                     const parsed = JSON.parse(e.target.result);
+                    const detectedSymbols = Array.isArray(parsed.symbols) && parsed.symbols.length > 0
+                        ? parsed.symbols 
+                        : (parsed.symbol ? [parsed.symbol] : this.detectarSimbolosDeBot(JSON.stringify(parsed), name));
+                    const isMulti = detectedSymbols.length > 1;
+                    const fallbackSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD');
+                    const primarySymbol = detectedSymbols[0] || fallbackSym;
+                    const symbolsList = detectedSymbols.length > 0 ? detectedSymbols : [primarySymbol];
+
                     const bot = {
                         id: parsed.id || 'bot_' + Date.now(),
                         name: parsed.name || name.replace(/\.json$/i, ''),
-                        symbol: parsed.symbol || (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
-                        symbols: parsed.symbols || [parsed.symbol || 'BTC-USD'],
+                        symbol: primarySymbol,
+                        symbols: symbolsList,
+                        multiAsset: isMulti,
                         timeframe: parsed.timeframe || '1h',
                         magic: parsed.magic || 1001,
                         description: parsed.description || 'Estrategia JSON cuantitativa',
                         strategyType: parsed.strategyType || parsed.id || 'donchian_breakout',
-                        category: parsed.category || 'Bot Personalizado',
+                        category: isMulti ? 'Bot Multi-Activo' : (parsed.category || 'Bot Personalizado'),
                         params: parsed.params || {}
                     };
                     this.cargarBotEnFormularioImport(bot);
-                    if (statusEl) {
-                        statusEl.innerText = `✅ Estrategia JSON '${bot.name}' cargada correctamente.`;
-                    }
                 } catch (err) {
                     if (statusEl) statusEl.innerText = `⚠️ Error al parsear JSON: ${err.message}`;
                 }
@@ -2601,6 +2708,18 @@ class StrategyTester {
 
         if (this.dom.strategyModalEditor) {
             this.dom.strategyModalEditor.value = JSON.stringify(bot, null, 2);
+        }
+
+        // Feedback detallado con detección automática de activos
+        const statusEl = this.dom.btImportStatus;
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            const syms = bot.symbols || [bot.symbol || 'BTC-USD'];
+            if (syms.length > 1) {
+                statusEl.innerHTML = `✅ <b>${bot.name}</b> analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">${syms.length} Activos detectados automáticamente:</span> ${syms.map(s => `<span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${s}</span>`).join(' ')} <span style="color:var(--tv-green); font-size:11px;">(Modo Multi-Activo)</span>`;
+            } else {
+                statusEl.innerHTML = `✅ <b>${bot.name}</b> analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">Activo detectado automáticamente:</span> <span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${syms[0]}</span>`;
+            }
         }
     }
 
@@ -2707,6 +2826,13 @@ class StrategyTester {
             if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'none';
             if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'flex';
             if (this.dom.btMultiSymbolsInput) this.dom.btMultiSymbolsInput.value = symbols.join(', ');
+        } else if (symbols.length === 1) {
+            this.isMultiAsset = false;
+            if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'single';
+            if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'flex';
+            if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'none';
+            if (this.dom.selectSymbol) this.dom.selectSymbol.value = symbols[0];
+            window.currentSymbol = symbols[0];
         }
 
         this.poblarSelectoresEstrategia();
