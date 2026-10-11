@@ -2533,17 +2533,40 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- BARRA DE CONTROL DEL BACKTESTER -->
       <div id="backtest-toolbar">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-weight: 700; color: #fff; font-size: 13px;">🧪 Estrategia:</span>
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot / Estrategia:</span>
           <select id="tester-strategy-select" class="bt-select" style="min-width: 220px;"></select>
         </div>
+        <button id="btn-cargar-estrategia" class="bt-btn desktop-only" title="Importar Bot (.mq5 / .ex5 / .json) o Seleccionar de la Flota">
+          📂 Cargar Bot (.mq5/.ex5/JSON)
+        </button>
+        <input type="file" id="strategy-file-input" accept=".mq5,.ex5,.json,.txt" style="display: none;" />
+
         <div class="toolbar-divider desktop-only"></div>
-        <div style="display: flex; align-items: center; gap: 6px;">
+
+        <!-- MODO MONO / MULTI-ACTIVO -->
+        <div style="display: flex; align-items: center; gap: 5px;">
+          <span style="font-size: 12px; color: var(--text-muted);">Modo:</span>
+          <select id="bt-mode-select" class="bt-select" style="min-width: 105px;">
+            <option value="single" selected>Mono-Activo</option>
+            <option value="multi">Multi-Activo (Cesta)</option>
+          </select>
+        </div>
+
+        <div id="bt-single-symbol-wrap" style="display: flex; align-items: center; gap: 6px;">
           <span style="font-size: 12px; color: var(--text-muted);">Activo:</span>
           <select id="bt-symbol-select" class="bt-select" style="min-width: 130px;"></select>
         </div>
+
+        <div id="bt-multi-symbol-wrap" style="display: none; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: #5b8cff; font-weight: 700;">🌐 Cesta:</span>
+          <input type="text" id="bt-multi-symbols-input" value="BTC-USD, ETH-USD, XAUUSD" placeholder="BTC-USD, ETH-USD, XAUUSD" style="background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; min-width: 180px;" title="Cesta de activos separados por coma para simulación multi-activo paralela" />
+        </div>
+
         <div style="display: flex; align-items: center; gap: 6px;">
           <span style="font-size: 12px; color: var(--text-muted);">TF:</span>
           <select id="bt-tf-select" class="bt-select">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
             <option value="15m">15m</option>
             <option value="30m">30m</option>
             <option value="1h" selected>1h</option>
@@ -2552,17 +2575,22 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
             <option value="1d">1D</option>
           </select>
         </div>
+
         <div class="toolbar-divider desktop-only"></div>
+
         <button id="btn-run-backtest" class="bt-btn primary" title="Ejecutar Simulación Cuantitativa">
           <span>▶</span> <span>Ejecutar Backtest</span>
         </button>
+
         <button id="btn-tester-markers-toggle" class="bt-btn" title="Mostrar/Ocultar Marcadores de Entrada y Salida">
           🏷️ Marcadores: ON
         </button>
-        <button id="btn-cargar-estrategia" class="bt-btn desktop-only" title="Importar Nueva Estrategia JSON">
-          📂 Cargar Estrategia
+
+        <button id="btn-bt-cargar-csv" class="bt-btn desktop-only" style="border-color: #089981; color: #089981;" title="Cargar archivo(s) CSV con histórico o escanear carpeta">
+          📊 Cargar CSV / Carpeta
         </button>
-        <input type="file" id="strategy-file-input" accept=".json,.js" style="display: none;" />
+        <span id="bt-csv-badge" class="bt-badge" style="display:none; background: rgba(8, 153, 129, 0.2); color: #089981; border: 1px solid #089981;">0 CSVs</span>
+
         <span id="trades-count-badge" class="bt-badge">0 Operaciones</span>
       </div>
 
@@ -2628,13 +2656,13 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
             <table class="tv-blotter-table">
               <thead>
                 <tr>
-                  <th>#</th><th>Tipo</th><th>Señal</th><th>Fecha Entrada</th><th>Precio Ent.</th>
+                  <th>#</th><th>Activo</th><th>Tipo</th><th>Señal</th><th>Fecha Entrada</th><th>Precio Ent.</th>
                   <th>Fecha Salida</th><th>Precio Sal.</th><th>Motivo</th><th>Comisión</th>
                   <th>PnL Neto ($)</th><th>Retorno %</th><th>Balance Acum.</th>
                 </tr>
               </thead>
               <tbody id="blotter-table-body">
-                <tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);">Cargando operaciones...</td></tr>
+                <tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-muted);">Cargando operaciones...</td></tr>
               </tbody>
             </table>
           </div>
@@ -3006,38 +3034,157 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
     </div>
 
-    <!-- MODAL CARGAR NUEVA ESTRATEGIA CUANTITATIVA -->
+    <!-- MODAL CARGAR BOT CUANTITATIVO (.MQ5 / .EX5 / .JSON) PARA BACKTESTING -->
     <div id="strategy-import-modal" class="modal-overlay">
-      <div class="modal-content" style="width: 580px;">
+      <div class="modal-content" style="width: 660px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
-          <h3>📂 Cargar Nueva Estrategia Cuantitativa</h3>
+          <h3>📂 Cargar Bot Cuantitativo (.mq5 / .ex5 / .json)</h3>
           <button id="modal-strategy-close" class="close-btn">&times;</button>
         </div>
-        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="font-size: 12px; color: var(--text-muted);">
-            Cargue un archivo <strong>.json</strong> con la definición de la estrategia o edite el código JSON en el área inferior:
+        <div style="padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;">
+          <!-- ZONA DROPZONE DRAG & DROP -->
+          <div id="bt-dropzone-bot" style="border: 2px dashed #2962ff; background: rgba(41, 98, 255, 0.05); border-radius: 8px; padding: 18px 12px; text-align: center; cursor: pointer; transition: all 0.2s ease;">
+            <div style="font-size: 26px; margin-bottom: 6px;">📥</div>
+            <div style="font-size: 13px; font-weight: 700; color: #fff;">Arrastre aquí su archivo .mq5, .ex5 o .json</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Soporta código fuente MQL5 (.mq5), binario compilado (.ex5) o plantillas JSON</div>
+            <button type="button" class="bt-btn secondary" style="margin-top: 10px; font-size: 11px; pointer-events: none;">Explorar archivo en disco...</button>
+            <input type="file" id="strategy-modal-file" accept=".mq5,.ex5,.json,.txt" style="display: none;" />
           </div>
+
+          <!-- BANNER DE ESTADO -->
+          <div id="bt-import-status" style="display: none; padding: 8px 12px; border-radius: 6px; font-size: 12px;"></div>
+
+          <!-- BOTÓN CARGAR DESDE FLOTA MT5 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #131722; padding: 8px 12px; border-radius: 6px; border: 1px solid #2a2e39;">
+            <span style="font-size: 11px; color: var(--text-muted);">¿Quieres usar un bot de tu flota activa MT5?</span>
+            <button id="btn-bt-import-from-fleet" type="button" class="bt-btn" style="background: #1e222d; color: #5b8cff; border: 1px solid #2a2e39; font-size: 11px;">
+              📥 Importar desde Flota MT5
+            </button>
+          </div>
+
+          <!-- FORMULARIO DE EDICIÓN PREVIA -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #131722; padding: 12px; border-radius: 6px; border: 1px solid #2a2e39;">
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Nombre del Bot:</label>
+              <input type="text" id="bt-import-name" value="Mi Bot Cuantitativo" style="width: 100%; background: #1e222d; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;" />
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Magic Number:</label>
+              <input type="number" id="bt-import-magic" value="8801" style="width: 100%; background: #1e222d; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;" />
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Lógica / Estrategia Detectada:</label>
+              <select id="bt-import-strat" style="width: 100%; background: #1e222d; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;">
+                <option value="donchian_breakout">Canal Donchian (Breakout)</option>
+                <option value="vcp_squeeze">VCP Squeeze & Expansion</option>
+                <option value="sqz_momentum">LazyBear Squeeze Momentum</option>
+                <option value="cruce_ema">Cruce de Medias EMA</option>
+                <option value="rsi_reversion">Reversión a la Media RSI</option>
+                <option value="bollinger_bounce">Rebotes Bandas de Bollinger</option>
+                <option value="macd_trend">MACD Divergence & Signal</option>
+                <option value="gold_rush">Gold Rush Gann Pullback</option>
+                <option value="custom_mql5">Lógica Personalizada MQL5</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Símbolo(s) Asignado(s):</label>
+              <input type="text" id="bt-import-symbols" value="BTC-USD, ETH-USD, XAUUSD" title="Un solo símbolo o lista separada por comas para multi-activo" style="width: 100%; background: #1e222d; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px;" />
+            </div>
+          </div>
+
+          <!-- GRID DE PARÁMETROS DINÁMICOS -->
           <div>
-            <input type="file" id="strategy-modal-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
+            <div style="font-size: 11px; font-weight: 700; color: #d1d4dc; margin-bottom: 6px;">⚙️ Parámetros Detectados del Bot:</div>
+            <div id="bt-import-params-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; max-height: 140px; overflow-y: auto; background: #131722; padding: 8px; border-radius: 6px; border: 1px solid #2a2e39;">
+              <div style="font-size: 11px; color: var(--text-muted); grid-column: 1/-1;">Cargue un archivo .mq5 o .ex5 para visualizar y ajustar sus parámetros.</div>
+            </div>
           </div>
-          <textarea id="strategy-modal-editor" spellcheck="false" style="width: 100%; height: 160px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
-  "id": "mi_estrategia_custom",
-  "name": "Estrategia RSI + Bandas Bollinger",
-  "category": "Mixta",
-  "description": "Reversión extrema en bandas combinada con sobreventa/sobrecompra en RSI.",
+
+          <!-- EDITOR COLAPSABLE DE CÓDIGO / JSON -->
+          <details style="background: #131722; border: 1px solid #2a2e39; border-radius: 6px; padding: 6px 10px;">
+            <summary style="font-size: 11px; color: #5b8cff; cursor: pointer; user-select: none;">📝 Ver / Editar Código Fuente o JSON Subyacente</summary>
+            <textarea id="strategy-modal-editor" spellcheck="false" style="width: 100%; height: 120px; background: #0c0d12; border: 1px solid #2a2e39; color: #d1d4dc; font-family: monospace; font-size: 10px; padding: 6px; border-radius: 4px; resize: vertical; margin-top: 8px;">{
+  "id": "mi_bot_custom",
+  "name": "Mi Bot Cuantitativo",
+  "strategyType": "donchian_breakout",
+  "symbols": ["BTC-USD", "ETH-USD", "XAUUSD"],
+  "magic": 8801,
   "params": {
-    "period": 14,
-    "oversold": 28,
-    "overbought": 72,
-    "mult": 2.0,
-    "stopLossPct": 1.8,
-    "takeProfitPct": 3.6
+    "donchianPeriod": 20,
+    "slAtrMult": 1.5,
+    "tpAtrMult": 3.0
   }
 }</textarea>
+          </details>
         </div>
         <div class="modal-footer">
           <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
-          <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
+          <button id="btn-strategy-import-apply" class="editor-btn">🚀 Cargar y Activar en Backtesting</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CARGAR DATOS HISTÓRICOS CSV / CARPETA -->
+    <div id="bt-csv-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 680px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <h3>📊 Cargar Datos Históricos (CSV / Carpeta)</h3>
+          <button id="modal-csv-close" class="close-btn">&times;</button>
+        </div>
+        <div style="padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;">
+          <!-- DROPZONE PARA CSVs -->
+          <div id="bt-csv-dropzone" style="border: 2px dashed #089981; background: rgba(8, 153, 129, 0.05); border-radius: 8px; padding: 18px 12px; text-align: center; cursor: pointer; transition: all 0.2s ease;">
+            <div style="font-size: 26px; margin-bottom: 6px;">📂</div>
+            <div style="font-size: 13px; font-weight: 700; color: #fff;">Arrastre aquí sus archivos .CSV históricos</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Soporta exportaciones MT5, Dukascopy, Yahoo Finance, Binance y TradingView</div>
+            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+              <button id="btn-bt-pick-csv-files" type="button" class="bt-btn secondary" style="font-size: 11px;">📁 Seleccionar Archivos CSV</button>
+              <button id="btn-bt-pick-csv-folder" type="button" class="bt-btn secondary" style="font-size: 11px;">📁 Seleccionar Carpeta Completa</button>
+            </div>
+            <input type="file" id="bt-csv-file-input" accept=".csv,.txt" multiple style="display: none;" />
+            <input type="file" id="bt-csv-folder-input" webkitdirectory directory multiple style="display: none;" />
+          </div>
+
+          <!-- BANNER AUTO-ESCANEAR CARPETA LOCAL -->
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #131722; padding: 10px 14px; border-radius: 6px; border: 1px solid #2a2e39;">
+            <div>
+              <div style="font-size: 12px; font-weight: 700; color: #fff;">⚡ Auto-Escanear Carpeta de Datos del Proyecto</div>
+              <div style="font-size: 10px; color: var(--text-muted);">Detecta automáticamente CSVs en c:\QuantFactory (dummy_xauusd.csv, XAUUSD_M1_data.csv, etc.)</div>
+            </div>
+            <button id="btn-bt-auto-scan-csvs" type="button" class="bt-btn" style="background: rgba(8, 153, 129, 0.2); color: #089981; border: 1px solid #089981; font-size: 11px;">
+              🔍 Escanear Carpeta
+            </button>
+          </div>
+
+          <!-- BANNER DE ESTADO -->
+          <div id="bt-csv-status" style="display: none; padding: 8px 12px; border-radius: 6px; font-size: 12px;"></div>
+
+          <!-- TABLA DE DATASETS CARGADOS -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <div style="font-size: 11px; font-weight: 700; color: #d1d4dc;">📑 Datasets de Velas Cargados en Memoria:</div>
+              <button id="btn-bt-clear-csvs" type="button" style="background: none; border: none; color: #f23645; font-size: 10px; cursor: pointer;">Limpiar todos</button>
+            </div>
+            <div style="max-height: 160px; overflow-y: auto; background: #131722; border-radius: 6px; border: 1px solid #2a2e39;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                  <tr style="background: #1e222d; color: var(--text-muted); text-align: left;">
+                    <th style="padding: 6px 10px;">Símbolo</th>
+                    <th style="padding: 6px 10px;">Archivo</th>
+                    <th style="padding: 6px 10px;">Velas</th>
+                    <th style="padding: 6px 10px;">Rango Temporal</th>
+                    <th style="padding: 6px 10px; text-align: right;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="bt-csv-table-body">
+                  <tr><td colspan="5" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay archivos CSV cargados aún.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-csv-modal-done" class="editor-btn">✅ Listo</button>
         </div>
       </div>
     </div>

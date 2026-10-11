@@ -467,6 +467,109 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // API: /api/backtest/list_csvs
+    if (pathname === '/api/backtest/list_csvs') {
+        try {
+            const scanDirs = [
+                __dirname,
+                path.join(__dirname, '..'),
+                path.join(__dirname, 'datasets'),
+                path.join(__dirname, 'data'),
+                path.join(__dirname, 'csv')
+            ];
+            const foundFiles = [];
+            const seenNames = new Set();
+
+            scanDirs.forEach(dir => {
+                try {
+                    if (fs.existsSync(dir)) {
+                        const items = fs.readdirSync(dir);
+                        items.forEach(file => {
+                            if (file.toLowerCase().endsWith('.csv') && !seenNames.has(file.toLowerCase())) {
+                                seenNames.add(file.toLowerCase());
+                                const fullPath = path.join(dir, file);
+                                const stats = fs.statSync(fullPath);
+                                let detectedSym = 'CUSTOM';
+                                const clean = file.toUpperCase();
+                                if (clean.includes('XAU') || clean.includes('GOLD')) detectedSym = 'XAUUSD';
+                                else if (clean.includes('BTC')) detectedSym = 'BTC-USD';
+                                else if (clean.includes('ETH')) detectedSym = 'ETH-USD';
+                                else if (clean.includes('SOL')) detectedSym = 'SOL-USD';
+                                else if (clean.includes('EURUSD')) detectedSym = 'EURUSD';
+                                else if (clean.includes('NASDAQ') || clean.includes('NDX')) detectedSym = 'NASDAQ';
+                                else if (clean.includes('SP500') || clean.includes('SPX')) detectedSym = 'SP500';
+                                else {
+                                    const m = file.replace(/\.csv$/i, '').match(/^[a-zA-Z0-9_\-]+/);
+                                    if (m) detectedSym = m[0].toUpperCase();
+                                }
+
+                                foundFiles.push({
+                                    name: file,
+                                    path: fullPath,
+                                    size: stats.size,
+                                    symbol: detectedSym
+                                });
+                            }
+                        });
+                    }
+                } catch(e) {}
+            });
+
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: true, count: foundFiles.length, files: foundFiles }));
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+        return;
+    }
+
+    // API: /api/backtest/read_csv?file=<name>&limit=50000
+    if (pathname === '/api/backtest/read_csv') {
+        try {
+            const fileName = (query.file || '').trim();
+            if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Nombre de archivo no válido o prohibido' }));
+                return;
+            }
+
+            const candidatePaths = [
+                path.join(__dirname, fileName),
+                path.join(__dirname, '..', fileName),
+                path.join(__dirname, 'datasets', fileName),
+                path.join(__dirname, 'data', fileName),
+                path.join(__dirname, 'csv', fileName)
+            ];
+
+            let targetPath = null;
+            for (const p of candidatePaths) {
+                if (fs.existsSync(p)) {
+                    targetPath = p;
+                    break;
+                }
+            }
+
+            if (!targetPath) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: `Archivo '${fileName}' no encontrado` }));
+                return;
+            }
+
+            const content = fs.readFileSync(targetPath, 'utf8');
+            const limit = parseInt(query.limit, 10) || 50000;
+            const lines = content.split(/\r?\n/);
+            const truncated = lines.slice(0, limit).join('\n');
+
+            res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' });
+            res.end(truncated);
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
     // API: /api/status
     if (pathname === '/api/status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });

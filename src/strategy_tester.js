@@ -34,6 +34,12 @@ class StrategyTester {
         this.isCollapsed = false;
         this.panelHeight = 340;
 
+        // Soporte Multi-Activo y Datasets de Velas CSV
+        this.csvDatasets = {}; // { 'XAUUSD': [...candles], 'BTC-USD': [...candles] }
+        this.isMultiAsset = false;
+        this.multiAssetSymbols = ['BTC-USD', 'ETH-USD', 'XAUUSD'];
+        this.currentImportBot = null;
+
         // Propiedades de Ejecución por Defecto
         this.executionProps = {
             initialCapital: 10000,
@@ -245,7 +251,43 @@ class StrategyTester {
             // Tab 4 (Propiedades)
             dynamicParamsContainer: document.getElementById('strategy-dynamic-params'),
             btnSaveProps: document.getElementById('btn-save-properties'),
-            btnResetProps: document.getElementById('btn-reset-properties')
+            btnResetProps: document.getElementById('btn-reset-properties'),
+
+            // Controles de Modo Mono / Multi-Activo
+            btModeSelect: document.getElementById('bt-mode-select'),
+            btSingleSymbolWrap: document.getElementById('bt-single-symbol-wrap'),
+            btMultiSymbolWrap: document.getElementById('bt-multi-symbol-wrap'),
+            btMultiSymbolsInput: document.getElementById('bt-multi-symbols-input'),
+            btnBtCargarCsv: document.getElementById('btn-bt-cargar-csv'),
+            btCsvBadge: document.getElementById('bt-csv-badge'),
+
+            // Modal Carga Bot (.mq5 / .ex5 / .json)
+            btDropzoneBot: document.getElementById('bt-dropzone-bot'),
+            btImportStatus: document.getElementById('bt-import-status'),
+            btnBtImportFromFleet: document.getElementById('btn-bt-import-from-fleet'),
+            btImportName: document.getElementById('bt-import-name'),
+            btImportMagic: document.getElementById('bt-import-magic'),
+            btImportStrat: document.getElementById('bt-import-strat'),
+            btImportSymbols: document.getElementById('bt-import-symbols'),
+            btImportParamsGrid: document.getElementById('bt-import-params-grid'),
+            strategyModalEditor: document.getElementById('strategy-modal-editor'),
+            strategyModalFile: document.getElementById('strategy-modal-file'),
+            btnStrategyImportApply: document.getElementById('btn-strategy-import-apply'),
+            btnStrategyImportCancel: document.getElementById('btn-strategy-import-cancel'),
+
+            // Modal Carga CSV / Carpeta
+            btCsvModal: document.getElementById('bt-csv-modal'),
+            modalCsvClose: document.getElementById('modal-csv-close'),
+            btnCsvModalDone: document.getElementById('btn-csv-modal-done'),
+            btCsvDropzone: document.getElementById('bt-csv-dropzone'),
+            btCsvFileInput: document.getElementById('bt-csv-file-input'),
+            btCsvFolderInput: document.getElementById('bt-csv-folder-input'),
+            btnBtPickCsvFiles: document.getElementById('btn-bt-pick-csv-files'),
+            btnBtPickCsvFolder: document.getElementById('btn-bt-pick-csv-folder'),
+            btnBtAutoScanCsvs: document.getElementById('btn-bt-auto-scan-csvs'),
+            btCsvStatus: document.getElementById('bt-csv-status'),
+            btCsvTableBody: document.getElementById('bt-csv-table-body'),
+            btnBtClearCsvs: document.getElementById('btn-bt-clear-csvs')
         };
     }
 
@@ -367,24 +409,39 @@ class StrategyTester {
             });
         }
 
-        // Cargar Estrategia Nueva
-        if (this.dom.btnCargarEstrategia && this.dom.strategyFileInput) {
-            this.dom.btnCargarEstrategia.addEventListener('click', () => {
-                if (this.dom.strategyImportModal) {
-                    this.dom.strategyImportModal.style.display = 'flex';
-                } else {
-                    this.dom.strategyFileInput.click();
-                }
-            });
-
-            this.dom.strategyFileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) this.procesarArchivoEstrategia(file);
+        // Selector de Modo Mono / Multi-Activo
+        if (this.dom.btModeSelect) {
+            this.dom.btModeSelect.addEventListener('change', (e) => {
+                const isMulti = e.target.value === 'multi';
+                this.isMultiAsset = isMulti;
+                if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = isMulti ? 'none' : 'flex';
+                if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = isMulti ? 'flex' : 'none';
             });
         }
 
-        // Modal de Importación de Estrategia
+        // Cargar Bot / Estrategia (.mq5 / .ex5 / .json)
+        if (this.dom.btnCargarEstrategia) {
+            this.dom.btnCargarEstrategia.addEventListener('click', () => {
+                if (this.dom.strategyImportModal) {
+                    this.dom.strategyImportModal.style.display = 'flex';
+                } else if (this.dom.strategyFileInput) {
+                    this.dom.strategyFileInput.click();
+                }
+            });
+        }
+
+        if (this.dom.strategyFileInput) {
+            this.dom.strategyFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) this.procesarArchivoBot(file);
+            });
+        }
+
+        // Modal de Importación de Bot (.mq5 / .ex5 / .json)
         this.initModalImportacion();
+
+        // Modal de Carga de Datos Históricos CSV / Carpeta
+        this.initModalCSV();
     }
 
     initResizer() {
@@ -485,7 +542,31 @@ class StrategyTester {
     }
 
     poblarSelectoresEstrategia() {
-        const todas = { ...this.preloadedStrategies, ...Object.fromEntries(this.customStrategies) };
+        const fleetBots = (window.MT5Emulator && window.MT5Emulator.botsCatalog) ? window.MT5Emulator.botsCatalog : {};
+        const todas = { ...this.preloadedStrategies };
+
+        // Incluir bots de la flota de MT5
+        Object.values(fleetBots).forEach(b => {
+            if (b && b.id) {
+                todas[b.id] = {
+                    id: b.id,
+                    name: `🤖 [MT5] ${b.name}`,
+                    category: b.multiAsset ? 'Multi-Activo 24/7' : 'Flota MT5',
+                    description: b.description || `Bot MT5 (${b.strategyType})`,
+                    strategyType: b.strategyType || 'donchian_breakout',
+                    multiAsset: b.multiAsset,
+                    symbols: b.symbols,
+                    magic: b.magic,
+                    params: b.params || {}
+                };
+            }
+        });
+
+        // Incluir bots cargados personalizados en backtest
+        this.customStrategies.forEach((b, id) => {
+            todas[id] = b;
+        });
+
         const opciones = Object.values(todas).map(strat => 
             `<option value="${strat.id}">${strat.name} [${strat.category}]</option>`
         ).join('');
@@ -496,9 +577,10 @@ class StrategyTester {
         if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.value = this.activeStrategyId;
         if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.value = this.activeStrategyId;
 
-        // Poblar selector de símbolos del backtester
-        if (this.dom.selectSymbol && this.dom.selectSymbol.options.length === 0) {
-            const syms = [
+        // Poblar selector de símbolos del backtester (combinando por defecto + datasets CSV cargados)
+        if (this.dom.selectSymbol) {
+            const currentVal = this.dom.selectSymbol.value;
+            const baseSyms = [
                 { s: 'BTC-USD', n: 'Bitcoin' },
                 { s: 'ETH-USD', n: 'Ethereum' },
                 { s: 'SOL-USD', n: 'Solana' },
@@ -510,10 +592,21 @@ class StrategyTester {
                 { s: 'AAPL', n: 'Apple' },
                 { s: 'TSLA', n: 'Tesla' }
             ];
-            this.dom.selectSymbol.innerHTML = syms.map(x => 
-                `<option value="${x.s}">${x.s} (${x.n})</option>`
+
+            const csvSyms = Object.keys(this.csvDatasets).map(s => ({
+                s: s,
+                n: `CSV: ${this.csvDatasets[s].length} velas`,
+                isCsv: true
+            }));
+
+            const combined = [...csvSyms, ...baseSyms.filter(b => !this.csvDatasets[b.s])];
+            this.dom.selectSymbol.innerHTML = combined.map(x => 
+                `<option value="${x.s}">${x.isCsv ? '📊 ' : ''}${x.s} (${x.n})</option>`
             ).join('');
-            if (window.currentSymbol) {
+
+            if (currentVal && combined.some(x => x.s === currentVal)) {
+                this.dom.selectSymbol.value = currentVal;
+            } else if (window.currentSymbol && combined.some(x => x.s === window.currentSymbol)) {
                 this.dom.selectSymbol.value = window.currentSymbol;
             }
         }
@@ -581,27 +674,32 @@ class StrategyTester {
     // MOTOR CUANTITATIVO DE BACKTESTING
     // =========================================================================
     async ejecutarBacktest() {
-        let candles = this.currentCandles;
+        const strat = this.getEstrategiaActiva();
+        if (!strat) return;
+
+        // Comprobar si estamos en Modo Multi-Activo (o si la estrategia es de cartera multi-activo)
+        if (this.isMultiAsset || (strat && strat.multiAsset)) {
+            let symbolsList = [];
+            if (this.dom.btMultiSymbolsInput && this.dom.btMultiSymbolsInput.value.trim()) {
+                symbolsList = this.dom.btMultiSymbolsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            }
+            if (symbolsList.length === 0) {
+                symbolsList = (strat && strat.symbols && strat.symbols.length) ? strat.symbols : this.multiAssetSymbols;
+            }
+            await this.ejecutarBacktestMultiActivo(symbolsList, strat);
+            return;
+        }
+
+        // Modo Mono-Activo
         const curSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
         const curTf = (this.dom.selectTf ? this.dom.selectTf.value : null) || window.currentInterval || '1h';
 
-        if (!candles || candles.length < 30) {
-            if (curSym === window.currentSymbol && window.historialVelas && window.historialVelas.length >= 30) {
-                candles = window.historialVelas;
-            } else {
-                const invoke = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (window.__TAURI__ ? window.__TAURI__.invoke : null);
-                if (invoke) {
-                    try {
-                        const fetched = await invoke('cargar_historial', { simbolo: curSym, intervalo: curTf });
-                        if (fetched && fetched.length > 0) candles = fetched;
-                    } catch(e) {}
-                }
-                if (!candles || candles.length < 30) {
-                    candles = typeof window.generarVelasSinteticasGenericas === 'function' 
-                        ? window.generarVelasSinteticasGenericas(curSym, 300) 
-                        : (window.historialVelas || []);
-                }
-            }
+        let candles = this.currentCandles;
+        if (this.csvDatasets[curSym] && this.csvDatasets[curSym].length >= 10) {
+            candles = this.csvDatasets[curSym];
+            this.currentCandles = candles;
+        } else if (!candles || candles.length < 30) {
+            candles = await this.obtenerVelasParaSimbolo(curSym);
             this.currentCandles = candles;
         }
 
@@ -618,11 +716,9 @@ class StrategyTester {
             }
         }
 
-        const strat = this.getEstrategiaActiva();
-        if (!strat) return;
-
-        // Intentar invocar el motor de Rust nativo de ultra-alta velocidad si estamos en Tauri
-        const invoke = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (window.__TAURI__ ? window.__TAURI__.invoke : null);
+        // Intentar invocar el motor de Rust nativo de ultra-alta velocidad si estamos en Tauri y no es CSV local
+        const isCsvDataset = !!(this.csvDatasets[curSym]);
+        const invoke = (!isCsvDataset && window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (!isCsvDataset && window.__TAURI__ ? window.__TAURI__.invoke : null);
         if (invoke) {
             try {
                 const rustConfig = this.construirRustConfig(strat, this.executionProps);
@@ -642,7 +738,149 @@ class StrategyTester {
         }
 
         // Ejecutar en motor JS local de alta velocidad (Navegador / Fallback)
-        this.ejecutarBacktestJS(candles, strat);
+        this.ejecutarBacktestJS(candles, strat, curSym);
+    }
+
+    async obtenerVelasParaSimbolo(sym) {
+        if (this.csvDatasets[sym] && this.csvDatasets[sym].length >= 10) {
+            return this.csvDatasets[sym];
+        }
+        if (sym === window.currentSymbol && window.historialVelas && window.historialVelas.length >= 30) {
+            return window.historialVelas;
+        }
+        const invoke = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (window.__TAURI__ ? window.__TAURI__.invoke : null);
+        if (invoke) {
+            try {
+                const curTf = (this.dom.selectTf ? this.dom.selectTf.value : null) || window.currentInterval || '1h';
+                const fetched = await invoke('cargar_historial', { simbolo: sym, intervalo: curTf });
+                if (fetched && fetched.length >= 30) return fetched;
+            } catch(e) {}
+        }
+        try {
+            const resp = await fetch(`/api/history?symbol=${encodeURIComponent(sym)}&interval=1h`);
+            if (resp.ok) {
+                const data = await resp.json();
+                if (Array.isArray(data) && data.length >= 30) return data;
+            }
+        } catch(e) {}
+
+        if (typeof window.generarVelasSinteticasGenericas === 'function') {
+            return window.generarVelasSinteticasGenericas(sym, 300);
+        }
+        return window.historialVelas || [];
+    }
+
+    async ejecutarBacktestMultiActivo(symbolsList, strat) {
+        if (!symbolsList || symbolsList.length === 0) {
+            symbolsList = ['BTC-USD', 'ETH-USD', 'XAUUSD'];
+        }
+
+        console.log(`🌐 Ejecutando Backtest Multi-Activo en ${symbolsList.length} activos:`, symbolsList);
+        const totalCapital = this.executionProps.initialCapital || 10000;
+        const capPerSymbol = totalCapital / symbolsList.length;
+
+        let allTrades = [];
+        const breakdown = {};
+        let firstCandles = null;
+
+        for (const sym of symbolsList) {
+            const candles = await this.obtenerVelasParaSimbolo(sym);
+            if (!candles || candles.length < 30) {
+                console.warn(`⚠️ Omitiendo ${sym}: velas insuficientes (${candles ? candles.length : 0}).`);
+                continue;
+            }
+
+            if (!firstCandles) firstCandles = candles;
+
+            const sim = this.simularTradesParaVelas(candles, strat, sym, capPerSymbol);
+            const symTrades = sim.trades;
+
+            const wins = symTrades.filter(t => t.pnl > 0).length;
+            const netPnL = symTrades.reduce((sum, t) => sum + t.pnl, 0);
+
+            breakdown[sym] = {
+                symbol: sym,
+                candlesCount: candles.length,
+                totalTrades: symTrades.length,
+                wins: wins,
+                winRate: symTrades.length > 0 ? (wins / symTrades.length) * 100 : 0,
+                netPnL: netPnL,
+                returnPct: capPerSymbol > 0 ? (netPnL / capPerSymbol) * 100 : 0
+            };
+
+            allTrades.push(...symTrades);
+        }
+
+        // Si tenemos velas de al menos un símbolo, dibujarlas en el chart dedicado del tester
+        this.garantizarBacktestChart();
+        if (firstCandles && this.backtestCandleSeries) {
+            this.backtestCandleSeries.setData(firstCandles);
+            if (this.backtestChart && this.backtestChart.timeScale()) {
+                this.backtestChart.timeScale().fitContent();
+            }
+        }
+
+        if (allTrades.length === 0) {
+            console.warn("⚠️ No se generaron operaciones en la cesta multi-activo.");
+            this.lastBacktestResult = {
+                strategy: strat,
+                trades: [],
+                metrics: this.calcularMetricas([], totalCapital, totalCapital, 0, 0),
+                isMultiAsset: true,
+                symbols: symbolsList,
+                breakdown: breakdown,
+                candlesCount: 0
+            };
+            this.renderizarResumenKPIs();
+            this.renderizarTradeBlotter();
+            return;
+        }
+
+        // Ordenar cronológicamente todas las operaciones de la cartera por momento de salida
+        allTrades.sort((a, b) => (a.exitTime || 0) - (b.exitTime || 0));
+
+        // Re-calcular IDs y curva de capital consolidada del portafolio
+        let portfolioBalance = totalCapital;
+        let peakBalance = portfolioBalance;
+        let maxDDUSD = 0;
+        let maxDDPct = 0;
+
+        allTrades.forEach((t, idx) => {
+            t.id = idx + 1;
+            portfolioBalance += t.pnl;
+            if (portfolioBalance > peakBalance) peakBalance = portfolioBalance;
+            const dd = peakBalance - portfolioBalance;
+            const ddPct = peakBalance > 0 ? (dd / peakBalance) * 100 : 0;
+            t.cumulativeBalance = portfolioBalance;
+            t.drawdownPct = ddPct;
+            if (dd > maxDDUSD) maxDDUSD = dd;
+            if (ddPct > maxDDPct) maxDDPct = ddPct;
+        });
+
+        const portfolioMetrics = this.calcularMetricas(allTrades, totalCapital, portfolioBalance, maxDDUSD, maxDDPct);
+
+        this.lastBacktestResult = {
+            strategy: strat,
+            trades: allTrades,
+            metrics: portfolioMetrics,
+            isMultiAsset: true,
+            symbols: symbolsList,
+            breakdown: breakdown,
+            candlesCount: allTrades.length
+        };
+
+        this.renderizarResumenKPIs();
+        this.renderizarTradeBlotter();
+        if (this.activeTab === 'tab-curva') {
+            this.garantizarChartsCurvaCapital();
+        }
+        this.actualizarMarcadoresEnGrafico();
+
+        if (this.dom.tradesCountBadge) {
+            this.dom.tradesCountBadge.innerText = allTrades.length;
+        }
+
+        console.log(`✅ Backtest Multi-Activo completado: ${allTrades.length} operaciones consolidadas en ${symbolsList.length} activos. PnL Total: $${portfolioMetrics.netProfit.toFixed(2)} (${portfolioMetrics.returnPct.toFixed(2)}%).`);
     }
 
     construirRustConfig(strat, props) {
@@ -770,9 +1008,9 @@ class StrategyTester {
         this.actualizarMarcadoresEnGrafico();
     }
 
-    ejecutarBacktestJS(candles, strat) {
+    simularTradesParaVelas(candles, strat, symbol = 'BTC-USD', initialCapital = 10000) {
         const props = this.executionProps;
-        let capital = props.initialCapital;
+        let capital = initialCapital;
         let peakCapital = capital;
         let maxDrawdownUSD = 0;
         let maxDrawdownPct = 0;
@@ -783,54 +1021,55 @@ class StrategyTester {
         // Indicadores según estrategia
         const ind = window.IndicatorsEngine || {};
         let seriesA = [], seriesB = [], seriesC = [];
+        const stType = strat.strategyType || strat.id;
 
-        if (strat.id === 'cruce_ema') {
-            seriesA = ind.calcularEMA(candles, strat.params.fastPeriod || 20);
-            seriesB = ind.calcularEMA(candles, strat.params.slowPeriod || 50);
-        } else if (strat.id === 'squeeze_momentum') {
-            const sqz = ind.calcularSqueezeMomentum(candles, strat.params.bbLength, strat.params.bbMult, strat.params.kcLength, strat.params.kcMult);
+        if (stType === 'cruce_ema' || stType === 'ema_cross') {
+            seriesA = ind.calcularEMA ? ind.calcularEMA(candles, (strat.params && strat.params.fastPeriod) || 20) : [];
+            seriesB = ind.calcularEMA ? ind.calcularEMA(candles, (strat.params && strat.params.slowPeriod) || 50) : [];
+        } else if (stType === 'squeeze_momentum' || stType === 'sqz_momentum') {
+            const sqz = ind.calcularSqueezeMomentum ? ind.calcularSqueezeMomentum(candles, (strat.params && strat.params.bbLength) || 20, (strat.params && strat.params.bbMult) || 2.0, (strat.params && strat.params.kcLength) || 20, (strat.params && strat.params.kcMult) || 1.5) : { histogram: [], dots: [] };
             seriesA = sqz.histogram;
             seriesB = sqz.dots;
-        } else if (strat.id === 'rsi_reversion') {
-            seriesA = ind.calcularRSI(candles, strat.params.period || 14);
-            seriesB = ind.calcularEMA(candles, strat.params.filterEma || 200);
-        } else if (strat.id === 'macd_trend') {
-            const macd = ind.calcularMACD(candles, strat.params.fastP, strat.params.slowP, strat.params.sigP);
+        } else if (stType === 'rsi_reversion') {
+            seriesA = ind.calcularRSI ? ind.calcularRSI(candles, (strat.params && strat.params.period) || 14) : [];
+            seriesB = ind.calcularEMA ? ind.calcularEMA(candles, (strat.params && strat.params.filterEma) || 200) : [];
+        } else if (stType === 'macd_trend') {
+            const macd = ind.calcularMACD ? ind.calcularMACD(candles, (strat.params && strat.params.fastP) || 12, (strat.params && strat.params.slowP) || 26, (strat.params && strat.params.sigP) || 9) : { macdLine: [], signalLine: [], histogram: [] };
             seriesA = macd.macdLine;
             seriesB = macd.signalLine;
             seriesC = macd.histogram;
-        } else if (strat.id === 'donchian_breakout') {
-            const don = ind.calcularDonchian(candles, strat.params.entryPeriod || 20);
-            const donExit = ind.calcularDonchian(candles, strat.params.exitPeriod || 10);
-            const atr = ind.calcularATR(candles, strat.params.atrPeriod || 14);
+        } else if (stType === 'donchian_breakout') {
+            const don = ind.calcularDonchian ? ind.calcularDonchian(candles, (strat.params && strat.params.entryPeriod) || (strat.params && strat.params.donchianPeriod) || 20) : { upper: [], lower: [] };
+            const donExit = ind.calcularDonchian ? ind.calcularDonchian(candles, (strat.params && strat.params.exitPeriod) || 10) : { upper: [], lower: [] };
+            const atr = ind.calcularATR ? ind.calcularATR(candles, (strat.params && strat.params.atrPeriod) || 14) : [];
             seriesA = don.upper;
             seriesB = don.lower;
             seriesC = { exitUpper: donExit.upper, exitLower: donExit.lower, atr };
-        } else if (strat.id === 'bollinger_bounce') {
-            const bb = ind.calcularBollinger(candles, strat.params.period || 20, strat.params.mult || 2.0);
+        } else if (stType === 'bollinger_bounce') {
+            const bb = ind.calcularBollinger ? ind.calcularBollinger(candles, (strat.params && strat.params.period) || 20, (strat.params && strat.params.mult) || 2.0) : { upper: [], basis: [], lower: [] };
             seriesA = bb.upper;
             seriesB = bb.basis;
             seriesC = bb.lower;
-        } else if (strat.id === 'btc_vcp') {
-            const bb = ind.calcularBollinger(candles, strat.params.bbPeriod || 20, strat.params.bbMult || 2.0);
-            const ema = ind.calcularEMA(candles, strat.params.emaPeriod || 200);
-            const don = ind.calcularDonchian(candles, strat.params.donchianPeriod || 24);
-            const atr = ind.calcularATR(candles, strat.params.atrPeriod || 14);
+        } else if (stType === 'btc_vcp' || stType === 'vcp_squeeze') {
+            const bb = ind.calcularBollinger ? ind.calcularBollinger(candles, (strat.params && strat.params.bbPeriod) || 20, (strat.params && strat.params.bbMult) || 2.0) : { upper: [], basis: [], lower: [] };
+            const ema = ind.calcularEMA ? ind.calcularEMA(candles, (strat.params && strat.params.emaPeriod) || 200) : [];
+            const don = ind.calcularDonchian ? ind.calcularDonchian(candles, (strat.params && strat.params.donchianPeriod) || 24) : { upper: [], lower: [] };
+            const atr = ind.calcularATR ? ind.calcularATR(candles, (strat.params && strat.params.atrPeriod) || 14) : [];
             seriesA = bb.upper;
             seriesB = ema;
             seriesC = { donUpper: don.upper, bbLower: bb.lower, bbBasis: bb.basis, atr };
-        } else if (strat.id === 'gold_ao' || strat.id === 'eurusd_vcp') {
-            const don = ind.calcularDonchian(candles, strat.params.donchianPeriod || 24);
-            const atr = ind.calcularATR(candles, strat.params.atrPeriod || 14);
-            const fastEma = ind.calcularEMA(candles, 5);
-            const slowEma = ind.calcularEMA(candles, 34);
+        } else if (stType === 'gold_ao' || stType === 'eurusd_vcp') {
+            const don = ind.calcularDonchian ? ind.calcularDonchian(candles, (strat.params && strat.params.donchianPeriod) || 24) : { upper: [], lower: [] };
+            const atr = ind.calcularATR ? ind.calcularATR(candles, (strat.params && strat.params.atrPeriod) || 14) : [];
+            const fastEma = ind.calcularEMA ? ind.calcularEMA(candles, 5) : [];
+            const slowEma = ind.calcularEMA ? ind.calcularEMA(candles, 34) : [];
             seriesA = don.upper;
             seriesB = don.lower;
             seriesC = { atr, fastEma, slowEma };
-        } else if (strat.id === 'gold_rush') {
-            const gann = ind.calcularGannHiLo ? ind.calcularGannHiLo(candles, strat.params.gannPeriod || 5) : [];
-            const don = ind.calcularDonchian(candles, strat.params.donchianPeriod || 51);
-            const atr = ind.calcularATR(candles, strat.params.atrPeriod || 14);
+        } else if (stType === 'gold_rush') {
+            const gann = ind.calcularGannHiLo ? ind.calcularGannHiLo(candles, (strat.params && strat.params.gannPeriod) || 5) : [];
+            const don = ind.calcularDonchian ? ind.calcularDonchian(candles, (strat.params && strat.params.donchianPeriod) || 51) : { upper: [], lower: [] };
+            const atr = ind.calcularATR ? ind.calcularATR(candles, (strat.params && strat.params.atrPeriod) || 14) : [];
             seriesA = gann;
             seriesB = don.upper;
             seriesC = { atr, donLower: don.lower };
@@ -885,7 +1124,7 @@ class StrategyTester {
 
                 // Salidas técnicas por señal opuesta
                 if (!cerrar) {
-                    if (strat.id === 'cruce_ema') {
+                    if (stType === 'cruce_ema' || stType === 'ema_cross') {
                         const fast = mapA.get(t), slow = mapB.get(t);
                         const prevFast = mapA.get(prevT), prevSlow = mapB.get(prevT);
                         if (posicionActual.type === 'LONG' && prevFast >= prevSlow && fast < slow) {
@@ -893,7 +1132,7 @@ class StrategyTester {
                         } else if (posicionActual.type === 'SHORT' && prevFast <= prevSlow && fast > slow) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Cruce Alcista EMA';
                         }
-                    } else if (strat.id === 'donchian_breakout' && seriesC.exitLower) {
+                    } else if (stType === 'donchian_breakout' && seriesC && seriesC.exitLower) {
                         const exitLow = (seriesC.exitLower.find(p => p.time === t) || {}).value;
                         const exitUp = (seriesC.exitUpper.find(p => p.time === t) || {}).value;
                         if (posicionActual.type === 'LONG' && exitLow && c.close < exitLow) {
@@ -901,14 +1140,14 @@ class StrategyTester {
                         } else if (posicionActual.type === 'SHORT' && exitUp && c.close > exitUp) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Ruptura Salida Donchian';
                         }
-                    } else if (strat.id === 'bollinger_bounce') {
+                    } else if (stType === 'bollinger_bounce') {
                         const basis = mapB.get(t);
                         if (basis && ((posicionActual.type === 'LONG' && c.close >= basis) || (posicionActual.type === 'SHORT' && c.close <= basis))) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Objetivo Media Central';
                         }
-                    } else if (strat.id === 'gold_rush') {
+                    } else if (stType === 'gold_rush') {
                         const barsHeld = i - (posicionActual.entryIndex !== undefined ? posicionActual.entryIndex : i);
-                        const timeExitLimit = strat.params.timeExitBars || 5;
+                        const timeExitLimit = (strat.params && strat.params.timeExitBars) || 5;
                         if (barsHeld >= timeExitLimit) {
                             cerrar = true;
                             exitPrice = c.close;
@@ -931,7 +1170,7 @@ class StrategyTester {
                     const commission = (posicionActual.entryPrice * posicionActual.contracts * commPct) +
                                        (finalExitPrice * posicionActual.contracts * commPct);
                     const netPnL = grossPnL - commission;
-                    const returnPct = (netPnL / posicionActual.sizeUSD) * 100;
+                    const returnPct = posicionActual.sizeUSD > 0 ? (netPnL / posicionActual.sizeUSD) * 100 : 0;
 
                     capital += netPnL;
                     if (capital > peakCapital) peakCapital = capital;
@@ -942,6 +1181,7 @@ class StrategyTester {
 
                     trades.push({
                         id: trades.length + 1,
+                        symbol: symbol,
                         type: posicionActual.type,
                         signal: posicionActual.signal,
                         entryTime: posicionActual.entryTime,
@@ -965,7 +1205,7 @@ class StrategyTester {
 
             // 2. Si no hay posición abierta, evaluar entrada
             if (!posicionActual) {
-                if (strat.id === 'gold_rush') {
+                if (stType === 'gold_rush') {
                     // Gestionar orden pendiente Buy Stop existente
                     if (pendingOrder) {
                         if (i > pendingOrder.expiryIndex) {
@@ -998,7 +1238,7 @@ class StrategyTester {
                     // Si no hay posición ni orden pendiente, buscar Setup
                     if (!posicionActual && !pendingOrder) {
                         let inSession = true;
-                        if (strat.params.filterSession) {
+                        if (strat.params && strat.params.filterSession) {
                             let barHour = 12;
                             if (typeof t === 'number') {
                                 barHour = new Date(t * 1000).getUTCHours();
@@ -1022,20 +1262,20 @@ class StrategyTester {
                                     if (candles[i - k].high > recentHigh) recentHigh = candles[i - k].high;
                                 }
 
-                                const threshold = 1 - ((strat.params.donchianThresholdPct || 0.5) / 100);
+                                const threshold = 1 - (((strat.params && strat.params.donchianThresholdPct) || 0.5) / 100);
                                 const wasAtHighs = (recentHigh >= rollingHighPrev * threshold);
 
                                 if (wasAtHighs) {
                                     const swingHigh = recentHigh;
                                     const atrVal = (mapATR && mapATR.get(t)) ? mapATR.get(t) : (c.high - c.low);
-                                    const slDistance = atrVal * (strat.params.atrStopMult || 1.5);
+                                    const slDistance = atrVal * ((strat.params && strat.params.atrStopMult) || 1.5);
                                     const slLevel = swingHigh - slDistance;
 
                                     pendingOrder = {
                                         entryLevel: swingHigh,
                                         slLevel: slLevel,
                                         createdIndex: i,
-                                        expiryIndex: i + (strat.params.orderExpiryBars || 10)
+                                        expiryIndex: i + ((strat.params && strat.params.orderExpiryBars) || 10)
                                     };
                                 }
                             }
@@ -1048,7 +1288,7 @@ class StrategyTester {
                 let entrarShort = false;
                 let signalName = '';
 
-                if (strat.id === 'cruce_ema') {
+                if (stType === 'cruce_ema' || stType === 'ema_cross') {
                     const fast = mapA.get(t), slow = mapB.get(t);
                     const prevFast = mapA.get(prevT), prevSlow = mapB.get(prevT);
                     if (prevFast <= prevSlow && fast > slow) {
@@ -1057,11 +1297,9 @@ class StrategyTester {
                         entrarShort = true; signalName = 'Cruce de Muerte EMA (Bajista)';
                     }
                 } 
-                else if (strat.id === 'squeeze_momentum') {
+                else if (stType === 'squeeze_momentum' || stType === 'sqz_momentum') {
                     const hist = mapA.get(t);
                     const prevHist = mapA.get(prevT);
-                    const dot = mapB.get(t);
-                    // Disparo cuando hist cruza 0 o cambia dirección con momentum
                     if (hist !== undefined && prevHist !== undefined) {
                         if (prevHist < 0 && hist >= 0) {
                             entrarLong = true; signalName = 'Disparo Squeeze Alcista';
@@ -1070,19 +1308,19 @@ class StrategyTester {
                         }
                     }
                 }
-                else if (strat.id === 'rsi_reversion') {
+                else if (stType === 'rsi_reversion') {
                     const rsi = mapA.get(t);
                     const prevRsi = mapA.get(prevT);
                     const emaTrend = mapB.get(t) || 0;
                     if (rsi !== undefined && prevRsi !== undefined) {
-                        if (prevRsi <= (strat.params.oversold || 30) && rsi > (strat.params.oversold || 30) && c.close > emaTrend) {
+                        if (prevRsi <= ((strat.params && strat.params.oversold) || 30) && rsi > ((strat.params && strat.params.oversold) || 30) && c.close > emaTrend) {
                             entrarLong = true; signalName = 'Rebote Sobreventa RSI + Tendencia';
-                        } else if (prevRsi >= (strat.params.overbought || 70) && rsi < (strat.params.overbought || 70) && c.close < emaTrend) {
+                        } else if (prevRsi >= ((strat.params && strat.params.overbought) || 70) && rsi < ((strat.params && strat.params.overbought) || 70) && c.close < emaTrend) {
                             entrarShort = true; signalName = 'Rechazo Sobrecompra RSI + Tendencia';
                         }
                     }
                 }
-                else if (strat.id === 'macd_trend') {
+                else if (stType === 'macd_trend') {
                     const macd = mapA.get(t), sig = mapB.get(t);
                     const prevMacd = mapA.get(prevT), prevSig = mapB.get(prevT);
                     if (prevMacd <= prevSig && macd > sig) {
@@ -1091,7 +1329,7 @@ class StrategyTester {
                         entrarShort = true; signalName = 'Cruce Bajista MACD';
                     }
                 }
-                else if (strat.id === 'donchian_breakout') {
+                else if (stType === 'donchian_breakout') {
                     const upper = mapA.get(prevT);
                     const lower = mapB.get(prevT);
                     if (upper && c.close > upper) {
@@ -1100,13 +1338,21 @@ class StrategyTester {
                         entrarShort = true; signalName = 'Ruptura Canal Inferior Donchian';
                     }
                 }
-                else if (strat.id === 'bollinger_bounce') {
+                else if (stType === 'bollinger_bounce') {
                     const upper = mapA.get(prevT);
                     const lower = mapC.get(prevT);
                     if (lower && prevC.close <= lower && c.close > lower) {
                         entrarLong = true; signalName = 'Rebote Banda Inferior BB';
                     } else if (upper && prevC.close >= upper && c.close < upper) {
                         entrarShort = true; signalName = 'Rebote Banda Superior BB';
+                    }
+                }
+                else if (stType === 'btc_vcp' || stType === 'vcp_squeeze') {
+                    const donUpper = (seriesC && seriesC.donUpper ? seriesC.donUpper.find(p => p.time === prevT) : null);
+                    const upVal = donUpper ? donUpper.value : mapA.get(prevT);
+                    const emaTrend = mapB.get(t) || 0;
+                    if (upVal && c.close > upVal && c.close > emaTrend) {
+                        entrarLong = true; signalName = 'Ruptura VCP Squeeze';
                     }
                 }
 
@@ -1129,8 +1375,8 @@ class StrategyTester {
                     const contracts = sizeUSD / entryPrice;
 
                     // Cálculo de SL y TP
-                    const slPct = (strat.params.stopLossPct || 2.0) / 100;
-                    const tpPct = (strat.params.takeProfitPct || 4.0) / 100;
+                    const slPct = ((strat.params && strat.params.stopLossPct) || (strat.params && strat.params.slPct) || 2.0) / 100;
+                    const tpPct = ((strat.params && strat.params.takeProfitPct) || (strat.params && strat.params.tpPct) || 4.0) / 100;
 
                     const stopLoss = type === 'LONG' ? entryPrice * (1 - slPct) : entryPrice * (1 + slPct);
                     const takeProfit = type === 'LONG' ? entryPrice * (1 + tpPct) : entryPrice * (1 - tpPct);
@@ -1172,6 +1418,7 @@ class StrategyTester {
 
             trades.push({
                 id: trades.length + 1,
+                symbol: symbol,
                 type: posicionActual.type,
                 signal: posicionActual.signal,
                 entryTime: posicionActual.entryTime,
@@ -1184,21 +1431,34 @@ class StrategyTester {
                 commission: commission,
                 grossPnL: grossPnL,
                 pnl: netPnL,
-                returnPct: (netPnL / posicionActual.sizeUSD) * 100,
+                returnPct: posicionActual.sizeUSD > 0 ? (netPnL / posicionActual.sizeUSD) * 100 : 0,
                 cumulativeBalance: capital,
                 drawdownPct: currentDDPct
             });
             posicionActual = null;
         }
 
-        // Calcular Métricas Institucionales
-        const metricas = this.calcularMetricas(trades, props.initialCapital, capital, maxDrawdownUSD, maxDrawdownPct);
+        return {
+            trades,
+            finalCapital: capital,
+            maxDrawdownUSD,
+            maxDrawdownPct
+        };
+    }
+
+    ejecutarBacktestJS(candles, strat, symbol = null) {
+        const curSym = symbol || (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
+        const props = this.executionProps;
+        const sim = this.simularTradesParaVelas(candles, strat, curSym, props.initialCapital);
+        const metricas = this.calcularMetricas(sim.trades, props.initialCapital, sim.finalCapital, sim.maxDrawdownUSD, sim.maxDrawdownPct);
 
         this.lastBacktestResult = {
             strategy: strat,
-            trades,
+            trades: sim.trades,
             metrics: metricas,
-            candlesCount: candles.length
+            candlesCount: candles.length,
+            isMultiAsset: false,
+            symbol: curSym
         };
 
         // Renderizar vistas
@@ -1213,10 +1473,10 @@ class StrategyTester {
 
         // Actualizar badge de contador
         if (this.dom.tradesCountBadge) {
-            this.dom.tradesCountBadge.innerText = trades.length;
+            this.dom.tradesCountBadge.innerText = sim.trades.length;
         }
 
-        console.log(`✅ Backtest completado: ${trades.length} operaciones calculadas. Ganancia Neta: $${metricas.netProfit.toFixed(2)} (${metricas.returnPct.toFixed(2)}%).`);
+        console.log(`✅ Backtest completado: ${sim.trades.length} operaciones calculadas para ${curSym}. Ganancia Neta: $${metricas.netProfit.toFixed(2)} (${metricas.returnPct.toFixed(2)}%).`);
     }
 
     procesarResultadosExternos(trades, metrics) {
@@ -1466,6 +1726,46 @@ class StrategyTester {
                     <div class="metrics-row"><span class="m-label">Win Rate Short:</span><span class="m-val">${m.shortWinRate.toFixed(1)}% (${m.shortWins} aciertos)</span></div>
                     <div class="metrics-row"><span class="m-label">PnL Neto Short:</span><span class="m-val ${m.shortPnL>=0?'pnl-pos':'pnl-neg'}">${m.shortPnL>=0?'+':''}$${m.shortPnL.toFixed(2)}</span></div>
                 </div>
+
+                ${(this.lastBacktestResult && this.lastBacktestResult.isMultiAsset && this.lastBacktestResult.breakdown) ? `
+                <!-- BLOQUE 4: DESGLOSE MULTI-ACTIVO POR INSTRUMENTO -->
+                <div class="metrics-block" style="grid-column: 1 / -1; border-color: rgba(41,98,255,0.4); background: rgba(41,98,255,0.03);">
+                    <div class="metrics-block-title">
+                        <span style="color:var(--tv-blue); font-weight:bold;">🌐 Desglose por Activo del Portafolio</span>
+                        <span style="background:rgba(41,98,255,0.15); padding:2px 8px; border-radius:4px; font-size:11px;">${(this.lastBacktestResult.symbols || []).length} Activos en Cesta</span>
+                    </div>
+                    <div style="overflow-x:auto; margin-top:8px;">
+                        <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--tv-border); color:var(--tv-text-secondary);">
+                                    <th style="padding:6px 8px;">Activo</th>
+                                    <th style="padding:6px 8px;">Velas</th>
+                                    <th style="padding:6px 8px;">Operaciones</th>
+                                    <th style="padding:6px 8px;">Win Rate %</th>
+                                    <th style="padding:6px 8px;">PnL Neto USD</th>
+                                    <th style="padding:6px 8px;">Retorno %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.values(this.lastBacktestResult.breakdown).map(b => {
+                                    const pnlCls = b.netPnL >= 0 ? 'pnl-pos' : 'pnl-neg';
+                                    const pnlSign = b.netPnL >= 0 ? '+' : '';
+                                    return `
+                                        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                                            <td style="padding:6px 8px; font-weight:bold; color:var(--tv-blue);">${b.symbol}</td>
+                                            <td style="padding:6px 8px; color:var(--tv-text-secondary);">${b.candlesCount}</td>
+                                            <td style="padding:6px 8px; font-weight:bold;">${b.totalTrades} (${b.wins}W)</td>
+                                            <td style="padding:6px 8px;">${b.winRate.toFixed(1)}%</td>
+                                            <td style="padding:6px 8px;" class="${pnlCls}">${pnlSign}$${b.netPnL.toFixed(2)}</td>
+                                            <td style="padding:6px 8px;" class="${pnlCls}">${pnlSign}${b.returnPct.toFixed(2)}%</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                ` : ''}
             `;
         }
     }
@@ -1632,7 +1932,7 @@ class StrategyTester {
         if (!this.dom.blotterTableBody) return;
         if (!this.lastBacktestResult || this.lastBacktestResult.trades.length === 0) {
             this.dom.blotterTableBody.innerHTML = `
-                <tr><td colspan="12" style="text-align:center; padding:24px; color:var(--tv-text-secondary);">
+                <tr><td colspan="14" style="text-align:center; padding:24px; color:var(--tv-text-secondary);">
                     No hay operaciones ejecutadas. Seleccione una estrategia y pulse '▶ Ejecutar Backtest'.
                 </td></tr>
             `;
@@ -1650,7 +1950,7 @@ class StrategyTester {
             if (this.blotterFilter === 'loss' && t.pnl >= 0) return false;
 
             if (this.blotterSearchTerm) {
-                const searchStr = `${t.id} ${t.type} ${t.signal} ${t.exitReason} ${t.entryPrice} ${t.exitPrice}`.toLowerCase();
+                const searchStr = `${t.id} ${t.symbol || ''} ${t.type} ${t.signal} ${t.exitReason} ${t.entryPrice} ${t.exitPrice}`.toLowerCase();
                 if (!searchStr.includes(this.blotterSearchTerm)) return false;
             }
             return true;
@@ -1670,6 +1970,8 @@ class StrategyTester {
             return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
         };
 
+        const curSelectedSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || 'BTC-USD';
+
         const rowsHTML = pageTrades.map(t => {
             const isLong = t.type === 'LONG';
             const typeBadge = isLong 
@@ -1678,10 +1980,12 @@ class StrategyTester {
 
             const pnlClass = t.pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
             const pnlSign = t.pnl >= 0 ? '+' : '';
+            const symDisplay = t.symbol || curSelectedSym;
 
             return `
                 <tr>
                     <td style="font-weight:bold; color:var(--tv-text-secondary);">${t.id}</td>
+                    <td style="font-weight:bold; color:var(--tv-blue);"><span class="sym-badge" style="background:rgba(41,98,255,0.15); padding:2px 6px; border-radius:4px; font-size:11px;">${symDisplay}</span></td>
                     <td>${typeBadge}</td>
                     <td style="color:var(--tv-text-bright);">${t.signal}</td>
                     <td>${formatDate(t.entryTime)}</td>
@@ -2006,8 +2310,438 @@ class StrategyTester {
     }
 
     // =========================================================================
-    // IMPORTACIÓN DE NUEVAS ESTRATEGIAS (JSON / SCRIPT)
+    // PARSER & TRANSPILADOR DE BOTS METATRADER 5 (.MQ5 / .EX5 / .JSON)
     // =========================================================================
+    extractStringsFromBuffer(buffer) {
+        if (!buffer) return [];
+        let bytes;
+        if (buffer instanceof Uint8Array) {
+            bytes = buffer;
+        } else if (buffer instanceof ArrayBuffer) {
+            bytes = new Uint8Array(buffer);
+        } else if (buffer.buffer && buffer.byteOffset !== undefined) {
+            bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        } else {
+            bytes = new Uint8Array(buffer);
+        }
+        const strings = [];
+
+        // ASCII strings (min 3 chars)
+        let curAscii = '';
+        for (let i = 0; i < bytes.length; i++) {
+            const b = bytes[i];
+            if (b >= 32 && b <= 126) {
+                curAscii += String.fromCharCode(b);
+            } else {
+                if (curAscii.length >= 3) strings.push(curAscii);
+                curAscii = '';
+            }
+        }
+        if (curAscii.length >= 3) strings.push(curAscii);
+
+        // UTF-16LE strings (min 3 chars)
+        let curUtf16 = '';
+        for (let i = 0; i < bytes.length - 1; i += 2) {
+            const b0 = bytes[i];
+            const b1 = bytes[i + 1];
+            if (b1 === 0 && b0 >= 32 && b0 <= 126) {
+                curUtf16 += String.fromCharCode(b0);
+            } else {
+                if (curUtf16.length >= 3) strings.push(curUtf16);
+                curUtf16 = '';
+            }
+        }
+        if (curUtf16.length >= 3) strings.push(curUtf16);
+
+        return [...new Set(strings)];
+    }
+
+    parseEX5(buffer, filename = '') {
+        const strings = this.extractStringsFromBuffer(buffer);
+        const cleanName = filename ? filename.replace(/\.ex5$/i, '').replace(/[_-]/g, ' ') : 'Bot MT5 Compilado';
+
+        const bot = {
+            id: 'bot_ex5_' + Date.now(),
+            name: cleanName,
+            symbol: (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
+            symbols: [(this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD')],
+            timeframe: (this.dom.selectTf ? this.dom.selectTf.value : '1h'),
+            magic: Math.floor(1000 + Math.random() * 8999),
+            description: `Expert Advisor MT5 compilado (.ex5) con parámetros extraídos dinámicamente del binario.`,
+            strategyType: 'donchian_breakout',
+            category: 'Bot MT5 (.ex5)',
+            riskMode: 'LOTS',
+            riskValue: 0.10,
+            params: {
+                donchianPeriod: 20,
+                atrPeriod: 14,
+                slAtrMult: 1.5,
+                tpAtrMult: 3.0,
+                stopLossPct: 2.0,
+                takeProfitPct: 4.5
+            }
+        };
+
+        // Escanear cadenas en busca de Magic Number, inputs y patrones
+        strings.forEach(s => {
+            const lower = s.toLowerCase();
+            if (lower.includes('magic') && /\d+/.test(s)) {
+                const match = s.match(/magic[^\d]*(\d+)/i) || s.match(/\d+/);
+                if (match) {
+                    const num = parseInt(match[1] || match[0], 10);
+                    if (num > 100) bot.magic = num;
+                }
+            }
+            if (s.startsWith('Inp') || s.startsWith('inp')) {
+                const paramName = s.replace(/^inp/i, '');
+                const cleanKey = paramName.charAt(0).toLowerCase() + paramName.slice(1);
+                if (!bot.params[cleanKey]) {
+                    if (cleanKey.toLowerCase().includes('period') || cleanKey.toLowerCase().includes('len')) {
+                        bot.params[cleanKey] = 20;
+                    } else if (cleanKey.toLowerCase().includes('mult') || cleanKey.toLowerCase().includes('ratio')) {
+                        bot.params[cleanKey] = 1.5;
+                    } else {
+                        bot.params[cleanKey] = 10;
+                    }
+                }
+            }
+
+            if (lower.includes('vcp') || lower.includes('squeeze')) {
+                bot.strategyType = 'vcp_squeeze';
+            } else if (lower.includes('momentum')) {
+                bot.strategyType = 'sqz_momentum';
+            } else if (lower.includes('ema') || lower.includes('ma_cross')) {
+                bot.strategyType = 'cruce_ema';
+            } else if (lower.includes('breakout') || lower.includes('donchian')) {
+                bot.strategyType = 'donchian_breakout';
+            }
+        });
+
+        return bot;
+    }
+
+    parseMQL5(code, filename = '') {
+        const cleanName = filename ? filename.replace(/\.(mq5|txt)$/i, '').replace(/[_-]/g, ' ') : 'Bot MQL5';
+        const bot = {
+            id: 'bot_mql5_' + Date.now(),
+            name: cleanName,
+            symbol: (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
+            symbols: [(this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD')],
+            timeframe: (this.dom.selectTf ? this.dom.selectTf.value : '1h'),
+            magic: Math.floor(1000 + Math.random() * 8999),
+            description: 'Expert Advisor MQL5 personalizado.',
+            strategyType: 'donchian_breakout',
+            category: 'Bot MT5 (.mq5)',
+            riskMode: 'LOTS',
+            riskValue: 0.10,
+            params: {}
+        };
+
+        const propDesc = code.match(/#property\s+description\s+["']([^"']+)["']/i);
+        if (propDesc && propDesc[1]) bot.description = propDesc[1];
+
+        const propName = code.match(/\/\/\s*\|\s*([a-zA-Z0-9_\- ]+)\.mq5/i);
+        if (propName && propName[1]) bot.name = propName[1].trim();
+
+        // Magic Number
+        const magicMatch = code.match(/(?:input|sinput)\s+(?:ulong|int|uint|long)\s+[a-zA-Z0-9_]*magic[a-zA-Z0-9_]*\s*=\s*(\d+)/i)
+            || code.match(/#define\s+[a-zA-Z0-9_]*MAGIC[a-zA-Z0-9_]*\s+(\d+)/i)
+            || code.match(/(?:ulong|int|uint)\s+[a-zA-Z0-9_]*Magic(?:Number)?\s*=\s*(\d+)/i);
+        if (magicMatch && magicMatch[1]) {
+            bot.magic = parseInt(magicMatch[1], 10);
+        }
+
+        // Parse inputs
+        const inputRegex = /(?:input|sinput)\s+(?:group\s+["'][^"']*["']\s*;|([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_]+)\s*(?:=\s*([^;]+))?\s*;(?:\s*\/\/\s*([^\r\n]+))?)/gi;
+        let match;
+        while ((match = inputRegex.exec(code)) !== null) {
+            const type = match[1];
+            const varName = match[2];
+            let valRaw = match[3];
+
+            if (!varName) continue;
+            if (valRaw !== undefined) valRaw = valRaw.trim();
+            else valRaw = '';
+
+            let val = valRaw;
+            if (type === 'bool') {
+                val = valRaw.toLowerCase() === 'true';
+            } else if (['int', 'uint', 'ulong', 'long', 'char', 'short'].includes(type)) {
+                val = parseInt(valRaw, 10);
+                if (isNaN(val)) val = 0;
+            } else if (['double', 'float'].includes(type)) {
+                val = parseFloat(valRaw);
+                if (isNaN(val)) val = 0.0;
+            } else if (type === 'string') {
+                val = valRaw.replace(/^["']|["']$/g, '');
+            } else {
+                if (valRaw.toLowerCase() === 'true') val = true;
+                else if (valRaw.toLowerCase() === 'false') val = false;
+                else if (!isNaN(Number(valRaw)) && valRaw !== '') val = Number(valRaw);
+            }
+
+            let paramKey = varName;
+            if (paramKey.startsWith('Inp') && paramKey.length > 3) {
+                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
+            } else if (paramKey.startsWith('inp') && paramKey.length > 3) {
+                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
+            }
+
+            bot.params[paramKey] = val;
+        }
+
+        // Detectar tipo de estrategia según indicadores presentes
+        const codeLower = code.toLowerCase();
+        if (/\bvcp\b/i.test(codeLower) || (codeLower.includes('bands') && codeLower.includes('donchian'))) {
+            bot.strategyType = 'vcp_squeeze';
+        } else if (/\b(squeeze|keltner)\b/i.test(codeLower)) {
+            bot.strategyType = 'sqz_momentum';
+        } else if (/\b(ema|ima|moving_average)\b/i.test(codeLower)) {
+            bot.strategyType = 'cruce_ema';
+        } else if (/\b(macd|imacd)\b/i.test(codeLower)) {
+            bot.strategyType = 'macd_trend';
+        } else if (/\b(donchian|breakout|channel)\b/i.test(codeLower)) {
+            bot.strategyType = 'donchian_breakout';
+        } else if (/\b(rsi|irsi|relative_strength)\b/i.test(codeLower)) {
+            bot.strategyType = 'rsi_reversion';
+        }
+
+        // Parámetros por defecto si está vacío
+        if (Object.keys(bot.params).length === 0) {
+            bot.params = {
+                fastPeriod: 20,
+                slowPeriod: 50,
+                donchianPeriod: 24,
+                atrPeriod: 14,
+                stopLossPct: 2.0,
+                takeProfitPct: 4.5
+            };
+        }
+
+        return bot;
+    }
+
+    procesarArchivoBot(file) {
+        if (!file) return;
+        const name = file.name;
+        const lower = name.toLowerCase();
+
+        const statusEl = this.dom.btImportStatus;
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = `⏳ Analizando archivo: ${name}...`;
+        }
+
+        if (lower.endsWith('.mq5') || lower.endsWith('.txt')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const code = e.target.result;
+                const bot = this.parseMQL5(code, name);
+                this.cargarBotEnFormularioImport(bot);
+                if (statusEl) {
+                    statusEl.innerText = `✅ Bot MQL5 '${bot.name}' analizado: ${Object.keys(bot.params).length} parámetros detectados.`;
+                }
+            };
+            reader.readAsText(file);
+        } else if (lower.endsWith('.ex5')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const buffer = e.target.result;
+                const bot = this.parseEX5(buffer, name);
+                this.cargarBotEnFormularioImport(bot);
+                if (statusEl) {
+                    statusEl.innerText = `✅ Binario MT5 (.ex5) '${bot.name}' descompilado: Magic ${bot.magic}, ${Object.keys(bot.params).length} parámetros descubiertos.`;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (lower.endsWith('.json')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    const bot = {
+                        id: parsed.id || 'bot_' + Date.now(),
+                        name: parsed.name || name.replace(/\.json$/i, ''),
+                        symbol: parsed.symbol || (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'),
+                        symbols: parsed.symbols || [parsed.symbol || 'BTC-USD'],
+                        timeframe: parsed.timeframe || '1h',
+                        magic: parsed.magic || 1001,
+                        description: parsed.description || 'Estrategia JSON cuantitativa',
+                        strategyType: parsed.strategyType || parsed.id || 'donchian_breakout',
+                        category: parsed.category || 'Bot Personalizado',
+                        params: parsed.params || {}
+                    };
+                    this.cargarBotEnFormularioImport(bot);
+                    if (statusEl) {
+                        statusEl.innerText = `✅ Estrategia JSON '${bot.name}' cargada correctamente.`;
+                    }
+                } catch (err) {
+                    if (statusEl) statusEl.innerText = `⚠️ Error al parsear JSON: ${err.message}`;
+                }
+            };
+            reader.readAsText(file);
+        } else {
+            if (statusEl) statusEl.innerText = `⚠️ Extensión no reconocida. Selecciona un archivo .mq5, .ex5 o .json`;
+        }
+    }
+
+    cargarBotEnFormularioImport(bot) {
+        this.currentImportBot = bot;
+
+        if (this.dom.btImportName) this.dom.btImportName.value = bot.name || '';
+        if (this.dom.btImportMagic) this.dom.btImportMagic.value = bot.magic || 1001;
+        if (this.dom.btImportStrat) this.dom.btImportStrat.value = bot.strategyType || 'donchian_breakout';
+        if (this.dom.btImportSymbols) {
+            this.dom.btImportSymbols.value = (bot.symbols && bot.symbols.length) 
+                ? bot.symbols.join(', ') 
+                : (bot.symbol || (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'BTC-USD'));
+        }
+
+        this.renderizarImportParamsGrid(bot.params || {});
+
+        if (this.dom.strategyModalEditor) {
+            this.dom.strategyModalEditor.value = JSON.stringify(bot, null, 2);
+        }
+    }
+
+    renderizarImportParamsGrid(params) {
+        const grid = this.dom.btImportParamsGrid;
+        if (!grid) return;
+
+        const entries = Object.entries(params);
+        if (entries.length === 0) {
+            grid.innerHTML = '<div style="color:var(--tv-text-secondary); font-size:12px; grid-column:1/-1;">Sin parámetros configurables.</div>';
+            return;
+        }
+
+        grid.innerHTML = entries.map(([key, val]) => {
+            const label = this.formatearEtiquetaParametro(key);
+            const isBool = typeof val === 'boolean';
+            const isNum = typeof val === 'number';
+
+            if (isBool) {
+                return `
+                    <div class="prop-row" style="background:#131722; padding:6px 10px; border-radius:4px; border:1px solid var(--tv-border);">
+                        <label style="font-size:11px;">${label}:</label>
+                        <input type="checkbox" id="import-param-${key}" ${val ? 'checked' : ''} style="cursor:pointer;">
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="prop-row" style="background:#131722; padding:6px 10px; border-radius:4px; border:1px solid var(--tv-border);">
+                        <label style="font-size:11px;">${label}:</label>
+                        <input type="number" id="import-param-${key}" value="${val}" step="${isNum && !Number.isInteger(val) ? '0.1' : '1'}" style="width:70px; background:#1e222d; border:1px solid #2a2e39; color:#fff; border-radius:3px; padding:3px 6px;">
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+
+    importarBotDesdeEditor() {
+        const modal = this.dom.strategyImportModal;
+        let bot = this.currentImportBot || {};
+
+        const name = (this.dom.btImportName && this.dom.btImportName.value.trim()) || bot.name || 'Bot Personalizado';
+        const magic = (this.dom.btImportMagic && parseInt(this.dom.btImportMagic.value, 10)) || bot.magic || 1001;
+        const stratType = (this.dom.btImportStrat && this.dom.btImportStrat.value) || bot.strategyType || 'donchian_breakout';
+        
+        let symbolsRaw = (this.dom.btImportSymbols && this.dom.btImportSymbols.value.trim()) || 'BTC-USD';
+        const symbols = symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        const isMulti = symbols.length > 1;
+
+        // Recoger parámetros dinámicos
+        const finalParams = { ...(bot.params || {}) };
+        Object.keys(finalParams).forEach(k => {
+            const input = document.getElementById(`import-param-${k}`);
+            if (input) {
+                if (input.type === 'checkbox') finalParams[k] = input.checked;
+                else finalParams[k] = parseFloat(input.value) || 0;
+            }
+        });
+
+        // Asegurar que parámetros esenciales estén definidos
+        if (!finalParams.stopLossPct) finalParams.stopLossPct = 2.0;
+        if (!finalParams.takeProfitPct) finalParams.takeProfitPct = 4.5;
+
+        const botId = bot.id || ('bot_' + Date.now());
+
+        const finalBot = {
+            id: botId,
+            name: `🤖 ${name}`,
+            category: isMulti ? 'Bot Multi-Activo' : 'Bot Personalizado',
+            description: bot.description || `Estrategia personalizada (${stratType})`,
+            strategyType: stratType,
+            multiAsset: isMulti,
+            symbols: symbols,
+            symbol: symbols[0] || 'BTC-USD',
+            magic: magic,
+            params: finalParams
+        };
+
+        // Registrar en el Strategy Tester
+        this.customStrategies.set(botId, finalBot);
+        this.activeStrategyId = botId;
+
+        // Sincronizar con la Flota de MT5 para que esté disponible en vivo
+        if (window.MT5Emulator && window.MT5Emulator.botsCatalog) {
+            window.MT5Emulator.botsCatalog[botId] = {
+                id: botId,
+                name: name,
+                enabled: true,
+                symbol: symbols[0] || 'BTC-USD',
+                symbols: symbols,
+                multiAsset: isMulti,
+                timeframe: '1h',
+                strategyType: stratType,
+                magic: magic,
+                riskMode: 'LOTS',
+                riskValue: 0.10,
+                params: finalParams
+            };
+        }
+
+        // Si es multi-activo, conmutar tester al modo multi-activo
+        if (isMulti) {
+            this.isMultiAsset = true;
+            if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'multi';
+            if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'none';
+            if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'flex';
+            if (this.dom.btMultiSymbolsInput) this.dom.btMultiSymbolsInput.value = symbols.join(', ');
+        }
+
+        this.poblarSelectoresEstrategia();
+        this.renderizarFormularioPropiedades();
+
+        if (modal) modal.style.display = 'none';
+        console.log(`🤖 Bot '${name}' cargado con éxito en el Tester. Ejecutando backtest...`);
+        this.ejecutarBacktest();
+    }
+
+    importarDesdeFlotaMT5() {
+        const fleetBots = (window.MT5Emulator && window.MT5Emulator.botsCatalog) ? window.MT5Emulator.botsCatalog : {};
+        const botKeys = Object.keys(fleetBots);
+
+        if (botKeys.length === 0) {
+            alert("⚠️ No hay bots activos configurados en la flota del emulador MT5.");
+            return;
+        }
+
+        const botListNames = botKeys.map((k, i) => `${i + 1}. ${fleetBots[k].name} (${fleetBots[k].strategyType || 'Breakout'})`).join('\n');
+        const elegida = prompt(`Seleccione el número del bot de la Flota MT5 a importar al Tester:\n\n${botListNames}`, "1");
+        if (!elegida) return;
+
+        const idx = parseInt(elegida, 10) - 1;
+        if (idx >= 0 && idx < botKeys.length) {
+            const b = fleetBots[botKeys[idx]];
+            this.cargarBotEnFormularioImport(b);
+            const statusEl = this.dom.btImportStatus;
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.innerText = `✅ Bot '${b.name}' importado desde la Flota MT5.`;
+            }
+        }
+    }
+
     initModalImportacion() {
         const modal = this.dom.strategyImportModal;
         if (!modal) return;
@@ -2015,64 +2749,414 @@ class StrategyTester {
         const btnClose = document.getElementById('modal-strategy-close');
         const btnCancel = document.getElementById('btn-strategy-import-cancel');
         const btnApply = document.getElementById('btn-strategy-import-apply');
+        const btnPickFile = document.getElementById('btn-bt-pick-bot-file');
         const fileInput = document.getElementById('strategy-modal-file');
-        const codeEditor = document.getElementById('strategy-modal-editor');
+        const dropzone = this.dom.btDropzoneBot;
+        const btnFleet = this.dom.btnBtImportFromFleet;
 
         const cerrarModal = () => { modal.style.display = 'none'; };
         if (btnClose) btnClose.onclick = cerrarModal;
         if (btnCancel) btnCancel.onclick = cerrarModal;
 
+        if (btnPickFile && fileInput) {
+            btnPickFile.onclick = () => fileInput.click();
+        }
+
         if (fileInput) {
             fileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        if (codeEditor) codeEditor.value = event.target.result;
-                    };
-                    reader.readAsText(file);
+                if (file) this.procesarArchivoBot(file);
+            });
+        }
+
+        // Drag & drop en dropzone de bot
+        if (dropzone) {
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-blue)';
+                dropzone.style.background = 'rgba(41,98,255,0.08)';
+            });
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-border)';
+                dropzone.style.background = 'rgba(255,255,255,0.02)';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-border)';
+                dropzone.style.background = 'rgba(255,255,255,0.02)';
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    this.procesarArchivoBot(e.dataTransfer.files[0]);
                 }
             });
         }
 
-        if (btnApply && codeEditor) {
-            btnApply.onclick = () => {
-                const jsonText = codeEditor.value.trim();
-                try {
-                    const stratObj = JSON.parse(jsonText);
-                    if (!stratObj.id || !stratObj.name || !stratObj.params) {
-                        throw new Error("El objeto de estrategia debe incluir 'id', 'name' y 'params'.");
-                    }
-                    this.registrarEstrategiaCustom(stratObj);
-                    cerrarModal();
-                    alert(`✅ Estrategia '${stratObj.name}' cargada exitosamente.`);
-                } catch (err) {
-                    alert(`⚠️ Error al procesar formato JSON de la estrategia:\n${err.message}`);
-                }
-            };
+        if (btnFleet) {
+            btnFleet.onclick = () => this.importarDesdeFlotaMT5();
+        }
+
+        if (btnApply) {
+            btnApply.onclick = () => this.importarBotDesdeEditor();
         }
     }
 
-    registrarEstrategiaCustom(stratObj) {
-        stratObj.category = stratObj.category || 'Personalizada';
-        this.customStrategies.set(stratObj.id, stratObj);
-        this.activeStrategyId = stratObj.id;
+    // =========================================================================
+    // GESTOR DE DATOS HISTÓRICOS CSV Y LECTURA DE CARPETAS
+    // =========================================================================
+    parseCSVData(csvText, fileName = '') {
+        if (!csvText || typeof csvText !== 'string') return [];
+        const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#'));
+        if (lines.length < 2) return [];
+
+        // Detectar delimitador analizando la primera línea
+        const headerLine = lines[0];
+        let delimiter = ',';
+        if (headerLine.includes('\t')) delimiter = '\t';
+        else if (headerLine.includes(';')) delimiter = ';';
+
+        const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+
+        // Localizar índices de columnas
+        let idxTime = -1, idxDate = -1, idxOnlyTime = -1;
+        let idxOpen = -1, idxHigh = -1, idxLow = -1, idxClose = -1, idxVol = -1;
+
+        headers.forEach((h, i) => {
+            if (h === 'datetime' || h === 'timestamp' || h === 'time_utc' || h === 'open_time' || h === '0') {
+                idxTime = i;
+            } else if (h === 'date' || h === '<date>') {
+                idxDate = i;
+            } else if (h === 'time' || h === '<time>') {
+                idxOnlyTime = i;
+            } else if (h === 'open' || h === 'bid_open' || h === '<open>') {
+                idxOpen = i;
+            } else if (h === 'high' || h === 'bid_high' || h === '<high>') {
+                idxHigh = i;
+            } else if (h === 'low' || h === 'bid_low' || h === '<low>') {
+                idxLow = i;
+            } else if (h === 'close' || h === 'bid_close' || h === '<close>') {
+                idxClose = i;
+            } else if (h.includes('vol') || h === '<vol>' || h === '<tickvol>') {
+                idxVol = i;
+            }
+        });
+
+        // Si no se detectó cabecera explícita, usar orden estándar por defecto
+        if (idxOpen === -1 && lines.length > 1) {
+            idxTime = 0;
+            idxOpen = 1;
+            idxHigh = 2;
+            idxLow = 3;
+            idxClose = 4;
+            idxVol = 5;
+        }
+
+        const candles = [];
+        let baseTime = Math.floor(Date.now() / 1000) - (lines.length * 3600);
+
+        for (let i = 1; i < lines.length; i++) {
+            const parts = lines[i].split(delimiter).map(p => p.trim().replace(/['"]/g, ''));
+            if (parts.length < 4) continue;
+
+            // Extraer tiempo
+            let ts = 0;
+            let timeStr = '';
+            if (idxDate !== -1 && idxOnlyTime !== -1) {
+                timeStr = `${parts[idxDate]} ${parts[idxOnlyTime]}`;
+            } else if (idxTime !== -1) {
+                timeStr = parts[idxTime];
+            } else if (idxDate !== -1) {
+                timeStr = parts[idxDate];
+            }
+
+            if (timeStr) {
+                // Normalizar puntos en fechas MT5: "2024.01.02" -> "2024-01-02"
+                const normalizedDate = timeStr.replace(/(\d{4})\.(\d{2})\.(\d{2})/, '$1-$2-$3');
+                const parsedDate = Date.parse(normalizedDate);
+                if (!isNaN(parsedDate)) {
+                    ts = Math.floor(parsedDate / 1000);
+                } else if (!isNaN(Number(timeStr))) {
+                    const num = Number(timeStr);
+                    ts = num > 100000000000 ? Math.floor(num / 1000) : num;
+                }
+            }
+
+            if (!ts || isNaN(ts) || ts <= 0) {
+                ts = baseTime + (i * 3600);
+            }
+
+            const o = parseFloat(parts[idxOpen !== -1 ? idxOpen : 1]);
+            const h = parseFloat(parts[idxHigh !== -1 ? idxHigh : 2]);
+            const l = parseFloat(parts[idxLow !== -1 ? idxLow : 3]);
+            const c = parseFloat(parts[idxClose !== -1 ? idxClose : 4]);
+            const v = (idxVol !== -1 && parts[idxVol]) ? parseFloat(parts[idxVol]) : 100;
+
+            if (!isNaN(o) && !isNaN(h) && !isNaN(l) && !isNaN(c) && o > 0 && h > 0 && l > 0 && c > 0) {
+                candles.push({
+                    time: ts,
+                    open: o,
+                    high: Math.max(h, o, c),
+                    low: Math.min(l, o, c),
+                    close: c,
+                    volume: isNaN(v) ? 100 : v
+                });
+            }
+        }
+
+        // Ordenar cronológicamente y limpiar duplicados de timestamp
+        candles.sort((a, b) => a.time - b.time);
+        const deduplicated = [];
+        let prevT = 0;
+        for (const c of candles) {
+            if (c.time > prevT) {
+                deduplicated.push(c);
+                prevT = c.time;
+            }
+        }
+
+        return deduplicated;
+    }
+
+    detectarSimboloDeNombre(fileName = '') {
+        const clean = fileName.toUpperCase().replace(/\.(CSV|TXT)$/i, '');
+        const symsConocidos = ['XAUUSD', 'GOLD', 'BTC-USD', 'BTCUSD', 'ETH-USD', 'ETHUSD', 'SOL-USD', 'SOLUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'NASDAQ', 'NDX', 'SP500', 'SPX', 'NVDA', 'AAPL', 'TSLA'];
+
+        for (const s of symsConocidos) {
+            if (clean.includes(s.replace('-', '')) || clean.includes(s)) {
+                return s.includes('BTC') ? 'BTC-USD' : (s.includes('ETH') ? 'ETH-USD' : (s.includes('SOL') ? 'SOL-USD' : (s === 'GOLD' ? 'XAUUSD' : s)));
+            }
+        }
+
+        const match = clean.match(/^([A-Z0-9_-]+)/);
+        return match ? match[1] : 'CUSTOM-SYM';
+    }
+
+    registrarDatasetCSV(symbol, candles, fileName = '') {
+        if (!candles || candles.length < 5) return;
+        this.csvDatasets[symbol] = candles;
+
+        const count = Object.keys(this.csvDatasets).length;
+        if (this.dom.btCsvBadge) {
+            this.dom.btCsvBadge.innerText = `${count} CSV`;
+            this.dom.btCsvBadge.style.display = 'inline-block';
+        }
+
         this.poblarSelectoresEstrategia();
-        this.renderizarFormularioPropiedades();
+        this.renderizarTablaDatasetsCSV();
+        console.log(`📊 Dataset CSV '${symbol}' registrado: ${candles.length} velas.`);
+    }
+
+    renderizarTablaDatasetsCSV() {
+        const tbody = this.dom.btCsvTableBody;
+        if (!tbody) return;
+
+        const entries = Object.entries(this.csvDatasets);
+        if (entries.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--tv-text-secondary);">No hay datasets CSV cargados aún.</td></tr>';
+            return;
+        }
+
+        const formatDate = (ts) => {
+            const d = new Date(ts * 1000);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+        };
+
+        tbody.innerHTML = entries.map(([sym, candles]) => {
+            const first = candles[0];
+            const last = candles[candles.length - 1];
+            const range = `${formatDate(first.time)} ➔ ${formatDate(last.time)}`;
+
+            return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:8px; font-weight:bold; color:var(--tv-blue);">${sym}</td>
+                    <td style="padding:8px; font-weight:bold; color:#fff;">${candles.length.toLocaleString()}</td>
+                    <td style="padding:8px; color:var(--tv-text-secondary); font-size:11px;">${range}</td>
+                    <td style="padding:8px; font-size:11px;">$${last.close.toFixed(2)}</td>
+                    <td style="padding:8px; display:flex; gap:6px;">
+                        <button class="btn-table-action" onclick="window.StrategyTester.usarDatasetEnGrafico('${sym}')" style="background:#089981; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer;">▶ Usar</button>
+                        <button class="btn-table-action" onclick="window.StrategyTester.eliminarDatasetCSV('${sym}')" style="background:#f23645; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer;">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    usarDatasetEnGrafico(symbol) {
+        if (!this.csvDatasets[symbol]) return;
+        this.isMultiAsset = false;
+        if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'single';
+        if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'flex';
+        if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'none';
+
+        if (this.dom.selectSymbol) {
+            this.dom.selectSymbol.value = symbol;
+        }
+
+        this.currentCandles = this.csvDatasets[symbol];
+        if (this.dom.btCsvModal) this.dom.btCsvModal.style.display = 'none';
         this.ejecutarBacktest();
     }
 
-    procesarArchivoEstrategia(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const parsed = JSON.parse(e.target.result);
-                this.registrarEstrategiaCustom(parsed);
-            } catch (err) {
-                alert(`⚠️ Error al leer archivo de estrategia JSON: ${err.message}`);
+    eliminarDatasetCSV(symbol) {
+        delete this.csvDatasets[symbol];
+        const count = Object.keys(this.csvDatasets).length;
+        if (this.dom.btCsvBadge) {
+            if (count > 0) {
+                this.dom.btCsvBadge.innerText = `${count} CSV`;
+                this.dom.btCsvBadge.style.display = 'inline-block';
+            } else {
+                this.dom.btCsvBadge.style.display = 'none';
             }
-        };
-        reader.readAsText(file);
+        }
+        this.poblarSelectoresEstrategia();
+        this.renderizarTablaDatasetsCSV();
+    }
+
+    procesarArchivosCSV(files) {
+        if (!files || files.length === 0) return;
+        const statusEl = this.dom.btCsvStatus;
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = `⏳ Procesando ${files.length} archivo(s)...`;
+        }
+
+        let procesados = 0;
+        Array.from(files).forEach(file => {
+            if (!file.name.toLowerCase().endsWith('.csv') && !file.name.toLowerCase().endsWith('.txt')) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const candles = this.parseCSVData(text, file.name);
+                if (candles && candles.length >= 10) {
+                    const sym = this.detectarSimboloDeNombre(file.name);
+                    this.registrarDatasetCSV(sym, candles, file.name);
+                    procesados++;
+                }
+
+                if (statusEl) {
+                    statusEl.innerText = `✅ Procesados ${procesados} datasets CSV válidos.`;
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    async autoEscanearCarpetaCSV() {
+        const statusEl = this.dom.btCsvStatus;
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = '🔍 Escaneando directorio raíz y subcarpetas en busca de archivos CSV...';
+        }
+
+        try {
+            const resp = await fetch('/api/backtest/list_csvs');
+            if (!resp.ok) throw new Error('Servidor local no disponible');
+            const data = await resp.json();
+
+            if (!data.success || !data.files || data.files.length === 0) {
+                if (statusEl) statusEl.innerText = 'ℹ️ No se encontraron archivos .csv en el proyecto.';
+                return;
+            }
+
+            let importados = 0;
+            for (const f of data.files) {
+                try {
+                    const readResp = await fetch(`/api/backtest/read_csv?file=${encodeURIComponent(f.name)}&limit=50000`);
+                    if (readResp.ok) {
+                        const csvContent = await readResp.text();
+                        const candles = this.parseCSVData(csvContent, f.name);
+                        if (candles && candles.length >= 10) {
+                            this.registrarDatasetCSV(f.symbol || this.detectarSimboloDeNombre(f.name), candles, f.name);
+                            importados++;
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (statusEl) {
+                statusEl.innerText = `✅ Auto-escaneo completado: ${importados} datasets CSV cargados automáticamente.`;
+            }
+        } catch (err) {
+            if (statusEl) {
+                statusEl.innerText = `⚠️ Error al escanear: ${err.message}. Puedes usar 'Cargar Carpeta Completa' directamente.`;
+            }
+        }
+    }
+
+    initModalCSV() {
+        const modal = this.dom.btCsvModal;
+        if (!modal) return;
+
+        const btnClose = this.dom.modalCsvClose;
+        const btnDone = this.dom.btnCsvModalDone;
+        const btnOpen = this.dom.btnBtCargarCsv;
+        const dropzone = this.dom.btCsvDropzone;
+        const fileInput = this.dom.btCsvFileInput;
+        const folderInput = this.dom.btCsvFolderInput;
+        const btnPickFiles = this.dom.btnBtPickCsvFiles;
+        const btnPickFolder = this.dom.btnBtPickCsvFolder;
+        const btnAutoScan = this.dom.btnBtAutoScanCsvs;
+        const btnClear = this.dom.btnBtClearCsvs;
+
+        const cerrarModal = () => { modal.style.display = 'none'; };
+        if (btnClose) btnClose.onclick = cerrarModal;
+        if (btnDone) btnDone.onclick = cerrarModal;
+
+        if (btnOpen) {
+            btnOpen.onclick = () => {
+                modal.style.display = 'flex';
+                this.renderizarTablaDatasetsCSV();
+            };
+        }
+
+        if (btnPickFiles && fileInput) {
+            btnPickFiles.onclick = () => fileInput.click();
+        }
+        if (fileInput) {
+            fileInput.onchange = (e) => this.procesarArchivosCSV(e.target.files);
+        }
+
+        if (btnPickFolder && folderInput) {
+            btnPickFolder.onclick = () => folderInput.click();
+        }
+        if (folderInput) {
+            folderInput.onchange = (e) => this.procesarArchivosCSV(e.target.files);
+        }
+
+        if (btnAutoScan) {
+            btnAutoScan.onclick = () => this.autoEscanearCarpetaCSV();
+        }
+
+        if (btnClear) {
+            btnClear.onclick = () => {
+                this.csvDatasets = {};
+                if (this.dom.btCsvBadge) this.dom.btCsvBadge.style.display = 'none';
+                this.poblarSelectoresEstrategia();
+                this.renderizarTablaDatasetsCSV();
+            };
+        }
+
+        // Drag & drop de CSV o Carpetas
+        if (dropzone) {
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-blue)';
+                dropzone.style.background = 'rgba(41,98,255,0.08)';
+            });
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-border)';
+                dropzone.style.background = 'rgba(255,255,255,0.02)';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--tv-border)';
+                dropzone.style.background = 'rgba(255,255,255,0.02)';
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    this.procesarArchivosCSV(e.dataTransfer.files);
+                }
+            });
+        }
     }
 
     // =========================================================================
