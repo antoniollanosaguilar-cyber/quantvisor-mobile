@@ -71,11 +71,13 @@ window.DrawingEngine = class DrawingEngine {
         this.magnetPoint = null;
 
         this.resize();
-        if (this.container) {
-            new ResizeObserver(() => this.resize()).observe(this.container);
+        if (this.container && typeof ResizeObserver !== 'undefined') {
+            this._resizeObserver = new ResizeObserver(() => this.resize());
+            this._resizeObserver.observe(this.container);
         }
-        if (this.chart && this.chart.timeScale()) {
-            this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this.redraw());
+        if (this.chart && this.chart.timeScale() && typeof this.chart.timeScale().subscribeVisibleLogicalRangeChange === 'function') {
+            this._rangeChangeCb = () => this.redraw();
+            this.chart.timeScale().subscribeVisibleLogicalRangeChange(this._rangeChangeCb);
         }
 
         this.initInteractionEvents();
@@ -674,6 +676,7 @@ window.DrawingEngine = class DrawingEngine {
             const p2 = item.p2 ? this.mapToPixel(item.p2) : null;
 
             switch (item.type) {
+                case 'trend':
                 case 'trendline':
                 case 'ruler':
                     if (p1 && p2 && p1.x !== null && p2.x !== null) {
@@ -926,9 +929,22 @@ window.DrawingEngine = class DrawingEngine {
         });
 
         const handleMouseMove = (e) => {
+            if (e.target === this.canvas && e.currentTarget === window) return;
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
+
+            if (!this.activeTool && !this.isDraggingAnchor && !this.isDraggingDrawing && !this.isDrawingBrush) {
+                const hit = this.hitTest(mouseX, mouseY);
+                if (hit || this.selectedDrawing) {
+                    this.canvas.style.pointerEvents = 'auto';
+                    this.canvas.style.cursor = hit ? (hit.isAnchor ? 'grab' : 'pointer') : 'default';
+                } else {
+                    this.canvas.style.pointerEvents = 'none';
+                    this.canvas.style.cursor = 'default';
+                }
+            }
+
             const marketPoint = (this.magnetMode && (this.activeTool || this.isDraggingAnchor))
                 ? this.snapToCandle(mouseX, mouseY)
                 : this.pixelToMarket(mouseX, mouseY);
@@ -992,10 +1008,12 @@ window.DrawingEngine = class DrawingEngine {
             }
         };
 
+        this._handleMouseMove = handleMouseMove;
         this.canvas.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mousemove', handleMouseMove);
 
-        const finishInteractions = () => {
+        const finishInteractions = (e) => {
+            if (e && e.target === this.canvas && e.currentTarget === window) return;
             if (this.isDrawingBrush && this.activeTool === 'brush') {
                 this.isDrawingBrush = false;
                 if (this.brushPoints.length > 1) {
@@ -1020,6 +1038,7 @@ window.DrawingEngine = class DrawingEngine {
             }
         };
 
+        this._finishInteractions = finishInteractions;
         this.canvas.addEventListener('mouseup', finishInteractions);
         window.addEventListener('mouseup', finishInteractions);
 
@@ -1115,13 +1134,14 @@ window.DrawingEngine = class DrawingEngine {
             }
         });
 
-        window.addEventListener('click', (e) => {
+        this._handleWindowClick = (e) => {
             if (this.contextMenu && !this.contextMenu.contains(e.target)) {
                 this.hideContextMenu();
             }
-        });
+        };
+        window.addEventListener('click', this._handleWindowClick);
 
-        window.addEventListener('keydown', (e) => {
+        this._handleWindowKeyDown = (e) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 const activeEl = document.activeElement;
                 if (activeEl && (
@@ -1139,7 +1159,31 @@ window.DrawingEngine = class DrawingEngine {
                     this.deleteSelectedDrawing();
                 }
             }
-        });
+        };
+        window.addEventListener('keydown', this._handleWindowKeyDown);
+    }
+
+    destroy() {
+        if (typeof window !== 'undefined') {
+            if (this._handleMouseMove) window.removeEventListener('mousemove', this._handleMouseMove);
+            if (this._finishInteractions) window.removeEventListener('mouseup', this._finishInteractions);
+            if (this._handleWindowClick) window.removeEventListener('click', this._handleWindowClick);
+            if (this._handleWindowKeyDown) window.removeEventListener('keydown', this._handleWindowKeyDown);
+        }
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
+        }
+        if (this.chart && this.chart.timeScale() && typeof this.chart.timeScale().unsubscribeVisibleLogicalRangeChange === 'function' && this._rangeChangeCb) {
+            this.chart.timeScale().unsubscribeVisibleLogicalRangeChange(this._rangeChangeCb);
+            this._rangeChangeCb = null;
+        }
+        if (this.canvas && this.canvas.parentNode) {
+            this.canvas.parentNode.removeChild(this.canvas);
+        }
+        if (this.positionOverlaysContainer && this.positionOverlaysContainer.parentNode) {
+            this.positionOverlaysContainer.parentNode.removeChild(this.positionOverlaysContainer);
+        }
     }
 
     redraw() {
@@ -1427,6 +1471,7 @@ window.DrawingEngine = class DrawingEngine {
 
     renderItem(item) {
         switch (item.type) {
+            case 'trend':
             case 'trendline': this.renderTrendline(item); break;
             case 'ray': this.renderRay(item); break;
             case 'horzline': this.renderHorzLine(item); break;

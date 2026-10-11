@@ -1472,17 +1472,24 @@ class MT5VirtualEmulator {
         if (typeof Worker === 'undefined' || typeof window === 'undefined') {
             return;
         }
-        try {
-            this.worker = new Worker('src/mt5_worker.js');
-            this.worker.onmessage = (e) => {
-                const data = e.data || {};
-                if (data.type === 'TICK_HEARTBEAT') {
-                    this.onWorkerHeartbeat(data.time);
-                }
-            };
-            this.logJournal(`[WebWorker] Anti-throttling Web Worker inicializado con éxito.`);
-        } catch (e) {
-            console.warn('No se pudo inicializar Web Worker:', e);
+        const candidatePaths = ['./mt5_worker.js', 'mt5_worker.js', 'src/mt5_worker.js'];
+        for (const workerPath of candidatePaths) {
+            try {
+                this.worker = new Worker(workerPath);
+                this.worker.onmessage = (e) => {
+                    const data = e.data || {};
+                    if (data.type === 'TICK_HEARTBEAT') {
+                        this.onWorkerHeartbeat(data.time);
+                    }
+                };
+                this.logJournal(`[WebWorker] Anti-throttling Web Worker inicializado con éxito (${workerPath}).`);
+                break;
+            } catch (e) {
+                // Probar siguiente ruta
+            }
+        }
+        if (!this.worker) {
+            console.warn('No se pudo inicializar Web Worker en ninguna de las rutas candidatas.');
         }
     }
 
@@ -1714,11 +1721,12 @@ class MT5VirtualEmulator {
         if (!liveCandle) return;
 
         // Reset diario de Equidad a las 00:00 GMT (Regla estricta Prop Firm)
-        const candleDay = Math.floor(liveCandle.time / 86400);
+        const candleSec = liveCandle.time > 1e11 ? Math.floor(liveCandle.time / 1000) : liveCandle.time;
+        const candleDay = Math.floor(candleSec / 86400);
         const lastDay = Math.floor(this.account.lastDayResetTimestamp / 86400);
         if (candleDay > lastDay) {
             this.account.dayStartEquity = this.account.equity;
-            this.account.lastDayResetTimestamp = liveCandle.time;
+            this.account.lastDayResetTimestamp = candleSec;
             this.logJournal(`[DailyReset] Medianoche GMT detectada. Equidad base para pérdida diaria: $${this.account.dayStartEquity.toFixed(2)}`);
         }
 
@@ -1751,12 +1759,20 @@ class MT5VirtualEmulator {
     }
 
     procesarTicksEnPosiciones(candle) {
-        const spec = this.symbolSpecs[this.symbol] || { contractSize: 1, pointVal: 1, spread: 1.0, digits: 2 };
+        const candleSym = candle.symbol || this.symbol;
         const curPrice = candle.close;
         let floatingSum = 0;
 
         for (let i = this.openPositions.length - 1; i >= 0; i--) {
             const pos = this.openPositions[i];
+            
+            // En carteras multi-activo, actualizar la posición solo con ticks de su símbolo correspondiente
+            if (pos.symbol && pos.symbol !== candleSym) {
+                floatingSum += (pos.profit || 0);
+                continue;
+            }
+
+            const spec = this.symbolSpecs[pos.symbol] || this.symbolSpecs[this.symbol] || { contractSize: 1, pointVal: 1, spread: 1.0, digits: 2 };
             pos.currentPrice = curPrice;
 
             // Cálculo de PnL en vivo
@@ -1964,6 +1980,7 @@ class MT5VirtualEmulator {
     }
 
     calcularLotajeSeguro(entryPrice, slPrice) {
+        if (this.account.balance <= 0 || this.account.equity <= 0) return 0;
         const spec = this.symbolSpecs[this.symbol] || { contractSize: 1, pointVal: 1, digits: 2 };
 
         if (this.challengeConfig.riskMode === 'LOTS') {
@@ -2008,6 +2025,7 @@ class MT5VirtualEmulator {
     }
 
     calcularLotajeSeguroParaSimbolo(symbol, entryPrice, slPrice) {
+        if (this.account.balance <= 0 || this.account.equity <= 0) return 0;
         const spec = this.symbolSpecs[symbol] || { contractSize: 1, pointVal: 1, digits: 2 };
 
         if (this.challengeConfig.riskMode === 'LOTS') {
@@ -3234,4 +3252,5 @@ class MT5VirtualEmulator {
 // Instanciar globalmente
 document.addEventListener('DOMContentLoaded', () => {
     window.MT5Emulator = new MT5VirtualEmulator();
+    window.mt5Emulator = window.MT5Emulator;
 });

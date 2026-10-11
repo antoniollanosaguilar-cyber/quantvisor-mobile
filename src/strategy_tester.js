@@ -199,12 +199,42 @@ class StrategyTester {
     }
 
     init() {
+        this.cargarCustomStrategies();
         this.initDOM();
         this.initEventos();
         this.initResizer();
         this.poblarSelectoresEstrategia();
         this.renderizarFormularioPropiedades();
         console.log("⚡ Strategy Tester Inicializado con éxito.");
+    }
+
+    cargarCustomStrategies() {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                const raw = localStorage.getItem('quantvisor_custom_tester_bots');
+                if (raw) {
+                    const list = JSON.parse(raw);
+                    if (Array.isArray(list)) {
+                        list.forEach(([k, v]) => {
+                            if (k && v) this.customStrategies.set(k, v);
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Error cargando estrategias custom de localStorage:', e);
+        }
+    }
+
+    guardarCustomStrategies() {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                const list = Array.from(this.customStrategies.entries());
+                localStorage.setItem('quantvisor_custom_tester_bots', JSON.stringify(list));
+            }
+        } catch (e) {
+            console.warn('Error guardando estrategias custom en localStorage:', e);
+        }
     }
 
     initDOM() {
@@ -304,12 +334,7 @@ class StrategyTester {
 
         // Cambio de Estrategia
         const onStrategyChange = (e) => {
-            const val = e.target.value;
-            this.activeStrategyId = val;
-            if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.value = val;
-            if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.value = val;
-            this.renderizarFormularioPropiedades();
-            this.ejecutarBacktest();
+            this.seleccionarEstrategia(e.target.value);
         };
 
         if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.addEventListener('change', onStrategyChange);
@@ -422,17 +447,13 @@ class StrategyTester {
         // Cargar Bot / Estrategia (.mq5 / .ex5 / .json)
         if (this.dom.btnCargarEstrategia) {
             this.dom.btnCargarEstrategia.addEventListener('click', () => {
-                if (this.dom.strategyImportModal) {
-                    this.dom.strategyImportModal.style.display = 'flex';
-                } else if (this.dom.strategyFileInput) {
-                    this.dom.strategyFileInput.click();
-                }
+                this.abrirModalImportacion();
             });
         }
 
         if (this.dom.strategyFileInput) {
             this.dom.strategyFileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
+                const file = e.target.files && e.target.files[0];
                 if (file) this.procesarArchivoBot(file);
             });
         }
@@ -541,6 +562,39 @@ class StrategyTester {
         }
     }
 
+    seleccionarEstrategia(stratId) {
+        if (!stratId) return;
+        this.activeStrategyId = stratId;
+        if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.value = stratId;
+        if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.value = stratId;
+
+        const strat = this.getEstrategiaActiva();
+        if (strat) {
+            if (strat.multiAsset) {
+                this.isMultiAsset = true;
+                const syms = (strat.symbols && strat.symbols.length > 0) ? strat.symbols : this.multiAssetSymbols;
+                this.multiAssetSymbols = syms;
+                if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'multi';
+                if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'none';
+                if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'flex';
+                if (this.dom.btMultiSymbolsInput) this.dom.btMultiSymbolsInput.value = syms.join(', ');
+            } else {
+                this.isMultiAsset = false;
+                const sym = strat.symbol || (strat.symbols && strat.symbols[0]) || 'BTC-USD';
+                if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'single';
+                if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'flex';
+                if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'none';
+                if (this.dom.selectSymbol) this.dom.selectSymbol.value = sym;
+                window.currentSymbol = sym;
+            }
+        }
+
+        this.blotterCurrentPage = 1;
+        this.limpiarMarcadoresEnGrafico();
+        this.renderizarFormularioPropiedades();
+        this.ejecutarBacktest();
+    }
+
     poblarSelectoresEstrategia() {
         const fleetBots = (window.MT5Emulator && window.MT5Emulator.botsCatalog) ? window.MT5Emulator.botsCatalog : {};
         const todas = { ...this.preloadedStrategies };
@@ -574,10 +628,10 @@ class StrategyTester {
         if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.innerHTML = opciones;
         if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.innerHTML = opciones;
         
-        if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.value = this.activeStrategyId;
-        if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.value = this.activeStrategyId;
+        if (this.dom.selectStrategyTester && this.activeStrategyId) this.dom.selectStrategyTester.value = this.activeStrategyId;
+        if (this.dom.selectStrategyTop && this.activeStrategyId) this.dom.selectStrategyTop.value = this.activeStrategyId;
 
-        // Poblar selector de símbolos del backtester (combinando por defecto + datasets CSV cargados)
+        // Poblar selector de símbolos del backtester (combinando por defecto + datasets CSV cargados + símbolos de bots)
         if (this.dom.selectSymbol) {
             const currentVal = this.dom.selectSymbol.value;
             const baseSyms = [
@@ -599,12 +653,27 @@ class StrategyTester {
                 isCsv: true
             }));
 
-            const combined = [...csvSyms, ...baseSyms.filter(b => !this.csvDatasets[b.s])];
+            // Agregar cualquier símbolo extraído de los bots personalizados
+            const botExtraSyms = [];
+            this.customStrategies.forEach(b => {
+                const syms = b.symbols || [b.symbol];
+                syms.forEach(sym => {
+                    if (sym && !baseSyms.some(x => x.s === sym) && !this.csvDatasets[sym] && !botExtraSyms.some(x => x.s === sym)) {
+                        botExtraSyms.push({ s: sym, n: 'Activo de Bot', isBot: true });
+                    }
+                });
+            });
+
+            const combined = [...csvSyms, ...baseSyms.filter(b => !this.csvDatasets[b.s]), ...botExtraSyms];
             this.dom.selectSymbol.innerHTML = combined.map(x => 
                 `<option value="${x.s}">${x.isCsv ? '📊 ' : ''}${x.s} (${x.n})</option>`
             ).join('');
 
-            if (currentVal && combined.some(x => x.s === currentVal)) {
+            const activeBot = this.getEstrategiaActiva();
+            const targetSym = (activeBot && activeBot.symbol) || currentVal || window.currentSymbol;
+            if (targetSym && combined.some(x => x.s === targetSym)) {
+                this.dom.selectSymbol.value = targetSym;
+            } else if (currentVal && combined.some(x => x.s === currentVal)) {
                 this.dom.selectSymbol.value = currentVal;
             } else if (window.currentSymbol && combined.some(x => x.s === window.currentSymbol)) {
                 this.dom.selectSymbol.value = window.currentSymbol;
@@ -652,9 +721,13 @@ class StrategyTester {
                 const strat = this.getEstrategiaActiva();
                 const stratName = strat ? strat.name : 'Estrategia Cuantitativa';
                 const curSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
+                const isCsv = !!(this.resolverDatasetCSV(curSym));
+                const badge = isCsv 
+                    ? `<span style="background:rgba(8,153,129,0.25); color:#089981; border:1px solid rgba(8,153,129,0.4); padding:1px 5px; border-radius:3px; font-size:10px; font-weight:bold;">📊 CSV</span>`
+                    : `<span style="background:rgba(41,98,255,0.2); color:#5b8cff; border:1px solid rgba(41,98,255,0.4); padding:1px 5px; border-radius:3px; font-size:10px;">🌐 LIVE</span>`;
 
                 if (!param || !param.time || !param.seriesData) {
-                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> <span style="color:#5b8cff;">[${stratName}]</span> <span style="color:#787b86;">Gráfico Cuantitativo Dedicado (Marcadores de Compra / Venta)</span>`;
+                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> ${badge} <span style="color:#5b8cff;">[${stratName}]</span> <span style="color:#787b86;">Gráfico Cuantitativo Dedicado (Marcadores de Compra / Venta)</span>`;
                     return;
                 }
                 const d = param.seriesData.get(this.backtestCandleSeries);
@@ -662,12 +735,21 @@ class StrategyTester {
                     const diff = d.close - d.open;
                     const isUp = diff >= 0;
                     const color = isUp ? '#089981' : '#f23645';
-                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> <span style="color:#5b8cff;">[${stratName}]</span> O:<span style="color:${color};">${d.open.toFixed(2)}</span> H:<span style="color:${color};">${d.high.toFixed(2)}</span> L:<span style="color:${color};">${d.low.toFixed(2)}</span> C:<span style="color:${color};">${d.close.toFixed(2)}</span>`;
+                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> ${badge} <span style="color:#5b8cff;">[${stratName}]</span> O:<span style="color:${color};">${d.open.toFixed(2)}</span> H:<span style="color:${color};">${d.high.toFixed(2)}</span> L:<span style="color:${color};">${d.low.toFixed(2)}</span> C:<span style="color:${color};">${d.close.toFixed(2)}</span>`;
                 }
             });
 
             new ResizeObserver(() => this.resizeCharts()).observe(container);
         }
+    }
+
+    actualizarLeyendaBacktest(sym, stratName, isCsv, count) {
+        const legEl = document.getElementById('backtest-chart-legend');
+        if (!legEl) return;
+        const badge = isCsv 
+            ? `<span style="background:rgba(8,153,129,0.25); color:#089981; border:1px solid rgba(8,153,129,0.4); padding:2px 7px; border-radius:3px; font-size:11px; font-weight:bold;">📊 ARCHIVO HISTÓRICO CSV (${(count||0).toLocaleString()} velas)</span>` 
+            : `<span style="background:rgba(41,98,255,0.2); color:#5b8cff; border:1px solid rgba(41,98,255,0.4); padding:2px 7px; border-radius:3px; font-size:11px;">🌐 MERCADO EN VIVO / API (${(count||0).toLocaleString()} velas)</span>`;
+        legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${sym}</span> ${badge} <span style="color:#5b8cff;">[${stratName}]</span> <span style="color:#787b86;">Gráfico Cuantitativo Dedicado</span>`;
     }
 
     // =========================================================================
@@ -676,6 +758,8 @@ class StrategyTester {
     async ejecutarBacktest() {
         const strat = this.getEstrategiaActiva();
         if (!strat) return;
+
+        this.limpiarMarcadoresEnGrafico();
 
         // Comprobar si estamos en Modo Multi-Activo (o si la estrategia es de cartera multi-activo)
         if (this.isMultiAsset || (strat && strat.multiAsset)) {
@@ -694,17 +778,48 @@ class StrategyTester {
         const curSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
         const curTf = (this.dom.selectTf ? this.dom.selectTf.value : null) || window.currentInterval || '1h';
 
-        let candles = this.currentCandles;
-        if (this.csvDatasets[curSym] && this.csvDatasets[curSym].length >= 10) {
-            candles = this.csvDatasets[curSym];
+        // 1. PRIORIDAD MÁXIMA: Resolver si existe dataset CSV cargado en memoria (o alias compatible)
+        let candles = null;
+        let esDeCsv = false;
+        const csvMatch = this.resolverDatasetCSV(curSym);
+
+        if (csvMatch && csvMatch.candles && csvMatch.candles.length >= 10) {
+            candles = csvMatch.candles;
             this.currentCandles = candles;
-        } else if (!candles || candles.length < 30) {
-            candles = await this.obtenerVelasParaSimbolo(curSym);
-            this.currentCandles = candles;
+            this.currentCandlesSymbol = curSym;
+            esDeCsv = true;
+            console.log(`📊 Usando dataset CSV cargado en memoria para '${curSym}': ${candles.length} velas.`);
+        } else {
+            // 2. Si aún no está en memoria, buscar si existe archivo CSV en la carpeta local del proyecto
+            const autoCsv = await this.intentarCargarCSVLocalParaSimbolo(curSym);
+            if (autoCsv && autoCsv.length >= 10) {
+                candles = autoCsv;
+                this.currentCandles = candles;
+                this.currentCandlesSymbol = curSym;
+                esDeCsv = true;
+                console.log(`📂 Auto-cargado dataset CSV desde disco para '${curSym}': ${candles.length} velas.`);
+            } else {
+                // 3. Fallback a velas en vivo / API / sintéticas
+                candles = await this.obtenerVelasParaSimbolo(curSym);
+                this.currentCandles = candles;
+                this.currentCandlesSymbol = curSym;
+                esDeCsv = false;
+            }
         }
 
         if (!candles || candles.length < 30) {
             console.warn("⚠️ No hay suficientes velas para ejecutar el backtest (mínimo 30).");
+            this.lastBacktestResult = {
+                strategy: strat,
+                trades: [],
+                metrics: this.calcularMetricas([], this.executionProps.initialCapital, this.executionProps.initialCapital, 0, 0),
+                isMultiAsset: false,
+                symbol: curSym,
+                candlesCount: candles ? candles.length : 0,
+                isCsv: esDeCsv
+            };
+            this.renderizarResumenKPIs();
+            this.renderizarTradeBlotter();
             return;
         }
 
@@ -716,9 +831,10 @@ class StrategyTester {
             }
         }
 
-        // Intentar invocar el motor de Rust nativo de ultra-alta velocidad si estamos en Tauri y no es CSV local
-        const isCsvDataset = !!(this.csvDatasets[curSym]);
-        const invoke = (!isCsvDataset && window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (!isCsvDataset && window.__TAURI__ ? window.__TAURI__.invoke : null);
+        this.actualizarLeyendaBacktest(curSym, strat.name, esDeCsv, candles.length);
+
+        // Si es dataset CSV, omitir Tauri nativo (diseñado para feed live de MT5) y ejecutar en simulador JS local barra a barra
+        const invoke = (!esDeCsv && window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (!esDeCsv && window.__TAURI__ ? window.__TAURI__.invoke : null);
         if (invoke) {
             try {
                 const rustConfig = this.construirRustConfig(strat, this.executionProps);
@@ -728,7 +844,7 @@ class StrategyTester {
                         candles: candles
                     });
                     if (rustResult && rustResult.metrics) {
-                        this.procesarResultadoRust(rustResult, strat, candles);
+                        this.procesarResultadoRust(rustResult, strat, candles, curSym, esDeCsv);
                         return;
                     }
                 }
@@ -737,17 +853,29 @@ class StrategyTester {
             }
         }
 
-        // Ejecutar en motor JS local de alta velocidad (Navegador / Fallback)
-        this.ejecutarBacktestJS(candles, strat, curSym);
+        // Ejecutar en motor JS local de alta velocidad (Navegador / Fallback / CSV)
+        this.ejecutarBacktestJS(candles, strat, curSym, esDeCsv);
     }
 
     async obtenerVelasParaSimbolo(sym) {
-        if (this.csvDatasets[sym] && this.csvDatasets[sym].length >= 10) {
-            return this.csvDatasets[sym];
+        // Prioridad 1: Dataset CSV en memoria
+        const csvMatch = this.resolverDatasetCSV(sym);
+        if (csvMatch && csvMatch.candles && csvMatch.candles.length >= 10) {
+            return csvMatch.candles;
         }
+
+        // Prioridad 2: Auto-carga desde archivo CSV en disco si existe
+        const autoCsv = await this.intentarCargarCSVLocalParaSimbolo(sym);
+        if (autoCsv && autoCsv.length >= 10) {
+            return autoCsv;
+        }
+
+        // Prioridad 3: Historial en memoria de la ventana principal
         if (sym === window.currentSymbol && window.historialVelas && window.historialVelas.length >= 30) {
             return window.historialVelas;
         }
+
+        // Prioridad 4: Invoke de Tauri
         const invoke = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (window.__TAURI__ ? window.__TAURI__.invoke : null);
         if (invoke) {
             try {
@@ -756,6 +884,8 @@ class StrategyTester {
                 if (fetched && fetched.length >= 30) return fetched;
             } catch(e) {}
         }
+
+        // Prioridad 5: API de servidor local
         try {
             const resp = await fetch(`/api/history?symbol=${encodeURIComponent(sym)}&interval=1h`);
             if (resp.ok) {
@@ -764,6 +894,7 @@ class StrategyTester {
             }
         } catch(e) {}
 
+        // Prioridad 6: Generador sintético de pruebas
         if (typeof window.generarVelasSinteticasGenericas === 'function') {
             return window.generarVelasSinteticasGenericas(sym, 300);
         }
@@ -783,7 +914,11 @@ class StrategyTester {
         const breakdown = {};
         let firstCandles = null;
 
+        let csvMatchesCount = 0;
         for (const sym of symbolsList) {
+            const isSymCsv = !!(this.resolverDatasetCSV(sym));
+            if (isSymCsv) csvMatchesCount++;
+
             const candles = await this.obtenerVelasParaSimbolo(sym);
             if (!candles || candles.length < 30) {
                 console.warn(`⚠️ Omitiendo ${sym}: velas insuficientes (${candles ? candles.length : 0}).`);
@@ -820,6 +955,8 @@ class StrategyTester {
             }
         }
 
+        this.actualizarLeyendaBacktest(symbolsList.join(' / '), strat.name, csvMatchesCount > 0, allTrades.length);
+
         if (allTrades.length === 0) {
             console.warn("⚠️ No se generaron operaciones en la cesta multi-activo.");
             this.lastBacktestResult = {
@@ -829,7 +966,9 @@ class StrategyTester {
                 isMultiAsset: true,
                 symbols: symbolsList,
                 breakdown: breakdown,
-                candlesCount: 0
+                candlesCount: 0,
+                isCsv: csvMatchesCount > 0,
+                csvCount: csvMatchesCount
             };
             this.renderizarResumenKPIs();
             this.renderizarTradeBlotter();
@@ -866,7 +1005,9 @@ class StrategyTester {
             isMultiAsset: true,
             symbols: symbolsList,
             breakdown: breakdown,
-            candlesCount: allTrades.length
+            candlesCount: allTrades.length,
+            isCsv: csvMatchesCount > 0,
+            csvCount: csvMatchesCount
         };
 
         this.renderizarResumenKPIs();
@@ -954,7 +1095,7 @@ class StrategyTester {
         };
     }
 
-    procesarResultadoRust(rustResult, strat, candles) {
+    procesarResultadoRust(rustResult, strat, candles, curSym = 'BTC-USD', isCsv = false) {
         const trades = (rustResult.trades || []).map(t => ({
             id: t.id,
             type: t.direction,
@@ -974,30 +1115,51 @@ class StrategyTester {
             drawdownPct: 0
         }));
 
+        const grossProfit = trades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0);
+        const grossLoss = Math.abs(trades.filter(t => t.pnl < 0).reduce((acc, t) => acc + t.pnl, 0));
+        const totalTrades = rustResult.metrics.total_trades || trades.length || 0;
+        const winningTrades = rustResult.metrics.win_trades || trades.filter(t => t.pnl > 0).length || 0;
+        const losingTrades = rustResult.metrics.loss_trades || trades.filter(t => t.pnl < 0).length || 0;
+        const netProfit = rustResult.metrics.net_profit !== undefined ? rustResult.metrics.net_profit : (grossProfit - grossLoss);
+        const maxDDUSD = rustResult.metrics.max_drawdown || 0;
+        const avgWin = rustResult.metrics.avg_win || (winningTrades > 0 ? grossProfit / winningTrades : 0);
+        const avgLoss = rustResult.metrics.avg_loss || (losingTrades > 0 ? grossLoss / losingTrades : 0);
+
         this.lastBacktestResult = {
             strategy: strat,
             trades,
             metrics: {
-                netProfit: rustResult.metrics.net_profit,
-                returnPct: rustResult.metrics.return_pct,
-                profitFactor: rustResult.metrics.profit_factor,
-                winRate: rustResult.metrics.win_rate,
-                maxDrawdown: rustResult.metrics.max_drawdown,
-                maxDrawdownPct: rustResult.metrics.max_drawdown_pct,
-                sharpeRatio: rustResult.metrics.sharpe_ratio,
-                sortinoRatio: rustResult.metrics.sortino_ratio,
-                totalTrades: rustResult.metrics.total_trades,
-                winTrades: rustResult.metrics.win_trades,
-                lossTrades: rustResult.metrics.loss_trades,
-                avgTrade: rustResult.metrics.avg_trade,
-                avgWin: rustResult.metrics.avg_win,
-                avgLoss: rustResult.metrics.avg_loss,
-                maxConsecutiveLosses: rustResult.metrics.max_consecutive_losses,
-                riskRewardRatio: rustResult.metrics.avg_loss > 0 ? (rustResult.metrics.avg_win / rustResult.metrics.avg_loss) : 0,
-                recoveryFactor: rustResult.metrics.max_drawdown > 0 ? (rustResult.metrics.net_profit / rustResult.metrics.max_drawdown) : 0
+                netProfit: netProfit,
+                returnPct: rustResult.metrics.return_pct || 0,
+                profitFactor: rustResult.metrics.profit_factor !== undefined ? rustResult.metrics.profit_factor : (grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 99.99 : 0)),
+                winRate: rustResult.metrics.win_rate || (totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0),
+                maxDrawdownUSD: maxDDUSD,
+                maxDrawdownPct: rustResult.metrics.max_drawdown_pct || 0,
+                maxDrawdown: maxDDUSD,
+                sharpe: rustResult.metrics.sharpe_ratio || 0,
+                sortino: rustResult.metrics.sortino_ratio || 0,
+                sharpeRatio: rustResult.metrics.sharpe_ratio || 0,
+                sortinoRatio: rustResult.metrics.sortino_ratio || 0,
+                totalTrades: totalTrades,
+                winningTrades: winningTrades,
+                losingTrades: losingTrades,
+                winTrades: winningTrades,
+                lossTrades: losingTrades,
+                grossProfit: grossProfit,
+                grossLoss: grossLoss,
+                avgTrade: rustResult.metrics.avg_trade || (totalTrades > 0 ? netProfit / totalTrades : 0),
+                avgWin: avgWin,
+                avgLoss: avgLoss,
+                riskReward: avgLoss > 0 ? (avgWin / avgLoss) : 0,
+                riskRewardRatio: avgLoss > 0 ? (avgWin / avgLoss) : 0,
+                recoveryFactor: maxDDUSD > 0 ? (netProfit / maxDDUSD) : (netProfit > 0 ? 99.99 : 0),
+                totalCommission: trades.reduce((acc, t) => acc + (t.commission || 0), 0)
             },
             candlesCount: candles.length,
-            rustEquityCurve: rustResult.equity_curve || []
+            rustEquityCurve: rustResult.equity_curve || [],
+            isMultiAsset: false,
+            symbol: curSym,
+            isCsv: isCsv
         };
 
         this.renderizarResumenKPIs();
@@ -1366,6 +1528,10 @@ class StrategyTester {
                         ? (c.close * (1 + slippagePct) + halfSpread)
                         : (c.close * (1 - slippagePct) - halfSpread);
                     
+                    if (capital <= 0) {
+                        break; // Cuenta quebrada: detener simulación
+                    }
+
                     // Cálculo de tamaño de posición
                     let sizeUSD = props.orderType === 'percent' 
                         ? (capital * (props.orderValue / 100))
@@ -1446,7 +1612,7 @@ class StrategyTester {
         };
     }
 
-    ejecutarBacktestJS(candles, strat, symbol = null) {
+    ejecutarBacktestJS(candles, strat, symbol = null, isCsv = false) {
         const curSym = symbol || (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
         const props = this.executionProps;
         const sim = this.simularTradesParaVelas(candles, strat, curSym, props.initialCapital);
@@ -1458,7 +1624,8 @@ class StrategyTester {
             metrics: metricas,
             candlesCount: candles.length,
             isMultiAsset: false,
-            symbol: curSym
+            symbol: curSym,
+            isCsv: isCsv
         };
 
         // Renderizar vistas
@@ -1545,8 +1712,13 @@ class StrategyTester {
         const returnsArray = [];
 
         trades.forEach(t => {
-            totalCommission += t.commission;
-            returnsArray.push(t.returnPct);
+            const comm = Number.isFinite(t.commission) ? t.commission : 0;
+            totalCommission += comm;
+
+            const ret = Number.isFinite(t.returnPct) 
+                ? t.returnPct 
+                : (t.sizeUSD > 0 ? ((t.pnl || t.netPnL || 0) / t.sizeUSD) * 100 : 0);
+            returnsArray.push(Number.isFinite(ret) ? ret : 0);
 
             if (t.type === 'LONG') {
                 longTrades++;
@@ -1579,20 +1751,25 @@ class StrategyTester {
         const avgWin = winningTrades > 0 ? grossProfit / winningTrades : 0;
         const avgLoss = losingTrades > 0 ? grossLoss / losingTrades : 0;
         const riskReward = avgLoss === 0 ? 0 : (avgWin / avgLoss);
-        const recoveryFactor = maxDDUSD === 0 ? 99.99 : (netProfit / maxDDUSD);
+        const recoveryFactor = maxDDUSD > 0 ? (netProfit / maxDDUSD) : (netProfit > 0 ? 99.99 : 0);
 
         // Sharpe y Sortino
-        const meanReturn = returnsArray.reduce((a, b) => a + b, 0) / totalTrades;
-        const variance = returnsArray.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / (totalTrades > 1 ? totalTrades - 1 : 1);
+        const meanReturn = totalTrades > 0 ? (returnsArray.reduce((a, b) => a + b, 0) / totalTrades) : 0;
+        const variance = totalTrades > 1 
+            ? (returnsArray.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / (totalTrades - 1))
+            : 0;
         const stdDev = Math.sqrt(variance);
-        const sharpe = stdDev === 0 ? 0 : (meanReturn / stdDev) * Math.sqrt(totalTrades);
+        const sharpe = (stdDev === 0 || !Number.isFinite(stdDev)) 
+            ? (meanReturn > 0 ? 9.99 : 0) 
+            : (meanReturn / stdDev) * Math.sqrt(totalTrades);
 
-        const downsideReturns = returnsArray.filter(r => r < 0);
-        const downsideVariance = downsideReturns.length > 0 
-            ? downsideReturns.reduce((a, b) => a + Math.pow(b, 2), 0) / downsideReturns.length 
+        const downsideVariance = totalTrades > 0 
+            ? returnsArray.reduce((acc, r) => acc + Math.pow(Math.min(0, r), 2), 0) / totalTrades 
             : 0;
         const downsideStdDev = Math.sqrt(downsideVariance);
-        const sortino = downsideStdDev === 0 ? (sharpe > 0 ? 9.99 : 0) : (meanReturn / downsideStdDev) * Math.sqrt(totalTrades);
+        const sortino = (downsideStdDev === 0 || !Number.isFinite(downsideStdDev)) 
+            ? (meanReturn > 0 ? 9.99 : 0) 
+            : (meanReturn / downsideStdDev) * Math.sqrt(totalTrades);
 
         return {
             netProfit, returnPct, initialCapital, finalCapital,
@@ -1617,11 +1794,45 @@ class StrategyTester {
 
         // 1. Grid de Tarjetas KPI
         if (this.dom.summaryGrid) {
+            const res = this.lastBacktestResult;
+            const isCsv = !!(res && res.isCsv);
+            const candlesCount = (res && res.candlesCount) || 0;
+            const symLabel = (res && res.isMultiAsset) 
+                ? (res.symbols || []).join(', ') 
+                : (res && res.symbol ? res.symbol : (this.dom.selectSymbol ? this.dom.selectSymbol.value : 'Activo'));
+
+            const dataSourceBanner = isCsv
+                ? `<div style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; background:rgba(8,153,129,0.12); border:1px solid rgba(8,153,129,0.35); border-radius:6px; padding:8px 14px; margin-bottom:8px; font-size:12px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:16px;">📊</span>
+                        <span style="font-weight:bold; color:#fff;">Fuente de Datos:</span>
+                        <span style="color:#089981; font-weight:bold; background:rgba(8,153,129,0.2); padding:2px 8px; border-radius:4px;">Archivo Histórico CSV (${candlesCount.toLocaleString()} velas reales)</span>
+                        <span style="color:var(--tv-text-secondary); font-size:11px;">[${symLabel}]</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#089981; box-shadow:0 0 6px #089981;"></span>
+                        <span style="color:#089981; font-weight:600; font-size:11px;">DATOS HISTÓRICOS REALES VERIFICADOS</span>
+                    </div>
+                   </div>`
+                : `<div style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; background:rgba(41,98,255,0.08); border:1px solid rgba(41,98,255,0.25); border-radius:6px; padding:8px 14px; margin-bottom:8px; font-size:12px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:16px;">🌐</span>
+                        <span style="font-weight:bold; color:#fff;">Fuente de Datos:</span>
+                        <span style="color:#5b8cff; font-weight:bold; background:rgba(41,98,255,0.2); padding:2px 8px; border-radius:4px;">Feed de Mercado en Vivo / API (${candlesCount.toLocaleString()} velas)</span>
+                        <span style="color:var(--tv-text-secondary); font-size:11px;">[${symLabel}]</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#5b8cff; box-shadow:0 0 6px #5b8cff;"></span>
+                        <span style="color:#5b8cff; font-weight:600; font-size:11px;">FEED DE MERCADO EN VIVO</span>
+                    </div>
+                   </div>`;
+
             const netSign = m.netProfit >= 0 ? '+' : '';
             const netClass = m.netProfit >= 0 ? 'pos' : 'neg';
             const pfColor = m.profitFactor >= 1.5 ? 'pos' : (m.profitFactor >= 1.0 ? '' : 'neg');
 
             this.dom.summaryGrid.innerHTML = `
+                ${dataSourceBanner}
                 <div class="tv-kpi-card accent-green">
                     <div class="tv-kpi-label">Ganancia Neta</div>
                     <div class="tv-kpi-value ${netClass}">${netSign}$${m.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -1777,16 +1988,28 @@ class StrategyTester {
         if (!this.lastBacktestResult) return;
         const trades = this.lastBacktestResult.trades;
         const initialCap = this.executionProps.initialCapital;
-        const candles = window.historialVelas || [];
-        const startTime = candles.length > 0 ? candles[0].time : Math.floor(Date.now()/1000) - 86400;
+        const sortedTrades = [...trades].sort((a, b) => (a.exitTime || 0) - (b.exitTime || 0));
+        const datasetCandles = (this.lastBacktestResult && this.lastBacktestResult.candles) 
+            || this.currentCandles 
+            || window.historialVelas 
+            || [];
+        const baseStartTime = (datasetCandles.length > 0 ? datasetCandles[0].time : Math.floor(Date.now() / 1000) - 86400);
+        const startTime = (sortedTrades.length > 0 && sortedTrades[0].entryTime && sortedTrades[0].entryTime < baseStartTime)
+            ? sortedTrades[0].entryTime
+            : baseStartTime;
 
         // Actualizar chips de métricas superiores en Tab 2
         const capFinalEl = document.getElementById('chip-cap-final');
         const capMaxEl = document.getElementById('chip-cap-max');
         const ddMaxEl = document.getElementById('chip-dd-max');
-        if (capFinalEl) capFinalEl.innerText = `$${this.lastBacktestResult.metrics.finalCapital.toFixed(2)}`;
-        if (capMaxEl) capMaxEl.innerText = `$${(this.lastBacktestResult.metrics.initialCapital + Math.max(0, this.lastBacktestResult.metrics.grossProfit)).toFixed(2)}`;
-        if (ddMaxEl) ddMaxEl.innerText = `-${this.lastBacktestResult.metrics.maxDrawdownPct.toFixed(2)}%`;
+        const finalCapVal = Number.isFinite(this.lastBacktestResult.metrics.finalCapital)
+            ? this.lastBacktestResult.metrics.finalCapital
+            : (initialCap + (this.lastBacktestResult.metrics.netProfit || 0));
+        const peakEquity = trades.reduce((max, t) => Math.max(max, t.cumulativeBalance || initialCap), initialCap);
+
+        if (capFinalEl) capFinalEl.innerText = `$${finalCapVal.toFixed(2)}`;
+        if (capMaxEl) capMaxEl.innerText = `$${peakEquity.toFixed(2)}`;
+        if (ddMaxEl) ddMaxEl.innerText = `-${(this.lastBacktestResult.metrics.maxDrawdownPct || 0).toFixed(2)}%`;
 
         const eqContainer = this.dom.equityChartContainer;
         const ddContainer = this.dom.drawdownChartContainer;
@@ -1795,13 +2018,10 @@ class StrategyTester {
         // Construir datos de curva de capital
         const equityData = [{ time: startTime, value: initialCap }];
         const drawdownData = [{ time: startTime, value: 0 }];
-
-        // Asegurar orden cronológico ascendente estricto
-        const sortedTrades = [...trades].sort((a, b) => a.exitTime - b.exitTime);
         let prevTime = startTime;
 
         sortedTrades.forEach((t) => {
-            let tradeTime = t.exitTime;
+            let tradeTime = t.exitTime || (prevTime + 1);
             if (tradeTime <= prevTime) tradeTime = prevTime + 1; // Evitar timestamps duplicados
             prevTime = tradeTime;
 
@@ -1812,7 +2032,7 @@ class StrategyTester {
 
             drawdownData.push({
                 time: tradeTime,
-                value: -Math.abs(t.drawdownPct)
+                value: -Math.abs(t.drawdownPct || 0)
             });
         });
 
@@ -2238,6 +2458,15 @@ class StrategyTester {
     // =========================================================================
     // MARCADORES VISUALES EN LIGHTWEIGHT CHARTS
     // =========================================================================
+    limpiarMarcadoresEnGrafico() {
+        if (this.backtestCandleSeries && typeof this.backtestCandleSeries.setMarkers === 'function') {
+            this.backtestCandleSeries.setMarkers([]);
+        }
+        if (window.activePriceSeries && typeof window.activePriceSeries.setMarkers === 'function') {
+            window.activePriceSeries.setMarkers([]);
+        }
+    }
+
     actualizarMarcadoresEnGrafico() {
         // Asegurar que el gráfico principal NUNCA tenga marcadores para no confundir
         if (window.activePriceSeries && typeof window.activePriceSeries.setMarkers === 'function') {
@@ -2362,32 +2591,49 @@ class StrategyTester {
         const mapaAlias = {
             'XAUUSD': 'XAUUSD', 'GOLD': 'XAUUSD', 'ORO': 'XAUUSD',
             'XAGUSD': 'XAGUSD', 'SILVER': 'XAGUSD', 'PLATA': 'XAGUSD',
-            'BTCUSD': 'BTC-USD', 'BTCUSDT': 'BTC-USD', 'BTC-USD': 'BTC-USD', 'BITCOIN': 'BTC-USD',
-            'ETHUSD': 'ETH-USD', 'ETHUSDT': 'ETH-USD', 'ETH-USD': 'ETH-USD', 'ETHEREUM': 'ETH-USD',
-            'SOLUSD': 'SOL-USD', 'SOLUSDT': 'SOL-USD', 'SOL-USD': 'SOL-USD', 'SOLANA': 'SOL-USD',
+            'BTCUSD': 'BTC-USD', 'BTCUSDT': 'BTC-USD', 'BTC-USD': 'BTC-USD', 'BITCOIN': 'BTC-USD', 'BTC': 'BTC-USD',
+            'ETHUSD': 'ETH-USD', 'ETHUSDT': 'ETH-USD', 'ETH-USD': 'ETH-USD', 'ETHEREUM': 'ETH-USD', 'ETH': 'ETH-USD',
+            'SOLUSD': 'SOL-USD', 'SOLUSDT': 'SOL-USD', 'SOL-USD': 'SOL-USD', 'SOLANA': 'SOL-USD', 'SOL': 'SOL-USD',
             'XRPUSD': 'XRP-USD', 'BNBUSD': 'BNB-USD', 'ADAUSD': 'ADA-USD',
             'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'AUDUSD': 'AUDUSD',
             'USDCAD': 'USDCAD', 'USDCHF': 'USDCHF', 'NZDUSD': 'NZDUSD',
             'EURGBP': 'EURGBP', 'EURJPY': 'EURJPY', 'GBPJPY': 'GBPJPY', 'AUDJPY': 'AUDJPY',
-            'NASDAQ': 'NASDAQ', 'US100': 'NASDAQ', 'USTEC': 'NASDAQ', 'NQ': 'NASDAQ', 'NDX': 'NASDAQ',
-            'SP500': 'SP500', 'US500': 'SP500', 'ES': 'SP500', 'SPX': 'SP500',
-            'US30': 'US30', 'DOW': 'US30', 'DJI': 'US30', 'YM': 'US30',
+            'NASDAQ': 'NASDAQ', 'US100': 'NASDAQ', 'USTEC': 'NASDAQ', 'NDX': 'NASDAQ',
+            'SP500': 'SP500', 'US500': 'SP500', 'SPX': 'SP500',
+            'US30': 'US30', 'DOW': 'US30', 'DJI': 'US30',
             'DAX': 'DAX', 'GER40': 'DAX',
             'NVDA': 'NVDA', 'AAPL': 'AAPL', 'TSLA': 'TSLA', 'MSFT': 'MSFT', 'AMZN': 'AMZN', 'GOOGL': 'GOOGL'
         };
 
+        const CURRENCIES = new Set(['USD','EUR','GBP','JPY','AUD','CAD','CHF','NZD','CNH','SGD','HKD','SEK','NOK','MXN','ZAR','TRY','PLN']);
+        const CRYPTOS = new Set(['BTC','ETH','SOL','XRP','BNB','ADA','DOG','DOT','AVX','LTC','LNK']);
+        const METALS = new Set(['XAU','XAG','XPT','XPD']);
+
+        const esParValido = (str) => {
+            if (!str || str.length !== 6) return false;
+            const base = str.slice(0, 3);
+            const quote = str.slice(3, 6);
+            if (METALS.has(base) && CURRENCIES.has(quote)) return true;
+            if (CRYPTOS.has(base) && CURRENCIES.has(quote)) return true;
+            if (CURRENCIES.has(base) && CURRENCIES.has(quote)) return true;
+            return false;
+        };
+
         const normalizar = (raw) => {
             if (!raw) return null;
-            const clean = raw.trim().toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+            const clean = raw.trim().toUpperCase();
+            // Descartar inmediatamente cadenas que contengan puntuación o ruido binario
+            if (/[^A-Z0-9_\-]/.test(clean)) return null;
+            const noGuion = clean.replace(/[-_]/g, '');
             if (mapaAlias[clean]) return mapaAlias[clean];
-            const noGuion = clean.replace('-', '');
             if (mapaAlias[noGuion]) return mapaAlias[noGuion];
-            if (/^[A-Z]{6}$/.test(clean)) return clean;
+            if (esParValido(noGuion)) return noGuion;
             return null;
         };
 
-        // 1. Extraer de inputs de MQL5 o variables explícitas
+        // 1. Extraer de código fuente MQL5 o JSON (estructuras, variables, comentarios)
         if (typeof fuente === 'string') {
+            // Inputs explícitos de símbolos
             const regexInputString = /(?:input|sinput)\s+string\s+[a-zA-Z0-9_]*(?:symbol|symbols|pair|pairs|basket|instruments|asset|assets)[a-zA-Z0-9_]*\s*=\s*["']([^"']+)["']/gi;
             let m;
             while ((m = regexInputString.exec(fuente)) !== null) {
@@ -2405,23 +2651,35 @@ class StrategyTester {
                 const norm = normalizar(mf[1]);
                 if (norm) encontrados.add(norm);
             }
+
+            // Literales de símbolos entre comillas o corchetes: "XAUUSD", "USTEC", [BTCUSD], etc.
+            const regexQuotes = /["'\[]([A-Z0-9_\-]{3,12})["'\]]/g;
+            let mq;
+            while ((mq = regexQuotes.exec(fuente)) !== null) {
+                const norm = normalizar(mq[1]);
+                if (norm) encontrados.add(norm);
+            }
         }
 
-        // 2. Extraer de array de cadenas (EX5)
+        // 2. Extraer de array de cadenas (EX5) con filtro estricto de ruido
         if (Array.isArray(fuente)) {
             fuente.forEach(str => {
-                const norm = normalizar(str);
-                if (norm) encontrados.add(norm);
-                if (str.includes(',') || str.includes(';')) {
-                    str.split(/[,;\s]+/).forEach(p => {
+                if (!str || typeof str !== 'string') return;
+                const trimmed = str.trim();
+                if (trimmed.length < 3 || trimmed.length > 20) return;
+                if (trimmed.includes(',') || trimmed.includes(';') || trimmed.includes('|')) {
+                    trimmed.split(/[,;|\s]+/).forEach(p => {
                         const n = normalizar(p);
                         if (n) encontrados.add(n);
                     });
+                } else {
+                    const norm = normalizar(trimmed);
+                    if (norm) encontrados.add(norm);
                 }
             });
         }
 
-        // 3. Extraer de nombre de archivo
+        // 3. Extraer de nombre de archivo (ej: "QuantPortfolio_V21_PersonalCapital_BTC_Quad.ex5")
         if (filename) {
             const cleanFn = filename.toUpperCase().replace(/\.(MQ5|EX5|JSON|TXT)$/i, '');
             Object.keys(mapaAlias).forEach(k => {
@@ -2434,7 +2692,7 @@ class StrategyTester {
             });
         }
 
-        // 4. Si el texto completo menciona símbolos conocidos (en comentarios, #property, etc.)
+        // 4. Si aún no hay símbolos y el texto menciona símbolos conocidos (fallback)
         if (typeof fuente === 'string' && encontrados.size === 0) {
             const upperCode = fuente.toUpperCase();
             const prioritized = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'BTCUSD', 'ETHUSD', 'SOLUSD', 'NASDAQ', 'US100', 'SP500', 'US500', 'US30'];
@@ -2588,10 +2846,11 @@ class StrategyTester {
             }
 
             let paramKey = varName;
-            if (paramKey.startsWith('Inp') && paramKey.length > 3) {
-                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
-            } else if (paramKey.startsWith('inp') && paramKey.length > 3) {
-                paramKey = paramKey.charAt(3).toLowerCase() + paramKey.slice(4);
+            paramKey = paramKey.replace(/^(?:inp_|Inp_|inp|Inp)/, '');
+            if (paramKey.length > 0) {
+                paramKey = paramKey.charAt(0).toLowerCase() + paramKey.slice(1);
+            } else {
+                paramKey = varName;
             }
 
             bot.params[paramKey] = val;
@@ -2649,9 +2908,35 @@ class StrategyTester {
             reader.readAsText(file);
         } else if (lower.endsWith('.ex5')) {
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 const buffer = e.target.result;
-                const bot = this.parseEX5(buffer, name);
+                let bot = this.parseEX5(buffer, name);
+
+                // Intentar buscar archivo fuente .mq5 o .json complementario en el proyecto
+                try {
+                    const cleanBase = name.replace(/\.ex5$/i, '');
+                    const resp = await fetch(`/api/backtest/find_bot_source?name=${encodeURIComponent(cleanBase)}`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data && data.success && data.content) {
+                            if (data.isMq5) {
+                                const botMq5 = this.parseMQL5(data.content, data.filename || (cleanBase + '.mq5'));
+                                bot = { ...bot, ...botMq5, name: bot.name || botMq5.name, isLinkedToMq5: true, linkedFile: data.filename };
+                                console.log(`🔗 Auto-vinculado con código fuente .mq5 (${data.filename}). Activos extraídos:`, bot.symbols);
+                            } else if (data.isJson) {
+                                const parsed = JSON.parse(data.content);
+                                if (parsed.symbols || parsed.symbol) {
+                                    bot.symbols = parsed.symbols || [parsed.symbol];
+                                    bot.symbol = bot.symbols[0];
+                                    bot.multiAsset = bot.symbols.length > 1;
+                                    bot.isLinkedToMq5 = true;
+                                    bot.linkedFile = data.filename;
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {}
+
                 this.cargarBotEnFormularioImport(bot);
             };
             reader.readAsArrayBuffer(file);
@@ -2716,9 +3001,9 @@ class StrategyTester {
             statusEl.style.display = 'block';
             const syms = bot.symbols || [bot.symbol || 'BTC-USD'];
             if (syms.length > 1) {
-                statusEl.innerHTML = `✅ <b>${bot.name}</b> analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">${syms.length} Activos detectados automáticamente:</span> ${syms.map(s => `<span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${s}</span>`).join(' ')} <span style="color:var(--tv-green); font-size:11px;">(Modo Multi-Activo)</span>`;
+                statusEl.innerHTML = `✅ <b>${bot.name}</b> ${bot.isLinkedToMq5 ? `(compilado .ex5 vinculado con código fuente <b>${bot.linkedFile || '.mq5'}</b>)` : ''} analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">${syms.length} Activos detectados automáticamente:</span> ${syms.map(s => `<span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${s}</span>`).join(' ')} <span style="color:var(--tv-green); font-size:11px;">(Modo Multi-Activo)</span>`;
             } else {
-                statusEl.innerHTML = `✅ <b>${bot.name}</b> analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">Activo detectado automáticamente:</span> <span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${syms[0]}</span>`;
+                statusEl.innerHTML = `✅ <b>${bot.name}</b> ${bot.isLinkedToMq5 ? `(compilado .ex5 vinculado con código fuente <b>${bot.linkedFile || '.mq5'}</b>)` : ''} analizado con éxito.<br>🎯 <span style="color:var(--tv-blue); font-weight:bold;">Activo detectado automáticamente:</span> <span style="background:rgba(41,98,255,0.2); color:#5b8cff; padding:2px 6px; border-radius:3px; font-weight:bold; font-size:11px;">${syms[0]}</span>`;
             }
         }
     }
@@ -2760,7 +3045,8 @@ class StrategyTester {
         const modal = this.dom.strategyImportModal;
         let bot = this.currentImportBot || {};
 
-        const name = (this.dom.btImportName && this.dom.btImportName.value.trim()) || bot.name || 'Bot Personalizado';
+        let name = (this.dom.btImportName && this.dom.btImportName.value.trim()) || bot.name || 'Bot Personalizado';
+        name = name.replace(/^🤖\s*/, ''); // Evitar duplicar emoji 🤖
         const magic = (this.dom.btImportMagic && parseInt(this.dom.btImportMagic.value, 10)) || bot.magic || 1001;
         const stratType = (this.dom.btImportStrat && this.dom.btImportStrat.value) || bot.strategyType || 'donchian_breakout';
         
@@ -2799,7 +3085,7 @@ class StrategyTester {
 
         // Registrar en el Strategy Tester
         this.customStrategies.set(botId, finalBot);
-        this.activeStrategyId = botId;
+        this.guardarCustomStrategies();
 
         // Sincronizar con la Flota de MT5 para que esté disponible en vivo
         if (window.MT5Emulator && window.MT5Emulator.botsCatalog) {
@@ -2817,30 +3103,19 @@ class StrategyTester {
                 riskValue: 0.10,
                 params: finalParams
             };
+            if (typeof window.MT5Emulator.guardarBotsCustom === 'function') {
+                window.MT5Emulator.guardarBotsCustom();
+            }
         }
 
-        // Si es multi-activo, conmutar tester al modo multi-activo
-        if (isMulti) {
-            this.isMultiAsset = true;
-            if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'multi';
-            if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'none';
-            if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'flex';
-            if (this.dom.btMultiSymbolsInput) this.dom.btMultiSymbolsInput.value = symbols.join(', ');
-        } else if (symbols.length === 1) {
-            this.isMultiAsset = false;
-            if (this.dom.btModeSelect) this.dom.btModeSelect.value = 'single';
-            if (this.dom.btSingleSymbolWrap) this.dom.btSingleSymbolWrap.style.display = 'flex';
-            if (this.dom.btMultiSymbolWrap) this.dom.btMultiSymbolWrap.style.display = 'none';
-            if (this.dom.selectSymbol) this.dom.selectSymbol.value = symbols[0];
-            window.currentSymbol = symbols[0];
-        }
-
+        // Re-poblar selectores para que incluyan el nuevo bot
         this.poblarSelectoresEstrategia();
-        this.renderizarFormularioPropiedades();
+
+        // Activar y configurar automáticamente el bot recién cargado
+        this.seleccionarEstrategia(botId);
 
         if (modal) modal.style.display = 'none';
-        console.log(`🤖 Bot '${name}' cargado con éxito en el Tester. Ejecutando backtest...`);
-        this.ejecutarBacktest();
+        console.log(`🤖 Bot '${name}' cargado y activado con éxito en el Tester.`);
     }
 
     importarDesdeFlotaMT5() {
@@ -2868,6 +3143,36 @@ class StrategyTester {
         }
     }
 
+    limpiarFormularioImportBot() {
+        this.currentImportBot = null;
+        if (this.dom.strategyModalFile) this.dom.strategyModalFile.value = '';
+        if (this.dom.strategyFileInput) this.dom.strategyFileInput.value = '';
+        if (this.dom.btImportStatus) {
+            this.dom.btImportStatus.style.display = 'none';
+            this.dom.btImportStatus.innerHTML = '';
+        }
+        if (this.dom.btImportName) this.dom.btImportName.value = '';
+        if (this.dom.btImportMagic) this.dom.btImportMagic.value = '1001';
+        if (this.dom.btImportStrat) this.dom.btImportStrat.value = 'donchian_breakout';
+        if (this.dom.btImportSymbols) this.dom.btImportSymbols.value = '';
+        if (this.dom.btImportParamsGrid) {
+            this.dom.btImportParamsGrid.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); grid-column: 1/-1;">Cargue o arrastre un archivo .mq5, .ex5 o .json para analizar y editar sus parámetros.</div>';
+        }
+        if (this.dom.strategyModalEditor) {
+            this.dom.strategyModalEditor.value = '';
+        }
+    }
+
+    abrirModalImportacion() {
+        this.limpiarFormularioImportBot();
+        if (this.dom.strategyImportModal) {
+            this.dom.strategyImportModal.style.display = 'flex';
+        } else if (this.dom.strategyFileInput) {
+            this.dom.strategyFileInput.value = '';
+            this.dom.strategyFileInput.click();
+        }
+    }
+
     initModalImportacion() {
         const modal = this.dom.strategyImportModal;
         if (!modal) return;
@@ -2884,13 +3189,20 @@ class StrategyTester {
         if (btnClose) btnClose.onclick = cerrarModal;
         if (btnCancel) btnCancel.onclick = cerrarModal;
 
-        if (btnPickFile && fileInput) {
-            btnPickFile.onclick = () => fileInput.click();
-        }
+        const abrirSelectorArchivo = (e) => {
+            if (e) e.stopPropagation();
+            if (fileInput) {
+                fileInput.value = '';
+                fileInput.click();
+            }
+        };
+
+        if (btnPickFile) btnPickFile.onclick = abrirSelectorArchivo;
+        if (dropzone) dropzone.onclick = abrirSelectorArchivo;
 
         if (fileInput) {
             fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
+                const file = e.target.files && e.target.files[0];
                 if (file) this.procesarArchivoBot(file);
             });
         }
@@ -3056,9 +3368,69 @@ class StrategyTester {
         return match ? match[1] : 'CUSTOM-SYM';
     }
 
+    resolverDatasetCSV(sym) {
+        if (!sym || !this.csvDatasets) return null;
+        if (this.csvDatasets[sym] && this.csvDatasets[sym].length >= 10) {
+            return { symbol: sym, candles: this.csvDatasets[sym] };
+        }
+        const clean = sym.toUpperCase().replace(/[-_/]/g, '');
+        for (const [s, c] of Object.entries(this.csvDatasets)) {
+            if (!c || c.length < 10) continue;
+            const sClean = s.toUpperCase().replace(/[-_/]/g, '');
+            if (sClean === clean || 
+                (clean.includes('XAU') && sClean.includes('GOLD')) || 
+                (clean.includes('GOLD') && sClean.includes('XAU')) ||
+                (clean.includes('BTC') && sClean.includes('BTC')) ||
+                (clean.includes('ETH') && sClean.includes('ETH')) ||
+                (clean.includes('SOL') && sClean.includes('SOL')) ||
+                (clean.includes('EUR') && sClean.includes('EUR'))) {
+                return { symbol: s, candles: c };
+            }
+        }
+        return null;
+    }
+
+    async intentarCargarCSVLocalParaSimbolo(sym) {
+        if (!sym || typeof fetch === 'undefined') return null;
+        try {
+            const resp = await fetch('/api/backtest/list_csvs');
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            if (!data.success || !data.files || data.files.length === 0) return null;
+
+            const clean = sym.toUpperCase().replace(/[-_/]/g, '');
+            const match = data.files.find(f => {
+                const sClean = (f.symbol || '').toUpperCase().replace(/[-_/]/g, '');
+                const fnClean = (f.filename || f.name || '').toUpperCase().replace(/[-_/]/g, '');
+                return sClean === clean || 
+                       fnClean.includes(clean) || 
+                       (clean.includes('XAU') && fnClean.includes('GOLD')) || 
+                       (clean.includes('GOLD') && fnClean.includes('XAU')) ||
+                       (clean.includes('BTC') && fnClean.includes('BTC')) ||
+                       (clean.includes('ETH') && fnClean.includes('ETH'));
+            });
+
+            if (match) {
+                const targetFileName = match.filename || match.name;
+                const readResp = await fetch(`/api/backtest/read_csv?file=${encodeURIComponent(targetFileName)}&limit=50000`);
+                if (readResp.ok) {
+                    const content = await readResp.text();
+                    const candles = this.parseCSVData(content, targetFileName);
+                    if (candles && candles.length >= 10) {
+                        this.registrarDatasetCSV(sym, candles, targetFileName);
+                        return candles;
+                    }
+                }
+            }
+        } catch (e) {}
+        return null;
+    }
+
     registrarDatasetCSV(symbol, candles, fileName = '') {
         if (!candles || candles.length < 5) return;
         this.csvDatasets[symbol] = candles;
+        this.currentCandles = candles;
+        this.currentCandlesSymbol = symbol;
 
         const count = Object.keys(this.csvDatasets).length;
         if (this.dom.btCsvBadge) {
@@ -3067,6 +3439,9 @@ class StrategyTester {
         }
 
         this.poblarSelectoresEstrategia();
+        if (this.dom.selectSymbol) {
+            this.dom.selectSymbol.value = symbol;
+        }
         this.renderizarTablaDatasetsCSV();
         console.log(`📊 Dataset CSV '${symbol}' registrado: ${candles.length} velas.`);
     }
@@ -3187,12 +3562,14 @@ class StrategyTester {
             let importados = 0;
             for (const f of data.files) {
                 try {
-                    const readResp = await fetch(`/api/backtest/read_csv?file=${encodeURIComponent(f.name)}&limit=50000`);
+                    const fName = f.filename || f.name;
+                    if (!fName) continue;
+                    const readResp = await fetch(`/api/backtest/read_csv?file=${encodeURIComponent(fName)}&limit=50000`);
                     if (readResp.ok) {
                         const csvContent = await readResp.text();
-                        const candles = this.parseCSVData(csvContent, f.name);
+                        const candles = this.parseCSVData(csvContent, fName);
                         if (candles && candles.length >= 10) {
-                            this.registrarDatasetCSV(f.symbol || this.detectarSimboloDeNombre(f.name), candles, f.name);
+                            this.registrarDatasetCSV(f.symbol || this.detectarSimboloDeNombre(fName), candles, fName);
                             importados++;
                         }
                     }
@@ -3289,7 +3666,17 @@ class StrategyTester {
     // UTILIDADES & NOTIFICACIONES
     // =========================================================================
     getEstrategiaActiva() {
-        return this.preloadedStrategies[this.activeStrategyId] || this.customStrategies.get(this.activeStrategyId);
+        if (!this.activeStrategyId) return null;
+        if (this.customStrategies && this.customStrategies.has(this.activeStrategyId)) {
+            return this.customStrategies.get(this.activeStrategyId);
+        }
+        if (this.preloadedStrategies && this.preloadedStrategies[this.activeStrategyId]) {
+            return this.preloadedStrategies[this.activeStrategyId];
+        }
+        if (window.MT5Emulator && window.MT5Emulator.botsCatalog && window.MT5Emulator.botsCatalog[this.activeStrategyId]) {
+            return window.MT5Emulator.botsCatalog[this.activeStrategyId];
+        }
+        return null;
     }
 
     onCandlesLoaded() {
@@ -3311,4 +3698,5 @@ class StrategyTester {
 // Instanciar globalmente y asociar con el ciclo de vida del DOM
 document.addEventListener('DOMContentLoaded', () => {
     window.StrategyTester = new StrategyTester();
+    window.strategyTester = window.StrategyTester;
 });

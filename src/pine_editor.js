@@ -32,7 +32,16 @@ window.PineEditor = class PineEditor {
         }
 
         if (codeEditor && nameInput) {
+            try {
+                const draft = localStorage.getItem('quantvisor_pine_draft_code');
+                if (draft) codeEditor.value = draft;
+            } catch (e) {}
+
             codeEditor.addEventListener('input', () => {
+                try {
+                    localStorage.setItem('quantvisor_pine_draft_code', codeEditor.value);
+                } catch (e) {}
+
                 if (!nameInput.dataset.userEdited) {
                     const code = codeEditor.value;
                     const match = code.match(/indicator\s*\(\s*["']([^"']+)["']/i) || 
@@ -184,11 +193,19 @@ window.PineEditor = class PineEditor {
                     window.indicadoresActivos.push({
                         type: 'PINE',
                         name: plot.name,
+                        code: code,
+                        params: {},
+                        styleParams: {},
                         seriesList: [series],
-                        isOscillator: plot.is_oscillator
+                        isOscillator: plot.is_oscillator,
+                        visible: true
                     });
                 }
             });
+
+            if (typeof window.actualizarLeyendaIndicadoresUI === 'function') {
+                window.actualizarLeyendaIndicadoresUI();
+            }
 
             document.getElementById('pine-editor-modal').style.display = 'none';
 

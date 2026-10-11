@@ -11,6 +11,13 @@ import { ServerMT5Daemon } from './server_mt5_engine.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Cloud Server SafeGuard] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[Cloud Server SafeGuard] Uncaught Exception:', err);
+});
+
 const PORT = process.env.PORT || 3000;
 const SRC_DIR = path.join(__dirname, 'src');
 
@@ -505,9 +512,12 @@ const server = http.createServer(async (req, res) => {
 
                                 foundFiles.push({
                                     name: file,
+                                    filename: file,
                                     path: fullPath,
                                     size: stats.size,
-                                    symbol: detectedSym
+                                    sizeBytes: stats.size,
+                                    symbol: detectedSym,
+                                    sizeFormatted: (stats.size / (1024 * 1024)).toFixed(2) + ' MB'
                                 });
                             }
                         });
@@ -563,6 +573,67 @@ const server = http.createServer(async (req, res) => {
 
             res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' });
             res.end(truncated);
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // API: /api/backtest/find_bot_source (Buscar código fuente .mq5 o .json compañero para un .ex5)
+    if (pathname === '/api/backtest/find_bot_source') {
+        try {
+            const rawName = (query.name || parsedUrl.searchParams.get('name') || '').trim();
+            if (!rawName) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Falta parámetro name' }));
+                return;
+            }
+
+            const baseName = path.basename(rawName).replace(/\.(ex5|mq5|json)$/i, '').toLowerCase();
+            const searchDirs = [
+                __dirname,
+                path.join(__dirname, '..'),
+                path.join(__dirname, 'bots'),
+                path.join(__dirname, 'datasets'),
+                path.join(__dirname, 'src'),
+                path.join(__dirname, '..', 'pattern_discovery_engine', 'data', 'output'),
+                path.join(__dirname, '..', 'pattern_discovery_engine', 'artifacts'),
+                path.join(__dirname, '..', 'Bots'),
+                path.join(__dirname, '..', 'Proyectos'),
+                path.join(__dirname, '..', 'MQL5', 'Experts')
+            ];
+
+            let foundFile = null;
+            for (const d of searchDirs) {
+                if (!fs.existsSync(d)) continue;
+                try {
+                    const files = fs.readdirSync(d);
+                    for (const f of files) {
+                        if (f.toLowerCase().replace(/\.(mq5|json)$/i, '') === baseName && (f.toLowerCase().endsWith('.mq5') || f.toLowerCase().endsWith('.json'))) {
+                            foundFile = path.join(d, f);
+                            break;
+                        }
+                    }
+                } catch (e) {}
+                if (foundFile) break;
+            }
+
+            if (!foundFile) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Fuente de bot no encontrada' }));
+                return;
+            }
+
+            const content = fs.readFileSync(foundFile, 'utf8');
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+                success: true,
+                filename: path.basename(foundFile),
+                isMq5: foundFile.toLowerCase().endsWith('.mq5'),
+                isJson: foundFile.toLowerCase().endsWith('.json'),
+                content: content
+            }));
         } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));

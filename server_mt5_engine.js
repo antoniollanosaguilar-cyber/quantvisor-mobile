@@ -440,6 +440,17 @@ export class ServerMT5Daemon {
             });
             const neededSymbols = Array.from(neededSymbolsSet);
 
+            // 0. Reset diario de Equidad a las 00:00 GMT (Regla Prop Firm Guardian)
+            const nowSec = Math.floor(Date.now() / 1000);
+            const currentDay = Math.floor(nowSec / 86400);
+            const lastResetDay = Math.floor((this.account.lastDayResetTimestamp || nowSec) / 86400);
+            if (currentDay > lastResetDay) {
+                this.account.dayStartEquity = this.account.equity;
+                this.account.lastDayResetTimestamp = nowSec;
+                this.log(`[DailyReset] Medianoche GMT detectada en Daemon 24/7. Equidad base fijada en: $${this.account.dayStartEquity.toFixed(2)}`);
+                this.guardarEstadoPersistente();
+            }
+
             // 2. Procesar velas, cotizaciones y posiciones abiertas para cada símbolo
             const candlesBySymbol = {};
             for (const sym of neededSymbols) {
@@ -463,7 +474,6 @@ export class ServerMT5Daemon {
             this.evaluarReglasPropFirm();
 
             // 5. Registrar curva de capital
-            const nowSec = Math.floor(Date.now() / 1000);
             const lastEq = this.equityHistory[this.equityHistory.length - 1];
             if (!lastEq || Math.abs(lastEq.equity - this.account.equity) >= 1 || (nowSec - lastEq.time >= 60)) {
                 this.equityHistory.push({

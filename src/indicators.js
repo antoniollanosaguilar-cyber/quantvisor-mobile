@@ -170,7 +170,7 @@ function calcularSqueezeMomentum(candles, bbLength = 20, bbMult = 2.0, kcLength 
         }
 
         const smaVal = smaMap.get(candles[i].time) || candles[i].close;
-        const avgPrice = (maxH + minL + smaVal) / 3;
+        const avgPrice = ((maxH + minL) / 2 + smaVal) / 2;
         const diff = candles[i].close - avgPrice;
         rawVal.push({ time: candles[i].time, diff: diff });
 
@@ -310,7 +310,9 @@ function calcularRSI(candles, period = 14) {
     let avgGain = gains / period;
     let avgLoss = losses / period;
 
-    let rsi0 = avgLoss === 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss)));
+    let rsi0 = (avgLoss === 0 && avgGain === 0)
+        ? 50
+        : (avgLoss === 0 ? 100 : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss)))));
     res.push({ time: candles[period].time, value: rsi0 });
 
     for (let i = period + 1; i < candles.length; i++) {
@@ -321,7 +323,9 @@ function calcularRSI(candles, period = 14) {
         avgGain = (avgGain * (period - 1) + gain) / period;
         avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-        let rsiVal = avgLoss === 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss)));
+        let rsiVal = (avgLoss === 0 && avgGain === 0)
+            ? 50
+            : (avgLoss === 0 ? 100 : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss)))));
         res.push({ time: candles[i].time, value: rsiVal });
     }
     return res;
@@ -507,8 +511,10 @@ function calcularSupertrend(candles, period = 10, mult = 3.0) {
         let trend = prevTrend;
         if (prevTrend === 1 && candles[i].close < finalLower) {
             trend = -1;
+            finalUpper = basicUpper;
         } else if (prevTrend === -1 && candles[i].close > finalUpper) {
             trend = 1;
+            finalLower = basicLower;
         }
 
         const value = trend === 1 ? finalLower : finalUpper;
@@ -695,7 +701,7 @@ function calcularGannHiLo(candles, period = 5) {
 }
 
 // EXPORTACIÓN DE MOTOR COMPLETO DE INDICADORES
-window.IndicatorsEngine = {
+const IndicatorsEngine = {
     calcularSMA,
     calcularEMA,
     calcularWMA,
@@ -718,4 +724,14 @@ window.IndicatorsEngine = {
     calcularHMA,
     calcularGannHiLo
 };
+
+if (typeof window !== 'undefined') {
+    window.IndicatorsEngine = IndicatorsEngine;
+}
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = IndicatorsEngine;
+}
+if (typeof global !== 'undefined') {
+    global.IndicatorsEngine = IndicatorsEngine;
+}
 

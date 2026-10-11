@@ -3,6 +3,17 @@
  * Basado en Tauri v2, HTML5 / JS, PWA Móvil y Lightweight Charts v4
  */
 
+// Trampa Global de Errores y Promesas Rechazadas (Zero-Defect SafeGuard)
+if (typeof window !== 'undefined') {
+    window.addEventListener('unhandledrejection', (event) => {
+        console.warn('[QuantVisor SafeGuard] Promesa rechazada no capturada:', event.reason);
+        if (event.preventDefault) event.preventDefault();
+    });
+    window.addEventListener('error', (event) => {
+        console.warn('[QuantVisor SafeGuard] Excepción global capturada:', event.message, event.filename, event.lineno);
+    });
+}
+
 // Compatibilidad Universal: Detección Automática de Tauri Desktop vs Web/Móvil PWA
 if (typeof window !== 'undefined' && (!window.__TAURI__ || (!window.__TAURI__.core && !window.__TAURI__.invoke))) {
     console.log("[QuantVisor Bridge] Entorno Móvil/Web detectado. Inicializando puente HTTP/REST...");
@@ -638,7 +649,13 @@ function iniciarMotorEnVivoYahoo() {
                             volume: Math.max(currentLast.volume, latest.volume || 0)
                         };
                         historialVelas[historialVelas.length - 1] = updated;
-                        if (activePriceSeries) activePriceSeries.update(updated);
+                        if (activePriceSeries) {
+                            if (chartStyle === 'line' || chartStyle === 'area') {
+                                activePriceSeries.update({ time: updated.time, value: updated.close });
+                            } else {
+                                activePriceSeries.update(updated);
+                            }
+                        }
                         if (volumeSeries) {
                             volumeSeries.update({
                                 time: currentLast.time,
@@ -653,7 +670,13 @@ function iniciarMotorEnVivoYahoo() {
                     } else if (timeDiff >= threshold) {
                         // Período nominal cumplido: Apertura legítima de nueva vela
                         historialVelas.push(latest);
-                        if (activePriceSeries) activePriceSeries.update(latest);
+                        if (activePriceSeries) {
+                            if (chartStyle === 'line' || chartStyle === 'area') {
+                                activePriceSeries.update({ time: latest.time, value: latest.close });
+                            } else {
+                                activePriceSeries.update(latest);
+                            }
+                        }
                         if (volumeSeries) {
                             volumeSeries.update({
                                 time: latest.time,
@@ -767,9 +790,13 @@ async function cargarDatosVelas(candles) {
         drawingEngine.setCandles(historialVelas);
     }
 
-    // Inyectar datos completos de velas en CandlestickSeries
+    // Inyectar datos de velas en CandlestickSeries o Line/Area
     if (activePriceSeries) {
-        activePriceSeries.setData(historialVelas);
+        if (chartStyle === 'line' || chartStyle === 'area') {
+            activePriceSeries.setData(historialVelas.map(c => ({ time: c.time, value: c.close })));
+        } else {
+            activePriceSeries.setData(historialVelas);
+        }
     }
 
     if (window.MT5Emulator && (window.MT5Emulator.symbol === currentSymbol || !window.MT5Emulator.symbol)) {
@@ -1120,10 +1147,10 @@ function actualizarLeyendaIndicadoresUI() {
         item.className = 'indicator-item';
 
         const title = document.createElement('span');
-        let paramLabel = ind.params.period ? ` ${ind.params.period}` : '';
-        if (ind.type === 'ADX') paramLabel = ` ${ind.params.period} ${ind.params.keyLevel || 23}`;
-        if (ind.type === 'SQZMOM') paramLabel = ` ${ind.params.period} ${ind.params.mult} ${ind.params.kcPeriod || 20} ${ind.params.kcMult || 1.5}`;
-        if (ind.type === 'MACD') paramLabel = ` ${ind.params.fastP || 12} ${ind.params.slowP || 26} ${ind.params.sigP || 9}`;
+        let paramLabel = (ind.params && ind.params.period) ? ` ${ind.params.period}` : '';
+        if (ind.type === 'ADX' && ind.params) paramLabel = ` ${ind.params.period || 14} ${ind.params.keyLevel || 23}`;
+        if (ind.type === 'SQZMOM' && ind.params) paramLabel = ` ${ind.params.period || 20} ${ind.params.mult || 2} ${ind.params.kcPeriod || 20} ${ind.params.kcMult || 1.5}`;
+        if (ind.type === 'MACD' && ind.params) paramLabel = ` ${ind.params.fastP || 12} ${ind.params.slowP || 26} ${ind.params.sigP || 9}`;
         title.textContent = `${ind.name}${paramLabel}`;
 
         const btnEye = document.createElement('button');
@@ -1170,12 +1197,13 @@ function abrirModalConfiguracionIndicador(index) {
     if (!ind.styleParams) ind.styleParams = {};
 
     const modal = document.getElementById('indicator-settings-modal');
+    if (!modal) return;
     const title = document.getElementById('settings-modal-title');
-    
-    title.innerText = ind.name;
+    if (title) title.innerText = ind.name;
 
     const paneInputs = document.getElementById('pane-inputs');
     const paneStyle = document.getElementById('pane-style');
+    if (!paneInputs || !paneStyle) return;
 
     paneInputs.innerHTML = '';
     paneStyle.innerHTML = '';
@@ -1353,8 +1381,10 @@ function abrirModalConfiguracionIndicador(index) {
         recalcularYRenderizarIndicadores();
     };
 
-    document.getElementById('btn-settings-cancel').onclick = () => { modal.style.display = 'none'; };
-    document.getElementById('modal-settings-close').onclick = () => { modal.style.display = 'none'; };
+    const btnCancel = document.getElementById('btn-settings-cancel');
+    if (btnCancel) btnCancel.onclick = () => { modal.style.display = 'none'; };
+    const btnClose = document.getElementById('modal-settings-close');
+    if (btnClose) btnClose.onclick = () => { modal.style.display = 'none'; };
 }
 
 // PESTAÑAS DENTRO DEL MODAL
@@ -1982,7 +2012,7 @@ function inicializarEventosUI() {
     // 5. Herramientas de Dibujo Lateral
     const toolMap = {
         'btn-cursor': null,
-        'btn-tendencia': 'trend',
+        'btn-tendencia': 'trendline',
         'btn-ray': 'ray',
         'btn-horzline': 'horzline',
         'btn-vertline': 'vertline',
@@ -2758,13 +2788,27 @@ function inicializarEventosUI() {
         });
     }
 
+    // Cierre universal de modales con tecla Escape y clic en backdrop
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay').forEach(m => {
+                if (m.style.display && m.style.display !== 'none') {
+                    m.style.display = 'none';
+                }
+            });
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
+        }
+    });
+
     if (typeof inicializarEventosReplayYMultiChart === 'function') {
         inicializarEventosReplayYMultiChart();
     }
 
-    window.addEventListener('resize', () => {
-        if (typeof resizeGraficos === 'function') resizeGraficos();
-    });
     window.addEventListener('orientationchange', () => {
         if (typeof resizeGraficos === 'function') setTimeout(resizeGraficos, 200);
     });
