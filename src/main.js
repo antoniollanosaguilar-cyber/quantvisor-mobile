@@ -200,6 +200,7 @@ function inicializarGraficos() {
 
     if (window.DrawingEngine) {
         drawingEngine = new window.DrawingEngine('main-chart-container', chart, activePriceSeries);
+        window.drawingEngine = drawingEngine;
         drawingEngine.onChangeCallback = (drawings) => {
             guardarDibujosSimbolo(currentSymbol, drawings);
         };
@@ -796,6 +797,10 @@ async function cargarDatosVelas(candles) {
     mostrarLeyendaOHLCV(ultimaVela);
 
     recalcularYRenderizarIndicadores();
+
+    if (window.StrategyTester && typeof window.StrategyTester.onCandlesLoaded === 'function') {
+        window.StrategyTester.onCandlesLoaded();
+    }
 }
 
 function recalcularYRenderizarIndicadores() {
@@ -1405,9 +1410,71 @@ function cambiarEstiloGrafico(nuevoEstilo) {
         drawingEngine.mainSeries = activePriceSeries;
         drawingEngine.redraw();
     }
-}
+// Alternar Modo de la Aplicación: Gráfico Principal de Trading vs Backtesting Cuantitativo Dedicado
+window.cambiarModoApp = function(modo) {
+    const mainWorkspace = document.getElementById('main-workspace');
+    const btWorkspace = document.getElementById('backtest-workspace');
+    const tabTrading = document.getElementById('tab-btn-trading');
+    const tabBacktest = document.getElementById('tab-btn-backtest');
+    const mobBtnChart = document.getElementById('mob-btn-chart');
+    const mobBtnBacktest = document.getElementById('mob-btn-backtest');
+    const btnBottomTester = document.getElementById('btn-bottom-tab-tester');
+
+    if (modo === 'backtest') {
+        if (mainWorkspace) mainWorkspace.style.display = 'none';
+        if (btWorkspace) {
+            btWorkspace.style.display = 'flex';
+            btWorkspace.classList.add('active');
+        }
+        if (tabTrading) tabTrading.classList.remove('active');
+        if (tabBacktest) tabBacktest.classList.add('active');
+        if (mobBtnChart) mobBtnChart.classList.remove('active');
+        if (mobBtnBacktest) mobBtnBacktest.classList.add('active');
+        if (btnBottomTester) btnBottomTester.classList.add('active-tab');
+
+        if (window.StrategyTester) {
+            window.StrategyTester.resize();
+            window.StrategyTester.ejecutarBacktest();
+        }
+    } else {
+        if (btWorkspace) {
+            btWorkspace.style.display = 'none';
+            btWorkspace.classList.remove('active');
+        }
+        if (mainWorkspace) {
+            mainWorkspace.style.display = 'flex';
+        }
+        if (tabTrading) tabTrading.classList.add('active');
+        if (tabBacktest) tabBacktest.classList.remove('active');
+        if (mobBtnBacktest) mobBtnBacktest.classList.remove('active');
+        if (mobBtnChart) mobBtnChart.classList.add('active');
+        if (btnBottomTester) btnBottomTester.classList.remove('active-tab');
+
+        if (typeof resizeGraficos === 'function') {
+            setTimeout(resizeGraficos, 50);
+        }
+    }
+};
 
 function inicializarEventosUI() {
+    // 0. Pestañas Superiores de Modo (Trading vs Backtesting)
+    const tabTrading = document.getElementById('tab-btn-trading');
+    if (tabTrading) {
+        tabTrading.addEventListener('click', () => window.cambiarModoApp('trading'));
+    }
+    const tabBacktest = document.getElementById('tab-btn-backtest');
+    if (tabBacktest) {
+        tabBacktest.addEventListener('click', () => window.cambiarModoApp('backtest'));
+    }
+    const btnBottomTester = document.getElementById('btn-bottom-tab-tester');
+    if (btnBottomTester) {
+        btnBottomTester.addEventListener('click', () => {
+            const btWs = document.getElementById('backtest-workspace');
+            const isBt = btWs && (btWs.style.display === 'flex' || btWs.classList.contains('active'));
+            window.cambiarModoApp(isBt ? 'trading' : 'backtest');
+        });
+    }
+
     // 1. Búsqueda de Símbolos
     const symbolInput = document.getElementById('ticker-search') || document.getElementById('symbol-input');
     if (symbolInput) {
@@ -1898,6 +1965,15 @@ function inicializarEventosUI() {
             });
         }
     });
+
+    const btnMagnet = document.getElementById('btn-magnet');
+    if (btnMagnet) {
+        btnMagnet.addEventListener('click', () => {
+            if (drawingEngine) {
+                drawingEngine.toggleMagnet();
+            }
+        });
+    }
 
     const btnBorrar = document.getElementById('btn-borrar');
     if (btnBorrar) {
@@ -2530,10 +2606,36 @@ function inicializarEventosUI() {
         });
     }
 
+    const sheetBtnBacktest = document.getElementById('sheet-btn-backtest');
+    if (sheetBtnBacktest) {
+        sheetBtnBacktest.addEventListener('click', () => {
+            cerrarPanelesMoviles();
+            window.cambiarModoApp('backtest');
+        });
+    }
+
+    const sheetBtnMagnet = document.getElementById('sheet-btn-magnet');
+    if (sheetBtnMagnet) {
+        sheetBtnMagnet.addEventListener('click', () => {
+            if (drawingEngine) {
+                drawingEngine.toggleMagnet();
+            }
+        });
+    }
+
     // Botones de Navegación Inferior Móvil (Bottom Navigation Bar)
     if (mobBtnChart) {
         mobBtnChart.addEventListener('click', () => {
             cerrarPanelesMoviles();
+            window.cambiarModoApp('trading');
+        });
+    }
+
+    const mobBtnBacktest = document.getElementById('mob-btn-backtest');
+    if (mobBtnBacktest) {
+        mobBtnBacktest.addEventListener('click', () => {
+            cerrarPanelesMoviles();
+            window.cambiarModoApp('backtest');
         });
     }
 

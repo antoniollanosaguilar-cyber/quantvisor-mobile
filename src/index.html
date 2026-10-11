@@ -1173,6 +1173,509 @@
           grid-template-columns: 1fr !important;
         }
       }
+
+      /* MODO TABS SUPERIORES (TRADING VS BACKTESTING) */
+      .app-mode-tabs {
+        display: flex;
+        align-items: center;
+        background-color: #131722;
+        border-radius: 6px;
+        padding: 2px;
+        border: 1px solid var(--border-color);
+        margin-left: 6px;
+      }
+      .app-mode-tab {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .app-mode-tab:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+      .app-mode-tab.active {
+        background-color: var(--brand-blue);
+        color: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      }
+
+      /* MODO IMÁN */
+      #btn-magnet.active {
+        background-color: var(--brand-blue) !important;
+        color: #fff !important;
+        box-shadow: 0 0 8px rgba(41, 98, 255, 0.6) !important;
+      }
+
+      /* WORKSPACE DE BACKTESTING DEDICADO */
+      #backtest-workspace {
+        display: none;
+        flex-direction: column;
+        width: 100vw;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+        background-color: var(--bg-main);
+      }
+      #backtest-workspace.active {
+        display: flex;
+      }
+
+      #backtest-toolbar {
+        height: 38px;
+        min-height: 38px;
+        background-color: var(--bg-panel);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        gap: 8px;
+        z-index: 50;
+      }
+      .bt-select {
+        background-color: #131722;
+        border: 1px solid var(--border-color);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+      }
+      .bt-btn {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.15s;
+      }
+      .bt-btn:hover {
+        background-color: var(--bg-hover);
+        color: #fff;
+      }
+      .bt-btn.primary {
+        background-color: var(--brand-blue);
+        border-color: var(--brand-blue);
+        color: #fff;
+      }
+      .bt-btn.primary:hover {
+        background-color: var(--brand-hover);
+      }
+      .bt-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 12px;
+        background: rgba(41, 98, 255, 0.15);
+        color: #5b8cff;
+        border: 1px solid rgba(41, 98, 255, 0.3);
+        margin-left: auto;
+      }
+
+      /* ÁREA DE GRÁFICO DE BACKTESTING */
+      #backtest-chart-area {
+        flex: 1 1 0%;
+        min-height: 140px;
+        position: relative;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      #backtest-chart-container {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+      #backtest-chart-legend {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+        z-index: 10;
+        font-size: 12px;
+        font-family: monospace;
+        background: rgba(19, 23, 34, 0.85);
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(42, 46, 57, 0.6);
+        pointer-events: none;
+      }
+
+      /* SPLITTER DEL TESTER */
+      #tester-splitter {
+        height: 6px;
+        min-height: 6px;
+        background-color: var(--border-color);
+        cursor: row-resize;
+        z-index: 40;
+        transition: background-color 0.15s;
+      }
+      #tester-splitter:hover, #tester-splitter.dragging {
+        background-color: var(--brand-blue);
+      }
+
+      /* PANEL INFERIOR DE RESULTADOS DE BACKTESTING */
+      #strategy-tester-panel {
+        height: 340px;
+        min-height: 160px;
+        background-color: var(--bg-panel);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        z-index: 30;
+        position: relative;
+        transition: height 0.05s ease-out;
+      }
+      #strategy-tester-panel.maximized {
+        position: absolute;
+        top: 38px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: calc(100% - 38px) !important;
+        z-index: 60;
+      }
+      #strategy-tester-panel.collapsed {
+        display: none !important;
+      }
+
+      .tester-header {
+        height: 36px;
+        min-height: 36px;
+        background-color: #171b26;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+      }
+      .tester-tabs {
+        display: flex;
+        gap: 2px;
+        height: 100%;
+      }
+      .tester-tab-btn {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s;
+      }
+      .tester-tab-btn:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.03);
+      }
+      .tester-tab-btn.active {
+        color: #fff;
+        border-bottom-color: var(--brand-blue);
+      }
+
+      .tester-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .tester-ctrl-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 14px;
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 4px;
+      }
+      .tester-ctrl-btn:hover {
+        color: #fff;
+        background-color: var(--bg-hover);
+      }
+
+      .tester-tab-content {
+        display: none;
+        flex: 1;
+        overflow: auto;
+        padding: 12px 16px;
+      }
+      .tester-tab-content.active {
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* TAB 1: RESUMEN DE RENDIMIENTO (KPIS) */
+      .tv-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .tv-kpi-card {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .tv-kpi-title {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .tv-kpi-value {
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif;
+      }
+      .tv-kpi-sub {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+      .pnl-pos { color: var(--bull-green) !important; }
+      .pnl-neg { color: var(--bear-red) !important; }
+
+      .tv-details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 14px;
+      }
+      .metrics-block {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .metrics-block-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      .metrics-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+      }
+      .m-label { color: var(--text-muted); }
+      .m-val { font-weight: 600; color: #fff; }
+
+      /* TAB 2: CURVA DE CAPITAL Y DRAWDOWN */
+      .equity-header-bar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 10px;
+      }
+      .equity-chip {
+        display: flex;
+        flex-direction: column;
+      }
+      .equity-chip span:first-child {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+      .equity-chip span:last-child {
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .equity-charts-split {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 200px;
+      }
+      #equity-chart-canvas {
+        flex: 3;
+        min-height: 110px;
+        position: relative;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: #131722;
+      }
+      #drawdown-chart-canvas {
+        flex: 2;
+        min-height: 80px;
+        position: relative;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: #131722;
+      }
+
+      /* TAB 3: BLOTTER DE OPERACIONES */
+      .blotter-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .blotter-filters {
+        display: flex;
+        gap: 4px;
+      }
+      .filter-pill {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .filter-pill:hover { color: #fff; background: var(--bg-hover); }
+      .filter-pill.active { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+      .blotter-search {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        color: #fff;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        outline: none;
+        width: 140px;
+      }
+      .tv-blotter-table-wrap {
+        flex: 1;
+        overflow: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: #131722;
+      }
+      .tv-blotter-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        text-align: left;
+      }
+      .tv-blotter-table th {
+        background: #1e222d;
+        color: var(--text-muted);
+        font-weight: 600;
+        padding: 6px 10px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+      }
+      .tv-blotter-table td {
+        padding: 5px 10px;
+        border-bottom: 1px solid rgba(42, 46, 57, 0.4);
+        white-space: nowrap;
+      }
+      .tv-blotter-table tr:hover {
+        background: rgba(41, 98, 255, 0.08);
+        cursor: pointer;
+      }
+      .blotter-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 8px;
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+      .blotter-pagination-btn {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+      }
+      .blotter-pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      /* TAB 4: PROPIEDADES & ENTRADAS */
+      .props-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .props-section {
+        background: #131722;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .props-section-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      .prop-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+      }
+      .prop-row label { color: var(--text-muted); }
+      .prop-row input, .prop-row select {
+        background: #1e222d;
+        border: 1px solid var(--border-color);
+        color: #fff;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        width: 120px;
+        outline: none;
+      }
+      .props-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        grid-column: 1 / -1;
+      }
     </style>
   </head>
   <body>
@@ -1333,6 +1836,10 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <!-- TOP TOOLBAR -->
     <div id="top-toolbar">
       <div class="tv-logo">📈 <span>TradingView</span> Pro</div>
+      <div class="app-mode-tabs desktop-only">
+        <button id="tab-btn-trading" class="app-mode-tab active" title="Pantalla de Gráfico y Análisis Principal">📈 Gráfico</button>
+        <button id="tab-btn-backtest" class="app-mode-tab" title="Entorno Dedicado de Backtesting Cuantitativo">🧪 Backtesting</button>
+      </div>
       <input type="text" id="ticker-search" value="BTCUSDT" title="Buscar Símbolo">
       
       <!-- BOTÓN MÓVIL TICKER / SÍMBOLO SELECTOR (TRADINGVIEW MOBILE) -->
@@ -1410,6 +1917,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- SIDEBAR IZQUIERDA (HERRAMIENTAS DIBUJO) -->
       <div id="left-sidebar">
         <button id="btn-cursor" class="sidebar-btn active" title="Cruz / Cursor">🔍</button>
+        <button id="btn-magnet" class="sidebar-btn" title="Modo Imán (Enganche automático a OHLC de velas)">🧲</button>
         <button id="btn-tendencia" class="sidebar-btn" title="Línea de Tendencia">╱</button>
         <button id="btn-ray" class="sidebar-btn" title="Rayo Extendido">↗️</button>
         <button id="btn-horzline" class="sidebar-btn" title="Línea Horizontal">──</button>
@@ -1628,17 +2136,234 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
     </div>
 
+    <!-- WORKSPACE DEDICADO DE BACKTESTING CUANTITATIVO (PESTAÑA SEPARADA CON GRÁFICO NUEVO) -->
+    <div id="backtest-workspace">
+      <!-- BARRA DE CONTROL DEL BACKTESTER -->
+      <div id="backtest-toolbar">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">🧪 Estrategia:</span>
+          <select id="tester-strategy-select" class="bt-select" style="min-width: 220px;"></select>
+        </div>
+        <div class="toolbar-divider desktop-only"></div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: var(--text-muted);">Activo:</span>
+          <select id="bt-symbol-select" class="bt-select" style="min-width: 130px;"></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: var(--text-muted);">TF:</span>
+          <select id="bt-tf-select" class="bt-select">
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h" selected>1h</option>
+            <option value="2h">2h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1D</option>
+          </select>
+        </div>
+        <div class="toolbar-divider desktop-only"></div>
+        <button id="btn-run-backtest" class="bt-btn primary" title="Ejecutar Simulación Cuantitativa">
+          <span>▶</span> <span>Ejecutar Backtest</span>
+        </button>
+        <button id="btn-tester-markers-toggle" class="bt-btn" title="Mostrar/Ocultar Marcadores de Entrada y Salida">
+          🏷️ Marcadores: ON
+        </button>
+        <button id="btn-cargar-estrategia" class="bt-btn desktop-only" title="Importar Nueva Estrategia JSON">
+          📂 Cargar Estrategia
+        </button>
+        <input type="file" id="strategy-file-input" accept=".json,.js" style="display: none;" />
+        <span id="trades-count-badge" class="bt-badge">0 Operaciones</span>
+      </div>
+
+      <!-- ÁREA DE GRÁFICO DEDICADO DE BACKTESTING -->
+      <div id="backtest-chart-area">
+        <div id="backtest-chart-legend">Inicializando gráfico cuantitativo...</div>
+        <div id="backtest-chart-container"></div>
+      </div>
+
+      <!-- RESIZABLE SPLITTER ENTRE GRÁFICO Y RESULTADOS -->
+      <div id="tester-splitter"></div>
+
+      <!-- PANEL INFERIOR DE RESULTADOS ESTILO TRADINGVIEW -->
+      <div id="strategy-tester-panel">
+        <div class="tester-header">
+          <div class="tester-tabs">
+            <button class="tester-tab-btn active" data-tab="tab-resumen">📊 Resumen del Rendimiento</button>
+            <button class="tester-tab-btn" data-tab="tab-curva">📈 Curva de Capital & DD</button>
+            <button class="tester-tab-btn" data-tab="tab-operaciones">📋 Registro de Operaciones (Blotter)</button>
+            <button class="tester-tab-btn" data-tab="tab-propiedades">⚙️ Propiedades & Entradas</button>
+          </div>
+          <div class="tester-controls">
+            <button id="btn-tester-maximize" class="tester-ctrl-btn" title="Maximizar / Restaurar Panel">🗖</button>
+            <button id="btn-tester-close" class="tester-ctrl-btn" title="Colapsar Panel">▼</button>
+          </div>
+        </div>
+
+        <!-- TAB 1: RESUMEN DE RENDIMIENTO (KPIS) -->
+        <div id="tab-resumen" class="tester-tab-content active">
+          <div id="summary-kpi-grid" class="tv-kpi-grid"></div>
+          <div id="summary-details-container" class="tv-details-grid"></div>
+        </div>
+
+        <!-- TAB 2: CURVA DE CAPITAL & DRAWDOWN SUBMARINO -->
+        <div id="tab-curva" class="tester-tab-content">
+          <div class="equity-header-bar">
+            <div class="equity-chip"><span>Capital Final:</span><span id="chip-cap-final">$10,000.00</span></div>
+            <div class="equity-chip"><span>Capital Máximo:</span><span id="chip-cap-max">$10,000.00</span></div>
+            <div class="equity-chip"><span>Max Drawdown:</span><span id="chip-dd-max" style="color: #f23645;">0.00%</span></div>
+          </div>
+          <div class="equity-charts-split">
+            <div id="equity-chart-canvas"></div>
+            <div id="drawdown-chart-canvas"></div>
+          </div>
+        </div>
+
+        <!-- TAB 3: TRADE BLOTTER -->
+        <div id="tab-operaciones" class="tester-tab-content">
+          <div class="blotter-toolbar">
+            <div class="blotter-filters">
+              <button class="filter-pill active" data-filter="all">Todos</button>
+              <button class="filter-pill" data-filter="long">Solo Longs</button>
+              <button class="filter-pill" data-filter="short">Solo Shorts</button>
+              <button class="filter-pill" data-filter="win">Ganadores</button>
+              <button class="filter-pill" data-filter="loss">Perdedores</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="blotter-search-input" class="blotter-search" placeholder="🔍 Buscar trade..." />
+              <button id="btn-export-csv" class="bt-btn" style="padding: 3px 8px; font-size: 11px;">💾 Exportar CSV</button>
+            </div>
+          </div>
+          <div class="tv-blotter-table-wrap">
+            <table class="tv-blotter-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Tipo</th><th>Señal</th><th>Fecha Entrada</th><th>Precio Ent.</th>
+                  <th>Fecha Salida</th><th>Precio Sal.</th><th>Motivo</th><th>Comisión</th>
+                  <th>PnL Neto ($)</th><th>Retorno %</th><th>Balance Acum.</th>
+                </tr>
+              </thead>
+              <tbody id="blotter-table-body">
+                <tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);">Cargando operaciones...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="blotter-footer">
+            <span id="blotter-pagination-info">0 operaciones</span>
+            <div id="blotter-pagination-controls" style="display:flex; gap:6px;"></div>
+          </div>
+        </div>
+
+        <!-- TAB 4: PROPIEDADES & ENTRADAS -->
+        <div id="tab-propiedades" class="tester-tab-content">
+          <div class="props-container">
+            <!-- Sección 1: Capital y Ejecución -->
+            <div class="props-section">
+              <div class="props-section-title">💼 Capital y Tamaño de Posición</div>
+              <div class="prop-row">
+                <label>Capital Inicial ($):</label>
+                <input type="number" id="prop-initial-capital" value="10000" min="100" step="500">
+              </div>
+              <div class="prop-row">
+                <label>Tipo de Orden:</label>
+                <select id="prop-order-type">
+                  <option value="percent">% del Capital</option>
+                  <option value="fixed">Monto Fijo USD</option>
+                </select>
+              </div>
+              <div class="prop-row">
+                <label>Valor de Entrada:</label>
+                <input type="number" id="prop-order-value" value="10" min="1" step="1">
+              </div>
+              <div class="prop-row">
+                <label>Dirección Permitida:</label>
+                <select id="prop-direction">
+                  <option value="both">Long y Short</option>
+                  <option value="long">Solo Long</option>
+                  <option value="short">Solo Short</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sección 2: Fricciones y Comisiones -->
+            <div class="props-section">
+              <div class="props-section-title">⚖️ Fricción de Mercado & Costos</div>
+              <div class="prop-row">
+                <label>Comisión por Trade (%):</label>
+                <input type="number" id="prop-commission" value="0.06" min="0" step="0.01">
+              </div>
+              <div class="prop-row">
+                <label>Deslizamiento (Slippage Ticks):</label>
+                <input type="number" id="prop-slippage" value="1" min="0" step="1">
+              </div>
+            </div>
+
+            <!-- Sección 3: Parámetros Dinámicos de la Estrategia -->
+            <div class="props-section" style="grid-column: 1 / -1;">
+              <div class="props-section-title">⚙️ Parámetros Específicos de la Estrategia</div>
+              <div id="strategy-dynamic-params" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px;"></div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="props-actions">
+              <button id="btn-save-properties" class="bt-btn primary">💾 Guardar Parámetros y Recalcular</button>
+              <button id="btn-reset-properties" class="bt-btn">↺ Restablecer Valores por Defecto</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CARGAR NUEVA ESTRATEGIA CUANTITATIVA -->
+    <div id="strategy-import-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 580px;">
+        <div class="modal-header">
+          <h3>📂 Cargar Nueva Estrategia Cuantitativa</h3>
+          <button id="modal-strategy-close" class="close-btn">&times;</button>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Cargue un archivo <strong>.json</strong> con la definición de la estrategia o edite el código JSON en el área inferior:
+          </div>
+          <div>
+            <input type="file" id="strategy-modal-file" accept=".json,.js" style="font-size: 12px; color: var(--text-primary);" />
+          </div>
+          <textarea id="strategy-modal-editor" spellcheck="false" style="width: 100%; height: 160px; background: #131722; border: 1px solid var(--border-color); color: #d1d4dc; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; resize: vertical;">{
+  "id": "mi_estrategia_custom",
+  "name": "Estrategia RSI + Bandas Bollinger",
+  "category": "Mixta",
+  "description": "Reversión extrema en bandas combinada con sobreventa/sobrecompra en RSI.",
+  "params": {
+    "period": 14,
+    "oversold": 28,
+    "overbought": 72,
+    "mult": 2.0,
+    "stopLossPct": 1.8,
+    "takeProfitPct": 3.6
+  }
+}</textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
+          <button id="btn-strategy-import-apply" class="editor-btn">✨ Importar y Activar Estrategia</button>
+        </div>
+      </div>
+    </div>
+
     <!-- STATUS BAR INFERIOR -->
     <div id="bottom-toolbar">
-      <div>
+      <div style="display: flex; align-items: center; gap: 4px;">
         <button class="bottom-btn">1D</button>
         <button class="bottom-btn">5D</button>
         <button class="bottom-btn">1M</button>
         <button class="bottom-btn">3M</button>
         <button class="bottom-btn">YTD</button>
         <button class="bottom-btn">Todos</button>
+        <div class="toolbar-divider" style="height: 14px; margin: 0 4px;"></div>
+        <button id="btn-bottom-tab-tester" class="bottom-btn bottom-tab-btn" title="Abrir/Cerrar Entorno de Backtesting">📊 Probador de estrategias</button>
       </div>
-      <div id="clock-display">00:00:00 UTC</div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button id="btn-bottom-toggle-markers" class="bottom-btn" title="Mostrar/Ocultar Marcadores de Operaciones">🏷️ Marcadores: ON</button>
+        <div id="clock-display">00:00:00 UTC</div>
+      </div>
     </div>
 
     <!-- BARRA DE NAVEGACIÓN INFERIOR PARA CELULARES (TRADINGVIEW MOBILE) -->
@@ -1646,6 +2371,10 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <button class="mob-nav-btn active" id="mob-btn-chart" title="Ver Gráfico Principal">
         <span class="mob-nav-icon">📈</span>
         <span class="mob-nav-lbl">Gráfico</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-btn-backtest" title="Entorno de Backtesting">
+        <span class="mob-nav-icon">🧪</span>
+        <span class="mob-nav-lbl">Tester</span>
       </button>
       <button class="mob-nav-btn" id="mob-btn-watchlist" title="Lista de Seguimiento">
         <span class="mob-nav-icon">📋</span>
@@ -1674,6 +2403,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <strong style="color: #fff; font-size: 13px;">⚙️ Opciones & Herramientas</strong>
         <button id="btn-close-more-sheet" style="background: none; border: none; color: #787b86; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
       </div>
+        <button class="mobile-sheet-btn" id="sheet-btn-backtest">🧪 Entorno de Backtesting Dedicado</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-magnet">🧲 Modo Imán: OFF</button>
         <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">📲 Instalar como Aplicación</button>
         <button class="mobile-sheet-btn" id="sheet-btn-replay">⏱️ Modo Bar Replay (Repetición)</button>
         <button class="mobile-sheet-btn" id="sheet-btn-layout">⊞ Cambiar Diseño de Pantalla</button>
@@ -1687,6 +2418,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <script src="./indicators.js"></script>
     <script src="./drawing_canvas.js"></script>
     <script src="./pine_editor.js"></script>
+    <script src="./strategy_tester.js"></script>
     <script src="./main.js"></script>
     <script>
       // 1. Registro de Service Worker para PWA

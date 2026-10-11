@@ -66,6 +66,10 @@ window.DrawingEngine = class DrawingEngine {
         this.vrvpData = null; // { candles, numRows: 24, valueAreaPct: 70, enabled: false }
         this.onChangeCallback = null;
 
+        // Modo Imán (Magnet Mode: Enganche automático a High/Low/Close/Open de velas)
+        this.magnetMode = false;
+        this.magnetPoint = null;
+
         this.resize();
         if (this.container) {
             new ResizeObserver(() => this.resize()).observe(this.container);
@@ -120,6 +124,111 @@ window.DrawingEngine = class DrawingEngine {
         this.hideContextMenu();
         this.canvas.style.pointerEvents = toolName ? 'auto' : (this.drawings.length > 0 ? 'auto' : 'none');
         this.redraw();
+    }
+
+    toggleMagnet() {
+        this.magnetMode = !this.magnetMode;
+        const btn = document.getElementById('btn-magnet');
+        if (btn) btn.classList.toggle('active', this.magnetMode);
+        const sheetBtn = document.getElementById('sheet-btn-magnet');
+        if (sheetBtn) sheetBtn.textContent = `🧲 Modo Imán: ${this.magnetMode ? 'ON' : 'OFF'}`;
+        if (!this.magnetMode) this.magnetPoint = null;
+        this.redraw();
+        return this.magnetMode;
+    }
+
+    snapToCandle(mouseX, mouseY) {
+        if (!this.magnetMode || !this.chart || !this.mainSeries) {
+            this.magnetPoint = null;
+            return this.pixelToMarket(mouseX, mouseY);
+        }
+
+        const timeScale = this.chart.timeScale();
+        if (!timeScale) {
+            this.magnetPoint = null;
+            return this.pixelToMarket(mouseX, mouseY);
+        }
+
+        const candles = (this.candles && this.candles.length > 0)
+            ? this.candles
+            : (this.vrvpData && this.vrvpData.candles ? this.vrvpData.candles : (window.historialVelas || []));
+
+        if (!candles || candles.length === 0) {
+            this.magnetPoint = null;
+            return this.pixelToMarket(mouseX, mouseY);
+        }
+
+        const logical = typeof timeScale.coordinateToLogical === 'function'
+            ? timeScale.coordinateToLogical(mouseX)
+            : null;
+
+        let nearestCandle = null;
+
+        if (logical !== null) {
+            const idx = Math.max(0, Math.min(candles.length - 1, Math.round(logical)));
+            nearestCandle = candles[idx];
+        } else {
+            let minDistanceX = Infinity;
+            for (let i = 0; i < candles.length; i++) {
+                const cX = timeScale.timeToCoordinate(candles[i].time);
+                if (cX !== null) {
+                    const d = Math.abs(mouseX - cX);
+                    if (d < minDistanceX) {
+                        minDistanceX = d;
+                        nearestCandle = candles[i];
+                    }
+                }
+            }
+        }
+
+        if (!nearestCandle) {
+            this.magnetPoint = null;
+            return this.pixelToMarket(mouseX, mouseY);
+        }
+
+        const o = nearestCandle.open !== undefined ? nearestCandle.open : nearestCandle.value;
+        const h = nearestCandle.high !== undefined ? nearestCandle.high : nearestCandle.value;
+        const l = nearestCandle.low !== undefined ? nearestCandle.low : nearestCandle.value;
+        const c = nearestCandle.close !== undefined ? nearestCandle.close : nearestCandle.value;
+
+        const candidates = [
+            { price: h, label: 'H' },
+            { price: l, label: 'L' },
+            { price: c, label: 'C' },
+            { price: o, label: 'O' }
+        ];
+
+        let bestCand = candidates[0];
+        let bestDistY = Infinity;
+        let bestCoordY = mouseY;
+
+        candidates.forEach(cand => {
+            const coordY = this.mainSeries.priceToCoordinate(cand.price);
+            if (coordY !== null) {
+                const distY = Math.abs(mouseY - coordY);
+                if (distY < bestDistY) {
+                    bestDistY = distY;
+                    bestCand = cand;
+                    bestCoordY = coordY;
+                }
+            }
+        });
+
+        const snappedX = timeScale.timeToCoordinate(nearestCandle.time) ?? mouseX;
+
+        this.magnetPoint = {
+            x: snappedX,
+            y: bestCoordY,
+            time: nearestCandle.time,
+            price: bestCand.price,
+            level: bestCand.label
+        };
+
+        return {
+            time: nearestCandle.time,
+            price: bestCand.price,
+            snapped: true
+        };
     }
 
     clearDrawings() {
@@ -820,7 +929,9 @@ window.DrawingEngine = class DrawingEngine {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
-            const marketPoint = this.pixelToMarket(mouseX, mouseY);
+            const marketPoint = (this.magnetMode && (this.activeTool || this.isDraggingAnchor))
+                ? this.snapToCandle(mouseX, mouseY)
+                : this.pixelToMarket(mouseX, mouseY);
 
             if (this.isDrawingBrush && this.activeTool === 'brush' && marketPoint) {
                 this.brushPoints.push(marketPoint);
@@ -918,7 +1029,9 @@ window.DrawingEngine = class DrawingEngine {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            const marketPoint = this.pixelToMarket(mouseX, mouseY);
+            const marketPoint = (this.magnetMode && this.activeTool)
+                ? this.snapToCandle(mouseX, mouseY)
+                : this.pixelToMarket(mouseX, mouseY);
             if (!marketPoint) return;
 
             if (this.activeTool === 'text' || this.activeTool === 'callout') {
@@ -1057,6 +1170,31 @@ window.DrawingEngine = class DrawingEngine {
                 color: '#ffeb3b',
                 isTemp: true
             });
+        }
+
+        // Indicador visual de enganche magnético (Magnet Mode)
+        if (this.magnetMode && this.magnetPoint && (this.activeTool || this.isDraggingAnchor)) {
+            const p = this.magnetPoint;
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(41, 98, 255, 0.35)';
+            this.ctx.fill();
+            this.ctx.lineWidth = 1.5;
+            this.ctx.strokeStyle = '#2962ff';
+            this.ctx.stroke();
+
+            this.ctx.beginPath();
+            this.ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fill();
+
+            if (p.level) {
+                this.ctx.font = 'bold 9px monospace';
+                this.ctx.fillStyle = '#2962ff';
+                this.ctx.fillText(p.level, p.x + 9, p.y + 3);
+            }
+            this.ctx.restore();
         }
 
         // Actualizar etiquetas flotantes HTML sobre el gráfico (Paridad TradingView)

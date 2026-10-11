@@ -24,6 +24,11 @@ class StrategyTester {
         this.drawdownChart = null;
         this.drawdownSeries = null;
 
+        // Gráfico Nuevo Dedicado Exclusivo para Backtesting (Pestaña Separada)
+        this.backtestChart = null;
+        this.backtestCandleSeries = null;
+        this.currentCandles = [];
+
         // Estado del panel inferior
         this.isMaximized = false;
         this.isCollapsed = false;
@@ -190,6 +195,7 @@ class StrategyTester {
     init() {
         this.initDOM();
         this.initEventos();
+        this.initResizer();
         this.poblarSelectoresEstrategia();
         this.renderizarFormularioPropiedades();
         console.log("⚡ Strategy Tester Inicializado con éxito.");
@@ -198,12 +204,17 @@ class StrategyTester {
     initDOM() {
         // Enlazar elementos del DOM
         this.dom = {
+            workspace: document.getElementById('backtest-workspace'),
             panel: document.getElementById('strategy-tester-panel'),
             splitter: document.getElementById('tester-splitter'),
             tabBtns: document.querySelectorAll('.tester-tab-btn'),
             tabContents: document.querySelectorAll('.tester-tab-content'),
             selectStrategyTester: document.getElementById('tester-strategy-select'),
             selectStrategyTop: document.getElementById('top-strategy-select'),
+            selectSymbol: document.getElementById('bt-symbol-select'),
+            selectTf: document.getElementById('bt-tf-select'),
+            chartArea: document.getElementById('backtest-chart-area'),
+            backtestChartContainer: document.getElementById('backtest-chart-container'),
             btnRunBacktest: document.getElementById('btn-run-backtest'),
             btnToggleMarkers: document.getElementById('btn-tester-markers-toggle'),
             btnMaximize: document.getElementById('btn-tester-maximize'),
@@ -265,6 +276,20 @@ class StrategyTester {
         // Botón Ejecutar Backtest
         if (this.dom.btnRunBacktest) {
             this.dom.btnRunBacktest.addEventListener('click', () => this.ejecutarBacktest());
+        }
+
+        // Cambio de Símbolo y Temporalidad en Backtester
+        if (this.dom.selectSymbol) {
+            this.dom.selectSymbol.addEventListener('change', () => {
+                this.currentCandles = [];
+                this.ejecutarBacktest();
+            });
+        }
+        if (this.dom.selectTf) {
+            this.dom.selectTf.addEventListener('change', () => {
+                this.currentCandles = [];
+                this.ejecutarBacktest();
+            });
         }
 
         // Toggle Marcadores
@@ -470,16 +495,127 @@ class StrategyTester {
         
         if (this.dom.selectStrategyTester) this.dom.selectStrategyTester.value = this.activeStrategyId;
         if (this.dom.selectStrategyTop) this.dom.selectStrategyTop.value = this.activeStrategyId;
+
+        // Poblar selector de símbolos del backtester
+        if (this.dom.selectSymbol && this.dom.selectSymbol.options.length === 0) {
+            const syms = [
+                { s: 'BTC-USD', n: 'Bitcoin' },
+                { s: 'ETH-USD', n: 'Ethereum' },
+                { s: 'SOL-USD', n: 'Solana' },
+                { s: 'XAUUSD', n: 'Oro Spot' },
+                { s: 'NASDAQ', n: 'Nasdaq 100' },
+                { s: 'SP500', n: 'S&P 500' },
+                { s: 'EURUSD', n: 'Euro / Dólar' },
+                { s: 'NVDA', n: 'NVIDIA' },
+                { s: 'AAPL', n: 'Apple' },
+                { s: 'TSLA', n: 'Tesla' }
+            ];
+            this.dom.selectSymbol.innerHTML = syms.map(x => 
+                `<option value="${x.s}">${x.s} (${x.n})</option>`
+            ).join('');
+            if (window.currentSymbol) {
+                this.dom.selectSymbol.value = window.currentSymbol;
+            }
+        }
+    }
+
+    garantizarBacktestChart() {
+        const container = document.getElementById('backtest-chart-container');
+        if (!container || !window.LightweightCharts) return;
+
+        if (!this.backtestChart) {
+            const w = container.clientWidth > 0 ? container.clientWidth : 800;
+            const h = container.clientHeight > 0 ? container.clientHeight : 350;
+
+            this.backtestChart = LightweightCharts.createChart(container, {
+                width: w,
+                height: h,
+                layout: {
+                    background: { type: 'solid', color: '#131722' },
+                    textColor: '#d1d4dc',
+                    fontSize: 11,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+                },
+                grid: {
+                    vertLines: { color: '#1a1e29' },
+                    horzLines: { color: '#1a1e29' }
+                },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.2 } },
+                timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 15 }
+            });
+
+            this.backtestCandleSeries = this.backtestChart.addCandlestickSeries({
+                upColor: '#089981',
+                downColor: '#f23645',
+                borderVisible: false,
+                wickUpColor: '#089981',
+                wickDownColor: '#f23645'
+            });
+
+            this.backtestChart.subscribeCrosshairMove(param => {
+                const legEl = document.getElementById('backtest-chart-legend');
+                if (!legEl) return;
+                const strat = this.getEstrategiaActiva();
+                const stratName = strat ? strat.name : 'Estrategia Cuantitativa';
+                const curSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
+
+                if (!param || !param.time || !param.seriesData) {
+                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> <span style="color:#5b8cff;">[${stratName}]</span> <span style="color:#787b86;">Gráfico Cuantitativo Dedicado (Marcadores de Compra / Venta)</span>`;
+                    return;
+                }
+                const d = param.seriesData.get(this.backtestCandleSeries);
+                if (d) {
+                    const diff = d.close - d.open;
+                    const isUp = diff >= 0;
+                    const color = isUp ? '#089981' : '#f23645';
+                    legEl.innerHTML = `<span style="font-weight: bold; color: #fff;">${curSym}</span> <span style="color:#5b8cff;">[${stratName}]</span> O:<span style="color:${color};">${d.open.toFixed(2)}</span> H:<span style="color:${color};">${d.high.toFixed(2)}</span> L:<span style="color:${color};">${d.low.toFixed(2)}</span> C:<span style="color:${color};">${d.close.toFixed(2)}</span>`;
+                }
+            });
+
+            new ResizeObserver(() => this.resizeCharts()).observe(container);
+        }
     }
 
     // =========================================================================
     // MOTOR CUANTITATIVO DE BACKTESTING
     // =========================================================================
     async ejecutarBacktest() {
-        const candles = window.historialVelas || [];
+        let candles = this.currentCandles;
+        const curSym = (this.dom.selectSymbol ? this.dom.selectSymbol.value : null) || window.currentSymbol || 'BTC-USD';
+        const curTf = (this.dom.selectTf ? this.dom.selectTf.value : null) || window.currentInterval || '1h';
+
+        if (!candles || candles.length < 30) {
+            if (curSym === window.currentSymbol && window.historialVelas && window.historialVelas.length >= 30) {
+                candles = window.historialVelas;
+            } else {
+                const invoke = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core.invoke : (window.__TAURI__ ? window.__TAURI__.invoke : null);
+                if (invoke) {
+                    try {
+                        const fetched = await invoke('cargar_historial', { simbolo: curSym, intervalo: curTf });
+                        if (fetched && fetched.length > 0) candles = fetched;
+                    } catch(e) {}
+                }
+                if (!candles || candles.length < 30) {
+                    candles = typeof window.generarVelasSinteticasGenericas === 'function' 
+                        ? window.generarVelasSinteticasGenericas(curSym, 300) 
+                        : (window.historialVelas || []);
+                }
+            }
+            this.currentCandles = candles;
+        }
+
         if (!candles || candles.length < 30) {
             console.warn("⚠️ No hay suficientes velas para ejecutar el backtest (mínimo 30).");
             return;
+        }
+
+        this.garantizarBacktestChart();
+        if (this.backtestCandleSeries && candles.length > 0) {
+            this.backtestCandleSeries.setData(candles);
+            if (this.backtestChart && this.backtestChart.timeScale()) {
+                this.backtestChart.timeScale().fitContent();
+            }
         }
 
         const strat = this.getEstrategiaActiva();
@@ -1467,6 +1603,12 @@ class StrategyTester {
     }
 
     resizeCharts() {
+        const container = document.getElementById('backtest-chart-container');
+        if (this.backtestChart && container) {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (w > 0 && h > 0) this.backtestChart.applyOptions({ width: w, height: h });
+        }
         if (this.equityChart && this.dom.equityChartContainer) {
             const w = this.dom.equityChartContainer.clientWidth;
             const h = this.dom.equityChartContainer.clientHeight;
@@ -1477,6 +1619,10 @@ class StrategyTester {
             const h = this.dom.drawdownChartContainer.clientHeight;
             if (w > 0 && h > 0) this.drawdownChart.applyOptions({ width: w, height: h });
         }
+    }
+
+    resize() {
+        this.resizeCharts();
     }
 
     // =========================================================================
@@ -1591,7 +1737,8 @@ class StrategyTester {
     }
 
     centrarGraficoEnTrade(entryTime, exitTime) {
-        const chart = window.chart;
+        this.garantizarBacktestChart();
+        const chart = this.backtestChart;
         if (!chart || !entryTime) return;
         try {
             const buffer = 3600 * 8; // 8 horas de margen visual
@@ -1600,7 +1747,7 @@ class StrategyTester {
                 to: exitTime ? exitTime + buffer : entryTime + buffer
             });
         } catch (e) {
-            console.error("Error al centrar gráfico en trade:", e);
+            console.error("Error al centrar gráfico de backtest en trade:", e);
         }
     }
 
@@ -1788,11 +1935,17 @@ class StrategyTester {
     // MARCADORES VISUALES EN LIGHTWEIGHT CHARTS
     // =========================================================================
     actualizarMarcadoresEnGrafico() {
-        const activeSeries = window.activePriceSeries;
-        if (!activeSeries || typeof activeSeries.setMarkers !== 'function') return;
+        // Asegurar que el gráfico principal NUNCA tenga marcadores para no confundir
+        if (window.activePriceSeries && typeof window.activePriceSeries.setMarkers === 'function') {
+            window.activePriceSeries.setMarkers([]);
+        }
+
+        this.garantizarBacktestChart();
+        const btSeries = this.backtestCandleSeries;
+        if (!btSeries || typeof btSeries.setMarkers !== 'function') return;
 
         if (!this.markersVisible || !this.lastBacktestResult || !this.lastBacktestResult.trades.length) {
-            activeSeries.setMarkers([]);
+            btSeries.setMarkers([]);
             return;
         }
 
@@ -1826,7 +1979,7 @@ class StrategyTester {
 
         // Requisito estricto LWC: Orden cronológico ascendente por 'time'
         markers.sort((a, b) => a.time - b.time);
-        activeSeries.setMarkers(markers);
+        btSeries.setMarkers(markers);
     }
 
     actualizarVisibilidadMarcadores() {
