@@ -1569,7 +1569,8 @@ class MT5VirtualEmulator {
         this.modo247 = !this.modo247;
         if (this.modo247) {
             if (this.dom.btnToggle247) {
-                this.dom.btnToggle247.innerText = '24/7 Cloud: ON (Sincronizado)';
+                this.dom.btnToggle247.innerText = '24/7 Cloud: ON';
+                this.dom.btnToggle247.title = 'Modo 24/7 Cloud: Activado (Sincronizado con Servidor Cloud)';
                 this.dom.btnToggle247.style.background = 'rgba(8, 153, 129, 0.25)';
                 this.dom.btnToggle247.style.borderColor = '#089981';
                 this.dom.btnToggle247.style.color = '#089981';
@@ -1617,7 +1618,8 @@ class MT5VirtualEmulator {
                 this.serverPollTimer = null;
             }
             if (this.dom.btnToggle247) {
-                this.dom.btnToggle247.innerText = '24/7 Cloud: OFF (Local)';
+                this.dom.btnToggle247.innerText = '24/7 Cloud: OFF';
+                this.dom.btnToggle247.title = 'Modo 24/7 Cloud: Desactivado (Ejecución Local)';
                 this.dom.btnToggle247.style.background = 'rgba(56, 136, 255, 0.15)';
                 this.dom.btnToggle247.style.borderColor = '#3888ff';
                 this.dom.btnToggle247.style.color = '#5b8cff';
