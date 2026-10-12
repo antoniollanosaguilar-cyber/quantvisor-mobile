@@ -151,7 +151,7 @@ let currentInterval = '1h';
 // Cargar la aplicación al estar listo el DOM
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        console.log("Inicializando QuantVisor Desktop v0.9.10...");
+        console.log("Inicializando QuantVisor Desktop v0.9.11...");
         inicializarGraficos();
         inicializarEventosUI();
         
