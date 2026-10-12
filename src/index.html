@@ -3662,6 +3662,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           navigator.serviceWorker.register('/sw.js', { scope: '/' })
             .then(reg => {
               console.log('[PWA] Service Worker registrado exitosamente:', reg.scope);
+              reg.update();
             })
             .catch(err => {
               console.warn('[PWA] No se pudo registrar Service Worker:', err);

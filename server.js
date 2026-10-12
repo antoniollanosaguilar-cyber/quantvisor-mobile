@@ -714,10 +714,17 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const isHtmlOrSw = filePath.endsWith('index.html') || filePath.endsWith('sw.js');
+    const headers = { 'Content-Type': contentType };
+    if (isHtmlOrSw) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+    }
 
     try {
         const content = fs.readFileSync(filePath);
-        res.writeHead(200, { 'Content-Type': contentType });
+        res.writeHead(200, headers);
         res.end(content);
     } catch (err) {
         res.writeHead(500);

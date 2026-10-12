@@ -1,5 +1,5 @@
 // Service Worker para QuantVisor Pro Mobile
-const CACHE_NAME = 'quantvisor-mobile-v1';
+const CACHE_NAME = 'quantvisor-mobile-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
