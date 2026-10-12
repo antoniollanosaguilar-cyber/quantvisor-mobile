@@ -110,7 +110,7 @@ window.PineEditor = class PineEditor {
         const btnSave = document.getElementById('btn-modal-save-pine');
         if (btnSave) {
             const originalHTML = btnSave.innerHTML;
-            btnSave.innerHTML = '✅ ¡Guardado en Lista!';
+            btnSave.innerHTML = '¡Guardado en Lista!';
             btnSave.style.backgroundColor = '#2962ff';
             setTimeout(() => {
                 btnSave.innerHTML = originalHTML;

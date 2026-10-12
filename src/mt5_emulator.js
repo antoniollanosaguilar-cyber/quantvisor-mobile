@@ -1553,12 +1553,12 @@ class MT5VirtualEmulator {
     actualizarBotonWakeLock() {
         if (!this.dom.btnWakeLock) return;
         if (this.wakeLock) {
-            this.dom.btnWakeLock.innerText = '🛡️ Pantalla Activa: ON';
+            this.dom.btnWakeLock.innerText = 'Pantalla Activa: ON';
             this.dom.btnWakeLock.style.background = 'rgba(8, 153, 129, 0.2)';
             this.dom.btnWakeLock.style.borderColor = '#089981';
             this.dom.btnWakeLock.style.color = '#089981';
         } else {
-            this.dom.btnWakeLock.innerText = '🛡️ Pantalla Activa: OFF';
+            this.dom.btnWakeLock.innerText = 'Pantalla Activa: OFF';
             this.dom.btnWakeLock.style.background = '#1e222d';
             this.dom.btnWakeLock.style.borderColor = '#2a2e39';
             this.dom.btnWakeLock.style.color = '#787b86';
@@ -1569,7 +1569,7 @@ class MT5VirtualEmulator {
         this.modo247 = !this.modo247;
         if (this.modo247) {
             if (this.dom.btnToggle247) {
-                this.dom.btnToggle247.innerText = '☁️ 24/7 Cloud: ON (Sincronizado)';
+                this.dom.btnToggle247.innerText = '24/7 Cloud: ON (Sincronizado)';
                 this.dom.btnToggle247.style.background = 'rgba(8, 153, 129, 0.25)';
                 this.dom.btnToggle247.style.borderColor = '#089981';
                 this.dom.btnToggle247.style.color = '#089981';
@@ -1617,7 +1617,7 @@ class MT5VirtualEmulator {
                 this.serverPollTimer = null;
             }
             if (this.dom.btnToggle247) {
-                this.dom.btnToggle247.innerText = '☁️ 24/7 Cloud: OFF (Local)';
+                this.dom.btnToggle247.innerText = '24/7 Cloud: OFF (Local)';
                 this.dom.btnToggle247.style.background = 'rgba(56, 136, 255, 0.15)';
                 this.dom.btnToggle247.style.borderColor = '#3888ff';
                 this.dom.btnToggle247.style.color = '#5b8cff';
@@ -1707,11 +1707,11 @@ class MT5VirtualEmulator {
     actualizarBotonEjecucion() {
         if (!this.dom.btnToggleRun) return;
         if (this.isRunning) {
-            this.dom.btnToggleRun.innerHTML = '⏸ Pausar Bot';
+            this.dom.btnToggleRun.innerHTML = 'Pausar Bot';
             this.dom.btnToggleRun.classList.remove('primary');
             this.dom.btnToggleRun.classList.add('secondary');
         } else {
-            this.dom.btnToggleRun.innerHTML = '▶ Iniciar Bot en Vivo';
+            this.dom.btnToggleRun.innerHTML = 'Iniciar Bot en Vivo';
             this.dom.btnToggleRun.classList.add('primary');
             this.dom.btnToggleRun.classList.remove('secondary');
         }
@@ -2443,7 +2443,7 @@ class MT5VirtualEmulator {
         }];
 
         if (this.dom.btnToggleRun) {
-            this.dom.btnToggleRun.innerHTML = '▶ Iniciar Bot en Vivo';
+            this.dom.btnToggleRun.innerHTML = 'Iniciar Bot en Vivo';
             this.dom.btnToggleRun.classList.add('primary');
             this.dom.btnToggleRun.classList.remove('secondary');
         }
@@ -2694,7 +2694,7 @@ class MT5VirtualEmulator {
                     <td style="color:#787b86;">-$${p.commission.toFixed(2)}</td>
                     <td class="${pnlCls}" style="font-weight:bold;">${p.profit >= 0 ? '+' : ''}$${p.profit.toFixed(2)}</td>
                     <td>
-                        <button class="mt5-btn-close" onclick="window.MT5Emulator.cerrarPosicion(${p.ticket}, null, 'Cierre Manual')">✕ Cerrar</button>
+                        <button class="mt5-btn-close" onclick="window.MT5Emulator.cerrarPosicion(${p.ticket}, null, 'Cierre Manual')">Cerrar</button>
                     </td>
                 </tr>
             `;
@@ -2778,7 +2778,7 @@ class MT5VirtualEmulator {
                     <td style="color:#787b86; font-size:11px;">${timeStr}</td>
                     <td>
                         <div style="display:flex; gap:4px;">
-                            <button class="mt5-btn-close" style="background:#1e222d; color:#5b8cff; border:1px solid #2a2e39;" onclick="window.MT5Emulator.cambiarSimboloActivo('${sym}')" title="Ver gráfico de ${sym}">📈 Gráfico</button>
+                            <button class="mt5-btn-close" style="background:#1e222d; color:#5b8cff; border:1px solid #2a2e39;" onclick="window.MT5Emulator.cambiarSimboloActivo('${sym}')" title="Ver gráfico de ${sym}">Gráfico</button>
                             <button class="mt5-btn-close" style="background:rgba(8, 153, 129, 0.2); color:#089981; border:1px solid #089981; padding:2px 6px;" onclick="window.MT5Emulator.ejecutarOrdenManualEnSimbolo('${sym}', 'BUY')" title="Comprar ${sym}">+B</button>
                             <button class="mt5-btn-close" style="background:rgba(242, 54, 69, 0.2); color:#f23645; border:1px solid #f23645; padding:2px 6px;" onclick="window.MT5Emulator.ejecutarOrdenManualEnSimbolo('${sym}', 'SELL')" title="Vender ${sym}">-S</button>
                         </div>
@@ -2895,11 +2895,11 @@ class MT5VirtualEmulator {
                         <div style="display:flex; gap:4px;">
                             <button class="mt5-btn-close" style="background:${isEnabled ? 'rgba(242,54,69,0.2)' : 'rgba(8,153,129,0.2)'}; color:${isEnabled ? '#f23645' : '#089981'}; border:1px solid ${isEnabled ? '#f23645' : '#089981'}; padding:3px 8px;"
                                 onclick="window.MT5Emulator.toggleBotEnFlota('${bot.id}', ${!isEnabled})">
-                                ${isEnabled ? '⏸ Pausar' : '▶ Activar'}
+                                ${isEnabled ? 'Pausar' : 'Activar'}
                             </button>
                             <button class="mt5-btn-close" style="background:#1e222d; color:#5b8cff; border:1px solid #2a2e39; padding:3px 6px;"
                                 onclick="window.MT5Emulator.seleccionarBot('${bot.id}')" title="Seleccionar y ver en gráfico principal">
-                                📊 Ver
+                                Ver
                             </button>
                         </div>
                     </td>

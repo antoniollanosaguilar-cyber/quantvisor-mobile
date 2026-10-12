@@ -2381,11 +2381,11 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
             <input type="text" id="pine-indicator-name" placeholder="Nombre del indicador..." value="Squeeze Momentum Indicator" style="background:#131722; border:1px solid #2a2e39; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; width:220px; outline:none;" />
-            <button id="btn-modal-save-pine" class="editor-btn" style="background:#089981; display:flex; align-items:center; gap:5px;" title="Guardar indicador con este nombre en la lista de indicadores">💾 Guardar Indicador</button>
+            <button id="btn-modal-save-pine" class="editor-btn" style="background:#089981; display:flex; align-items:center; gap:5px;" title="Guardar indicador con este nombre en la lista de indicadores">Guardar Indicador</button>
           </div>
           <div style="display:flex; gap:8px;">
-            <button id="btn-modal-backtest" class="editor-btn secondary">🚀 Ejecutar Backtest</button>
-            <button id="btn-modal-apply-pine" class="editor-btn">✨ Añadir al Gráfico</button>
+            <button id="btn-modal-backtest" class="editor-btn secondary">Ejecutar Backtest</button>
+            <button id="btn-modal-apply-pine" class="editor-btn">Añadir al Gráfico</button>
           </div>
         </div>
       </div>
@@ -2454,11 +2454,11 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           </div>
           <div id="wl-category-tabs" style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="wl-tab-btn active" data-cat="TODOS">Todos</button>
-            <button class="wl-tab-btn" data-cat="CRIPTO">🪙 Criptos</button>
-            <button class="wl-tab-btn" data-cat="METALES">🥇 Metales & Commodities</button>
-            <button class="wl-tab-btn" data-cat="INDICES">📈 Índices</button>
-            <button class="wl-tab-btn" data-cat="ACCIONES">💻 Acciones Tech</button>
-            <button class="wl-tab-btn" data-cat="FOREX">💱 Divisas Forex</button>
+            <button class="wl-tab-btn" data-cat="CRIPTO">Criptos</button>
+            <button class="wl-tab-btn" data-cat="METALES">Metales & Commodities</button>
+            <button class="wl-tab-btn" data-cat="INDICES">Índices</button>
+            <button class="wl-tab-btn" data-cat="ACCIONES">Acciones Tech</button>
+            <button class="wl-tab-btn" data-cat="FOREX">Divisas Forex</button>
           </div>
         </div>
 
@@ -2488,17 +2488,14 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <nav class="master-mode-nav" aria-label="Modo de Navegación Principal">
         <div class="master-mode-segmented">
           <button id="tab-btn-trading" class="app-mode-tab master-tab active" title="Pantalla de Gráfico y Análisis Cuantitativo Principal">
-            <span class="tab-icon">📈</span>
             <span class="tab-text">Gráfico</span>
             <span class="tab-chip">LIVE</span>
           </button>
           <button id="tab-btn-backtest" class="app-mode-tab master-tab" title="Entorno Dedicado de Backtesting Cuantitativo & Optimización">
-            <span class="tab-icon">🧪</span>
             <span class="tab-text">Backtesting</span>
             <span class="tab-chip">TESTER</span>
           </button>
           <button id="tab-btn-mt5" class="app-mode-tab master-tab" title="Emulador Virtual MT5 & Prop Firm Challenge Sandbox 24/7">
-            <span class="tab-icon">🤖</span>
             <span class="tab-text">MT5 Runner</span>
             <span class="tab-chip">
               <span class="live-pulse-dot"></span>24/7
@@ -2521,7 +2518,6 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <!-- TOP TOOLBAR -->
     <div id="top-toolbar">
       <div class="toolbar-symbol-badge desktop-only">
-        <span class="symbol-badge-icon">🔍</span>
         <span class="symbol-badge-label">SÍMBOLO:</span>
       </div>
       <input type="text" id="ticker-search" value="BTCUSDT" title="Buscar Símbolo">
@@ -2547,22 +2543,22 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <div class="toolbar-divider"></div>
 
       <div class="style-group">
-        <button class="toolbar-btn style-btn active" data-style="candles" title="Velas Japonesas">🕯️ Velas</button>
-        <button class="toolbar-btn style-btn" data-style="line" title="Gráfico de Línea">📈 Línea</button>
-        <button class="toolbar-btn style-btn" data-style="area" title="Gráfico de Área">📉 Área</button>
+        <button class="toolbar-btn style-btn active" data-style="candles" title="Velas Japonesas">Velas</button>
+        <button class="toolbar-btn style-btn" data-style="line" title="Gráfico de Línea">Línea</button>
+        <button class="toolbar-btn style-btn" data-style="area" title="Gráfico de Área">Área</button>
       </div>
 
       <div class="toolbar-divider desktop-only"></div>
 
       <!-- BOTÓN BAR REPLAY (REPETICIÓN DE VELAS) -->
       <button id="btn-bar-replay" class="toolbar-btn desktop-only" title="Simulador de Repetición de Velas (Bar Replay)">
-        <span>⏱️</span> <span>Replay</span>
+        <span>Replay</span>
       </button>
 
       <!-- SELECTOR MULTI-GRÁFICO (PANTALLA DIVIDIDA) -->
       <div class="layout-dropdown-container desktop-only">
         <button id="btn-chart-layout" class="toolbar-btn" title="Distribución de Gráficos (Pantalla Dividida)">
-          <span>⊞</span> <span>Diseño</span> ▾
+          <span>Diseño</span> ▾
         </button>
         <div id="layout-dropdown-menu" class="layout-dropdown-menu" style="display: none;">
           <div class="layout-menu-item active" data-layout="1">
@@ -2585,13 +2581,13 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       </div>
 
       <!-- BOTONES MÓVILES EN LA DERECHA DE LA BARRA -->
-      <button id="btn-mobile-style-cycle" class="toolbar-btn mobile-only-btn" title="Alternar Estilo (Velas / Línea / Área)">🕯️</button>
+      <button id="btn-mobile-style-cycle" class="toolbar-btn mobile-only-btn" title="Alternar Estilo (Velas / Línea / Área)">Velas</button>
       <button id="btn-mobile-more-menu" class="toolbar-btn mobile-only-btn" title="Más Opciones">⋮</button>
 
       <div class="toolbar-divider desktop-only"></div>
 
       <button id="btn-indicadores" class="toolbar-btn desktop-only">fx Indicadores</button>
-      <button id="btn-pine-modal-open" class="toolbar-btn desktop-only">🌲 Editor Pine Script</button>
+      <button id="btn-pine-modal-open" class="toolbar-btn desktop-only">Editor Pine Script</button>
       <button id="btn-cargar-csv" class="toolbar-btn desktop-only">📁 Cargar CSV</button>
       <input type="file" id="csv-file-input" accept=".csv,.txt" style="display: none;">
     </div>
@@ -2637,7 +2633,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           </select>
           <div class="replay-divider"></div>
           <span id="replay-status-info" class="replay-info">Vela 0/0</span>
-          <button id="replay-btn-exit" class="replay-btn exit-btn" title="Salir de repetición">✕ Salir</button>
+          <button id="replay-btn-exit" class="replay-btn exit-btn" title="Salir de repetición">Salir</button>
         </div>
 
         <!-- BANNER DE AVISO MIENTRAS SE SELECCIONA VELA PARA CORTAR -->
@@ -2825,7 +2821,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- BARRA DE CONTROL DEL BACKTESTER -->
       <div id="backtest-toolbar">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot / Estrategia:</span>
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">Bot / Estrategia:</span>
           <select id="tester-strategy-select" class="bt-select" style="min-width: 220px;"></select>
         </div>
         <button id="btn-cargar-estrategia" class="bt-btn desktop-only" title="Importar Bot (.mq5 / .ex5 / .json) o Seleccionar de la Flota">
@@ -2850,7 +2846,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         </div>
 
         <div id="bt-multi-symbol-wrap" style="display: none; align-items: center; gap: 6px;">
-          <span style="font-size: 12px; color: #5b8cff; font-weight: 700;">🌐 Cesta:</span>
+          <span style="font-size: 12px; color: #5b8cff; font-weight: 700;">Cesta:</span>
           <input type="text" id="bt-multi-symbols-input" value="BTC-USD, ETH-USD, XAUUSD" placeholder="BTC-USD, ETH-USD, XAUUSD" style="background: #131722; border: 1px solid #2a2e39; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; min-width: 180px;" title="Cesta de activos separados por coma para simulación multi-activo paralela" />
         </div>
 
@@ -2871,15 +2867,15 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="toolbar-divider desktop-only"></div>
 
         <button id="btn-run-backtest" class="bt-btn primary" title="Ejecutar Simulación Cuantitativa">
-          <span>▶</span> <span>Ejecutar Backtest</span>
+          <span>Ejecutar Backtest</span>
         </button>
 
         <button id="btn-tester-markers-toggle" class="bt-btn" title="Mostrar/Ocultar Marcadores de Entrada y Salida">
-          🏷️ Marcadores: ON
+          Marcadores: ON
         </button>
 
         <button id="btn-bt-cargar-csv" class="bt-btn desktop-only" style="border-color: #089981; color: #089981;" title="Cargar archivo(s) CSV con histórico o escanear carpeta">
-          📊 Cargar CSV / Carpeta
+          📁 Cargar CSV / Carpeta
         </button>
         <span id="bt-csv-badge" class="bt-badge" style="display:none; background: rgba(8, 153, 129, 0.2); color: #089981; border: 1px solid #089981;">0 CSVs</span>
 
@@ -2899,10 +2895,10 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <div id="strategy-tester-panel">
         <div class="tester-header">
           <div class="tester-tabs">
-            <button class="tester-tab-btn active" data-tab="tab-resumen">📊 Resumen del Rendimiento</button>
-            <button class="tester-tab-btn" data-tab="tab-curva">📈 Curva de Capital & DD</button>
-            <button class="tester-tab-btn" data-tab="tab-operaciones">📋 Registro de Operaciones (Blotter)</button>
-            <button class="tester-tab-btn" data-tab="tab-propiedades">⚙️ Propiedades & Entradas</button>
+            <button class="tester-tab-btn active" data-tab="tab-resumen">Resumen del Rendimiento</button>
+            <button class="tester-tab-btn" data-tab="tab-curva">Curva de Capital & DD</button>
+            <button class="tester-tab-btn" data-tab="tab-operaciones">Registro de Operaciones (Blotter)</button>
+            <button class="tester-tab-btn" data-tab="tab-propiedades">Propiedades & Entradas</button>
           </div>
           <div class="tester-controls">
             <button id="btn-tester-maximize" class="tester-ctrl-btn" title="Maximizar / Restaurar Panel">🗖</button>
@@ -2940,8 +2936,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <button class="filter-pill" data-filter="loss">Perdedores</button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <input type="text" id="blotter-search-input" class="blotter-search" placeholder="🔍 Buscar trade..." />
-              <button id="btn-export-csv" class="bt-btn" style="padding: 3px 8px; font-size: 11px;">💾 Exportar CSV</button>
+              <input type="text" id="blotter-search-input" class="blotter-search" placeholder="Buscar trade..." />
+              <button id="btn-export-csv" class="bt-btn" style="padding: 3px 8px; font-size: 11px;">Exportar CSV</button>
             </div>
           </div>
           <div class="tv-blotter-table-wrap">
@@ -3016,8 +3012,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
 
             <!-- Botones de Acción -->
             <div class="props-actions">
-              <button id="btn-save-properties" class="bt-btn primary">💾 Guardar Parámetros y Recalcular</button>
-              <button id="btn-reset-properties" class="bt-btn">↺ Restablecer Valores por Defecto</button>
+              <button id="btn-save-properties" class="bt-btn primary">Guardar Parámetros y Recalcular</button>
+              <button id="btn-reset-properties" class="bt-btn">Restablecer Valores por Defecto</button>
             </div>
           </div>
         </div>
@@ -3029,7 +3025,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- BARRA DE CONTROL DEL BOT & AMBIENTE MT5 -->
       <div id="mt5-toolbar">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-weight: 700; color: #fff; font-size: 13px;">🤖 Bot:</span>
+          <span style="font-weight: 700; color: #fff; font-size: 13px;">Bot:</span>
           <select id="mt5-bot-select" class="bt-select" style="min-width: 190px;"></select>
           <button id="btn-mt5-import-bot" class="bt-btn desktop-only" title="Cargar bot MetaTrader 5 (.mq5 / .ex5 / .json)">📂 Cargar Bot (.mq5/.ex5)</button>
           <input type="file" id="mt5-bot-file-input" accept=".mq5,.ex5,.json,.txt" style="display:none;" />
@@ -3067,27 +3063,27 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <div class="toolbar-divider desktop-only"></div>
         <!-- BOTONES DE TRADING MANUAL RÁPIDO EN EL SANDBOX -->
         <div style="display: flex; align-items: center; gap: 4px;">
-          <button id="btn-mt5-manual-buy" class="mt5-btn-trade buy" title="Abrir orden virtual manual de COMPRA">▲ Buy</button>
-          <button id="btn-mt5-manual-sell" class="mt5-btn-trade sell" title="Abrir orden virtual manual de VENTA">▼ Sell</button>
+          <button id="btn-mt5-manual-buy" class="mt5-btn-trade buy" title="Abrir orden virtual manual de COMPRA">Buy</button>
+          <button id="btn-mt5-manual-sell" class="mt5-btn-trade sell" title="Abrir orden virtual manual de VENTA">Sell</button>
         </div>
         <div class="toolbar-divider desktop-only"></div>
         <button id="btn-mt5-toggle-run" class="bt-btn primary" title="Iniciar o pausar ejecución en vivo del bot">
-          ▶ Iniciar Bot en Vivo
+          Iniciar Bot en Vivo
         </button>
         <button id="btn-mt5-panic-close" class="bt-btn" style="background: rgba(242, 54, 69, 0.2); border: 1px solid #f23645; color: #f23645;" title="Cierre de pánico de todas las órdenes de mercado">
-          🚨 Pánico
+          Pánico
         </button>
         <button id="btn-mt5-reset-challenge" class="bt-btn" title="Reiniciar cuenta y estadísticas del challenge">
-          🔄 Reiniciar
+          Reiniciar
         </button>
         <button id="btn-mt5-toggle-247" class="bt-btn" style="background: rgba(56, 136, 255, 0.15); border: 1px solid #3888ff; color: #5b8cff;" title="Alternar ejecución 24/7 en Servidor Cloud o Local">
-          ☁️ 24/7 Cloud: OFF
+          24/7 Cloud: OFF
         </button>
         <span id="mt5-simulation-badge" title="Las órdenes son virtuales: no se envían a ningún broker. Precios de Yahoo Finance, algunos activos (p. ej. futuros de oro) pueden llegar con retraso." style="font-size:11px; color:#f0b90b; background:rgba(240,185,11,0.12); padding:4px 8px; border-radius:4px; border:1px solid rgba(240,185,11,0.35); font-weight:bold; white-space:nowrap; cursor:help;">
-          ⚠️ SIMULACIÓN · datos Yahoo (pueden tener retraso)
+          SIMULACIÓN · datos Yahoo (pueden tener retraso)
         </span>
         <button id="btn-mt5-wakelock" class="bt-btn desktop-only" style="background: #1e222d; border: 1px solid #2a2e39; color: #787b86;" title="Evitar suspensión de pantalla (Screen Wake Lock)">
-          🛡️ Pantalla Activa
+          Pantalla Activa
         </button>
         <div id="mt5-multiasset-badge" class="desktop-only" style="display:none; font-size:11px; color:#089981; background:rgba(8,153,129,0.12); padding:4px 8px; border-radius:4px; border:1px solid rgba(8,153,129,0.3); font-weight:bold;">
           🌐 Cesta Multi-Activo
@@ -3163,14 +3159,14 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
       <!-- TERMINAL DE METATRADER 5 INFERIOR (BLOTTER, HISTORIAL, JOURNAL, INPUTS) -->
       <div id="mt5-terminal-panel" class="mt5-terminal-panel">
         <div class="mt5-terminal-header">
-          <button class="mt5-tab-btn active" data-tab="mt5-tab-positions">📋 Operaciones Abiertas</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-history">📜 Historial de Cuenta</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-fleet">🤖 Flota Multi-Bot</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-equity">📈 Curva de Capital (Balance/Equity)</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-stats">📊 Estadísticas Rendimiento</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-journal">📑 Journal & Logs MT5</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-params">⚙️ Parámetros del Bot</button>
-          <button class="mt5-tab-btn" data-tab="mt5-tab-matrix">🌐 Matriz Multi-Activo</button>
+          <button class="mt5-tab-btn active" data-tab="mt5-tab-positions">Operaciones Abiertas</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-history">Historial de Cuenta</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-fleet">Flota Multi-Bot</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-equity">Curva de Capital (Balance/Equity)</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-stats">Estadísticas Rendimiento</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-journal">Journal & Logs MT5</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-params">Parámetros del Bot</button>
+          <button class="mt5-tab-btn" data-tab="mt5-tab-matrix">Matriz Multi-Activo</button>
         </div>
 
         <!-- TAB 1: POSICIONES ABIERTAS -->
@@ -3268,7 +3264,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               Cesta de Activos Monitoreados 24/7 en Paralelo: <strong id="mt5-matrix-count" style="color: #fff;">0 activos</strong>
             </div>
             <div style="display: flex; gap: 8px;">
-              <button id="btn-mt5-refresh-matrix" class="bt-btn" style="font-size: 11px; padding: 4px 8px;">🔄 Actualizar Precios</button>
+              <button id="btn-mt5-refresh-matrix" class="bt-btn" style="font-size: 11px; padding: 4px 8px;">Actualizar Precios</button>
             </div>
           </div>
           <div class="mt5-table-wrap">
@@ -3300,8 +3296,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               PnL Combinado Flota: <strong id="mt5-fleet-total-pnl" style="color: #089981;">+$0.00</strong>
             </div>
             <div style="display: flex; gap: 8px;">
-              <button id="btn-mt5-fleet-start-all" class="bt-btn primary" style="font-size: 11px; padding: 4px 10px;">▶ Iniciar Toda la Flota</button>
-              <button id="btn-mt5-fleet-pause-all" class="bt-btn secondary" style="font-size: 11px; padding: 4px 10px;">⏸ Pausar Flota</button>
+              <button id="btn-mt5-fleet-start-all" class="bt-btn primary" style="font-size: 11px; padding: 4px 10px;">Iniciar Toda la Flota</button>
+              <button id="btn-mt5-fleet-pause-all" class="bt-btn secondary" style="font-size: 11px; padding: 4px 10px;">Pausar Flota</button>
               <button id="btn-mt5-fleet-add-bot" class="bt-btn" style="font-size: 11px; padding: 4px 10px; background: rgba(56, 136, 255, 0.15); border: 1px solid #3888ff; color: #5b8cff;">+ Importar a la Flota</button>
             </div>
           </div>
@@ -3353,7 +3349,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           <div style="display: flex; justify-content: space-between; align-items: center; background: #131722; padding: 8px 12px; border-radius: 6px; border: 1px solid #2a2e39;">
             <span style="font-size: 11px; color: var(--text-muted);">¿Quieres usar un bot de tu flota activa MT5?</span>
             <button id="btn-bt-import-from-fleet" type="button" class="bt-btn" style="background: #1e222d; color: #5b8cff; border: 1px solid #2a2e39; font-size: 11px;">
-              📥 Importar desde Flota MT5
+              Importar desde Flota MT5
             </button>
           </div>
 
@@ -3414,7 +3410,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         </div>
         <div class="modal-footer">
           <button id="btn-strategy-import-cancel" class="editor-btn secondary">Cancelar</button>
-          <button id="btn-strategy-import-apply" class="editor-btn">🚀 Cargar y Activar en Backtesting</button>
+          <button id="btn-strategy-import-apply" class="editor-btn">Cargar y Activar en Backtesting</button>
         </div>
       </div>
     </div>
@@ -3447,7 +3443,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
               <div style="font-size: 10px; color: var(--text-muted);">Detecta automáticamente CSVs en c:\QuantFactory (dummy_xauusd.csv, XAUUSD_M1_data.csv, etc.)</div>
             </div>
             <button id="btn-bt-auto-scan-csvs" type="button" class="bt-btn" style="background: rgba(8, 153, 129, 0.2); color: #089981; border: 1px solid #089981; font-size: 11px;">
-              🔍 Escanear Carpeta
+              Escanear Carpeta
             </button>
           </div>
 
@@ -3457,7 +3453,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           <!-- TABLA DE DATASETS CARGADOS -->
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <div style="font-size: 11px; font-weight: 700; color: #d1d4dc;">📑 Datasets de Velas Cargados en Memoria:</div>
+              <div style="font-size: 11px; font-weight: 700; color: #d1d4dc;">Datasets de Velas Cargados en Memoria:</div>
               <button id="btn-bt-clear-csvs" type="button" style="background: none; border: none; color: #f23645; font-size: 10px; cursor: pointer;">Limpiar todos</button>
             </div>
             <div style="max-height: 160px; overflow-y: auto; background: #131722; border-radius: 6px; border: 1px solid #2a2e39;">
@@ -3479,7 +3475,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           </div>
         </div>
         <div class="modal-footer">
-          <button id="btn-csv-modal-done" class="editor-btn">✅ Listo</button>
+          <button id="btn-csv-modal-done" class="editor-btn">Listo</button>
         </div>
       </div>
     </div>
@@ -3517,8 +3513,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
           <!-- FORMULARIO DE DETECCIÓN Y EDICIÓN RÁPIDA -->
           <div id="mt5-import-form-preview" style="background: #181b24; border: 1px solid #2a2e39; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2e39; padding-bottom: 6px;">
-              <span style="font-size: 11px; font-weight: bold; color: #d1d4dc;">⚙️ Configuración y Parámetros Extraídos del Bot</span>
-              <button id="btn-mt5-load-multiasset-template" class="editor-btn secondary" style="font-size: 10px; padding: 2px 6px;">🌐 Cargar Plantilla 24/7</button>
+              <span style="font-size: 11px; font-weight: bold; color: #d1d4dc;">Configuración y Parámetros Extraídos del Bot</span>
+              <button id="btn-mt5-load-multiasset-template" class="editor-btn secondary" style="font-size: 10px; padding: 2px 6px;">Cargar Plantilla 24/7</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
               <div>
@@ -3580,7 +3576,7 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         </div>
         <div class="modal-footer" style="padding: 10px 18px; border-top: 1px solid #2a2e39; display: flex; justify-content: flex-end; gap: 8px;">
           <button id="btn-cancel-mt5-import" class="editor-btn secondary">Cancelar</button>
-          <button id="btn-apply-mt5-import" class="editor-btn primary" style="background: #2962ff; color: #fff;">✨ Importar e Instalar Bot en MT5</button>
+          <button id="btn-apply-mt5-import" class="editor-btn primary" style="background: #2962ff; color: #fff;">Importar e Instalar Bot en MT5</button>
         </div>
       </div>
     </div>
@@ -3595,10 +3591,10 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button class="bottom-btn">YTD</button>
         <button class="bottom-btn">Todos</button>
         <div class="toolbar-divider" style="height: 14px; margin: 0 4px;"></div>
-        <button id="btn-bottom-tab-tester" class="bottom-btn bottom-tab-btn" title="Abrir/Cerrar Entorno de Backtesting">📊 Probador de estrategias</button>
+        <button id="btn-bottom-tab-tester" class="bottom-btn bottom-tab-btn" title="Abrir/Cerrar Entorno de Backtesting">Probador de estrategias</button>
       </div>
       <div style="display: flex; align-items: center; gap: 10px;">
-        <button id="btn-bottom-toggle-markers" class="bottom-btn" title="Mostrar/Ocultar Marcadores de Operaciones">🏷️ Marcadores: ON</button>
+        <button id="btn-bottom-toggle-markers" class="bottom-btn" title="Mostrar/Ocultar Marcadores de Operaciones">Marcadores: ON</button>
         <div id="clock-display">00:00:00 UTC</div>
       </div>
     </div>
@@ -3637,19 +3633,19 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <!-- HOJA DESLIZANTE DE MÁS OPCIONES PARA MÓVIL -->
     <div id="mobile-more-sheet">
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color);">
-        <strong style="color: #fff; font-size: 13px;">⚙️ Opciones & Herramientas</strong>
+        <strong style="color: #fff; font-size: 13px;">Opciones & Herramientas</strong>
         <button id="btn-close-more-sheet" style="background: none; border: none; color: #787b86; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
       </div>
-        <button class="mobile-sheet-btn" id="sheet-btn-backtest">🧪 Entorno de Backtesting Dedicado</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-mt5">🤖 Emulador MT5 & Prop Firm Sandbox</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-magnet">🧲 Modo Imán: OFF</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">📲 Instalar como Aplicación</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-replay">⏱️ Modo Bar Replay (Repetición)</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-layout">⊞ Cambiar Diseño de Pantalla</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-backtest">Entorno de Backtesting Dedicado</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-mt5">Emulador MT5 & Prop Firm Sandbox</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-magnet">Modo Imán: OFF</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-install" style="border-color: #2962ff; color: #5b8cff; font-weight: 600;">Instalar como Aplicación</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-replay">Modo Bar Replay (Repetición)</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-layout">Cambiar Diseño de Pantalla</button>
         <button class="mobile-sheet-btn" id="sheet-btn-csv">📁 Cargar archivo CSV / Historial</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-export">💾 Exportar Dibujos (JSON)</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-export">Exportar Dibujos (JSON)</button>
         <button class="mobile-sheet-btn" id="sheet-btn-import">📂 Importar Dibujos (JSON)</button>
-        <button class="mobile-sheet-btn" id="sheet-btn-fit">🔍 Ajustar Gráfico a Pantalla</button>
+        <button class="mobile-sheet-btn" id="sheet-btn-fit">Ajustar Gráfico a Pantalla</button>
     </div>
 
     <script src="./lightweight-charts.standalone.production.js"></script>

@@ -1891,7 +1891,7 @@ function inicializarEventosUI() {
                 </div>
                 <div>
                     ${isInWatchlist 
-                        ? `<button class="wl-btn-remove" title="Quitar de la lista de seguimiento">✕ Quitar</button>`
+                        ? `<button class="wl-btn-remove" title="Quitar de la lista de seguimiento">Quitar</button>`
                         : `<button class="wl-btn-add" title="Agregar a la lista de seguimiento" ${currentWatchlist.length >= MAX_WATCHLIST_ITEMS ? 'disabled' : ''}>+ Añadir</button>`
                     }
                 </div>
@@ -2210,7 +2210,7 @@ function inicializarEventosUI() {
                 const btnEdit = document.createElement('button');
                 btnEdit.title = 'Editar código en Pine Script Editor';
                 btnEdit.style.cssText = 'background:#2a2e39; border:none; color:#d1d4dc; padding:5px 9px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:500;';
-                btnEdit.innerHTML = '✏️ Editar';
+                btnEdit.innerHTML = 'Editar';
                 btnEdit.onclick = (e) => {
                     e.stopPropagation();
                     const codeEditor = document.getElementById('pine-code-editor');
@@ -2605,12 +2605,12 @@ function inicializarEventosUI() {
     // Botón Ciclo de Estilo de Gráfico Móvil (Velas -> Línea -> Área)
     if (btnMobileStyleCycle) {
         const styleCycle = ['candles', 'line', 'area'];
-        const iconCycle = { 'candles': '🕯️', 'line': '📈', 'area': '📉' };
+        const iconCycle = { 'candles': 'Velas', 'line': 'Línea', 'area': 'Área' };
         btnMobileStyleCycle.addEventListener('click', () => {
             const currentIdx = styleCycle.indexOf(chartStyle || 'candles');
             const nextStyle = styleCycle[(currentIdx + 1) % styleCycle.length];
             cambiarEstiloGrafico(nextStyle);
-            btnMobileStyleCycle.innerText = iconCycle[nextStyle] || '🕯️';
+            btnMobileStyleCycle.innerText = iconCycle[nextStyle] || 'Velas';
         });
     }
 

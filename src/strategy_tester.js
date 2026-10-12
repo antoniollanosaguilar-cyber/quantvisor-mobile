@@ -2218,7 +2218,7 @@ class StrategyTester {
                     <td class="${pnlClass}">${pnlSign}${t.returnPct.toFixed(2)}%</td>
                     <td style="color:var(--tv-text-bright); font-weight:bold;">$${t.cumulativeBalance.toFixed(2)}</td>
                     <td>
-                        <button class="btn-table-action" onclick="window.StrategyTester.centrarGraficoEnTrade(${t.entryTime}, ${t.exitTime})" title="Ver este trade en el gráfico principal">🔍 Ver</button>
+                        <button class="btn-table-action" onclick="window.StrategyTester.centrarGraficoEnTrade(${t.entryTime}, ${t.exitTime})" title="Ver este trade en el gráfico principal">Ver</button>
                     </td>
                 </tr>
             `;
@@ -2516,7 +2516,7 @@ class StrategyTester {
     }
 
     actualizarVisibilidadMarcadores() {
-        const text = this.markersVisible ? '🏷️ Marcadores: ON' : '🏷️ Marcadores: OFF';
+        const text = this.markersVisible ? 'Marcadores: ON' : 'Marcadores: OFF';
         const clsActive = this.markersVisible;
 
         if (this.dom.btnToggleMarkers) {

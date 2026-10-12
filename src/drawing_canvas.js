@@ -133,7 +133,7 @@ window.DrawingEngine = class DrawingEngine {
         const btn = document.getElementById('btn-magnet');
         if (btn) btn.classList.toggle('active', this.magnetMode);
         const sheetBtn = document.getElementById('sheet-btn-magnet');
-        if (sheetBtn) sheetBtn.textContent = `🧲 Modo Imán: ${this.magnetMode ? 'ON' : 'OFF'}`;
+        if (sheetBtn) sheetBtn.textContent = `Modo Imán: ${this.magnetMode ? 'ON' : 'OFF'}`;
         if (!this.magnetMode) this.magnetPoint = null;
         this.redraw();
         return this.magnetMode;
