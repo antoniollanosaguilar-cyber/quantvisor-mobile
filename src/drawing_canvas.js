@@ -791,6 +791,30 @@ window.DrawingEngine = class DrawingEngine {
                         if (dBody <= 25) bodyHit = true;
                     }
                     break;
+
+                case 'avwap':
+                    if (p1 && p1.x !== null && p1.y !== null) {
+                        if (mouseX >= p1.x - TOL) {
+                            dBody = this.dist(mouseX, mouseY, p1.x, p1.y);
+                            if (dBody <= TOL * 2) {
+                                bodyHit = true;
+                            } else if (this.candles && this.candles.length > 0 && window.IndicatorsEngine) {
+                                const mPt = this.pixelToMarket(mouseX, mouseY);
+                                if (mPt && mPt.time >= item.p1.time) {
+                                    const avData = window.IndicatorsEngine.calcularAnchoredVWAP(this.candles, item.p1.time, [item.mult1 || 1.0, item.mult2 || 2.0]);
+                                    const nearCandle = avData.find(c => Math.abs(c.time - mPt.time) < 1800);
+                                    if (nearCandle && this.mainSeries) {
+                                        const pixY = this.mainSeries.priceToCoordinate(nearCandle.value);
+                                        if (pixY !== null && Math.abs(mouseY - pixY) <= TOL * 2) {
+                                            bodyHit = true;
+                                            dBody = Math.abs(mouseY - pixY);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    break;
             }
 
             if (bodyHit && dBody < minDistance) {
@@ -1073,6 +1097,19 @@ window.DrawingEngine = class DrawingEngine {
                     type: 'pricetag',
                     p1: marketPoint,
                     color: '#2962ff'
+                }));
+                this.notifyChange();
+                this.setTool(null);
+                return;
+            }
+
+            if (this.activeTool === 'avwap') {
+                this.drawings.push(this.ensureId({
+                    type: 'avwap',
+                    p1: marketPoint,
+                    color: '#2962ff',
+                    mult1: 1.0,
+                    mult2: 2.0
                 }));
                 this.notifyChange();
                 this.setTool(null);
@@ -1487,6 +1524,7 @@ window.DrawingEngine = class DrawingEngine {
             case 'longpos': this.renderRiskReward(item, true); break;
             case 'shortpos': this.renderRiskReward(item, false); break;
             case 'ruler': this.renderRuler(item); break;
+            case 'avwap': this.renderAnchoredVWAP(item); break;
         }
     }
 
@@ -1836,6 +1874,115 @@ window.DrawingEngine = class DrawingEngine {
         const isSel = (item === this.selectedDrawing);
         this.renderAnchor(p1.x, p1.y, isSel);
         this.renderAnchor(p2.x, p2.y, isSel);
+    }
+
+    renderAnchoredVWAP(item) {
+        if (!item.p1 || !this.candles || this.candles.length === 0 || !window.IndicatorsEngine) return;
+        const p1Pix = this.mapToPixel(item.p1);
+        const anchorTime = item.p1.time;
+        const mult1 = item.mult1 || 1.0;
+        const mult2 = item.mult2 || 2.0;
+        const color = item.color || '#2962ff';
+
+        const avwapSeries = window.IndicatorsEngine.calcularAnchoredVWAP(this.candles, anchorTime, [mult1, mult2]);
+        if (!avwapSeries || avwapSeries.length === 0) return;
+
+        const pts = [];
+        for (let i = 0; i < avwapSeries.length; i++) {
+            const pt = avwapSeries[i];
+            const x = this.chart && this.chart.timeScale() ? this.chart.timeScale().timeToCoordinate(pt.time) : null;
+            if (x === null || x === undefined) continue;
+            const yMid = this.mainSeries ? this.mainSeries.priceToCoordinate(pt.value) : null;
+            const yUp1 = this.mainSeries ? this.mainSeries.priceToCoordinate(pt.upper1) : null;
+            const yLo1 = this.mainSeries ? this.mainSeries.priceToCoordinate(pt.lower1) : null;
+            const yUp2 = this.mainSeries ? this.mainSeries.priceToCoordinate(pt.upper2) : null;
+            const yLo2 = this.mainSeries ? this.mainSeries.priceToCoordinate(pt.lower2) : null;
+
+            if (yMid !== null) {
+                pts.push({ x, yMid, yUp1, yLo1, yUp2, yLo2, value: pt.value });
+            }
+        }
+
+        if (pts.length < 2) {
+            if (p1Pix.x !== null && p1Pix.y !== null) {
+                this.renderAnchor(p1Pix.x, p1Pix.y, item === this.selectedDrawing);
+            }
+            return;
+        }
+
+        // 1. Sombrear canal entre bandas ±2σ
+        if (pts[0].yUp2 !== null && pts[0].yLo2 !== null) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0].x, pts[0].yUp2);
+            for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yUp2);
+            for (let i = pts.length - 1; i >= 0; i--) this.ctx.lineTo(pts[i].x, pts[i].yLo2);
+            this.ctx.closePath();
+            this.ctx.fillStyle = 'rgba(41, 98, 255, 0.08)';
+            this.ctx.fill();
+        }
+
+        // 2. Líneas de Bandas ±2σ (dashed)
+        this.ctx.setLineDash([3, 3]);
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeStyle = 'rgba(41, 98, 255, 0.45)';
+        if (pts[0].yUp2 !== null) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0].x, pts[0].yUp2);
+            for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yUp2);
+            this.ctx.stroke();
+        }
+        if (pts[0].yLo2 !== null) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0].x, pts[0].yLo2);
+            for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yLo2);
+            this.ctx.stroke();
+        }
+
+        // 3. Líneas de Bandas ±1σ (dashed suave)
+        this.ctx.strokeStyle = 'rgba(0, 188, 212, 0.6)';
+        if (pts[0].yUp1 !== null) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0].x, pts[0].yUp1);
+            for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yUp1);
+            this.ctx.stroke();
+        }
+        if (pts[0].yLo1 !== null) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0].x, pts[0].yLo1);
+            for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yLo1);
+            this.ctx.stroke();
+        }
+        this.ctx.setLineDash([]);
+
+        // 4. Línea Central AVWAP
+        this.ctx.beginPath();
+        this.ctx.moveTo(pts[0].x, pts[0].yMid);
+        for (let i = 1; i < pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].yMid);
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+
+        // 5. Badge flotante al final del trazo
+        const lastPt = pts[pts.length - 1];
+        if (lastPt) {
+            const badgeText = `AVWAP: ${formatPrice(lastPt.value)}`;
+            this.ctx.font = 'bold 10px monospace';
+            const textW = this.ctx.measureText(badgeText).width;
+            this.ctx.fillStyle = color;
+            this.ctx.beginPath();
+            if (typeof this.ctx.roundRect === 'function') {
+                this.ctx.roundRect(lastPt.x + 4, lastPt.yMid - 9, textW + 8, 18, 4);
+            } else {
+                this.ctx.rect(lastPt.x + 4, lastPt.yMid - 9, textW + 8, 18);
+            }
+            this.ctx.fill();
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillText(badgeText, lastPt.x + 8, lastPt.yMid + 4);
+        }
+
+        // 6. Ancla en el origen
+        const isSel = (item === this.selectedDrawing);
+        this.renderAnchor(pts[0].x, pts[0].yMid, isSel);
     }
 
     renderAnchor(x, y, isSelected = false) {

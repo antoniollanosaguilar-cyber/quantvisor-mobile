@@ -2318,6 +2318,206 @@
         background: #f23645;
         color: #fff;
       }
+
+      /* PROP FIRM RISK SENTINEL HUD */
+      .sentinel-hud {
+        position: absolute;
+        top: 48px;
+        right: 16px;
+        width: 290px;
+        background: rgba(19, 23, 34, 0.94);
+        border: 1px solid #2a2e39;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(12px);
+        z-index: 100;
+        font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+        color: #d1d4dc;
+        padding: 10px 12px;
+        user-select: none;
+      }
+      .sentinel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #2a2e39;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+      }
+      .sentinel-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sentinel-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #089981;
+        box-shadow: 0 0 8px #089981;
+      }
+      .sentinel-title {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        color: #fff;
+      }
+      .sentinel-badge {
+        font-size: 9px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 3px;
+        text-transform: uppercase;
+      }
+      .sentinel-badge.normal { background: rgba(8, 153, 129, 0.2); color: #089981; border: 1px solid #089981; }
+      .sentinel-badge.warning { background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid #ff9800; }
+      .sentinel-badge.danger { background: rgba(242, 54, 69, 0.25); color: #f23645; border: 1px solid #f23645; animation: pulse 1s infinite alternate; }
+      @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+      .sentinel-header-actions { display: flex; gap: 4px; }
+      .sentinel-icon-btn {
+        background: transparent;
+        border: none;
+        color: #787b86;
+        cursor: pointer;
+        font-size: 11px;
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+      .sentinel-icon-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+      .sentinel-metric-row { margin-bottom: 7px; }
+      .sentinel-metric-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        margin-bottom: 3px;
+      }
+      .sentinel-lbl { color: #787b86; }
+      .sentinel-val { font-weight: 700; font-family: monospace; }
+      .sentinel-progress-bg {
+        width: 100%;
+        height: 5px;
+        background: #2a2e39;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .sentinel-progress-bar {
+        height: 100%;
+        transition: width 0.3s ease, background-color 0.3s ease;
+      }
+      .sentinel-progress-bar.normal { background: #089981; }
+      .sentinel-progress-bar.warning { background: #ff9800; }
+      .sentinel-progress-bar.danger { background: #f23645; }
+      .sentinel-progress-bar.profit { background: #2962ff; }
+      .sentinel-stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin: 8px 0;
+      }
+      .sentinel-stat-box {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid #2a2e39;
+        border-radius: 4px;
+        padding: 4px 6px;
+        display: flex;
+        flex-direction: column;
+      }
+      .sentinel-stat-title { font-size: 9px; color: #787b86; }
+      .sentinel-stat-num { font-size: 11px; font-weight: 700; font-family: monospace; color: #fff; }
+      .sentinel-news-alert {
+        background: rgba(41, 98, 255, 0.08);
+        border: 1px solid rgba(41, 98, 255, 0.2);
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 10px;
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .sentinel-news-tag { color: #2962ff; font-weight: 800; font-size: 9px; }
+      .sentinel-news-text { color: #d1d4dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sentinel-killswitch-btn {
+        width: 100%;
+        background: linear-gradient(180deg, #d32f2f, #b71c1c);
+        color: #fff;
+        border: 1px solid #f23645;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        padding: 6px 0;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .sentinel-killswitch-btn:hover {
+        background: #f23645;
+        box-shadow: 0 0 12px rgba(242, 54, 69, 0.5);
+      }
+
+      /* ESTILOS MONTE CARLO TAB */
+      .montecarlo-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #181c27;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 12px;
+      }
+      .montecarlo-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .mc-param-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .mc-param-item input {
+        width: 65px;
+        background: #131722;
+        border: 1px solid #2a2e39;
+        color: #fff;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .mc-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .mc-kpi-card {
+        background: #181c27;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+      }
+      .mc-kpi-title {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+      .mc-kpi-value {
+        font-size: 15px;
+        font-weight: 800;
+        font-family: monospace;
+        color: #fff;
+      }
+      .mc-kpi-sub {
+        font-size: 9px;
+        color: #787b86;
+        margin-top: 2px;
+      }
     </style>
   </head>
   <body>
@@ -2588,6 +2788,8 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
 
       <button id="btn-indicadores" class="toolbar-btn desktop-only">fx Indicadores</button>
       <button id="btn-pine-modal-open" class="toolbar-btn desktop-only">Editor Pine Script</button>
+      <button id="btn-toggle-sentinel" class="toolbar-btn desktop-only" title="Prop Firm Risk Sentinel HUD">Sentinel</button>
+      <button id="btn-toggle-news" class="toolbar-btn desktop-only" title="Líneas del Calendario Económico">Noticias</button>
       <button id="btn-cargar-csv" class="toolbar-btn desktop-only">📁 Cargar CSV</button>
       <input type="file" id="csv-file-input" accept=".csv,.txt" style="display: none;">
     </div>
@@ -2612,11 +2814,79 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
         <button id="btn-longpos" class="sidebar-btn" title="Posición Larga (Long R:R)">🟢</button>
         <button id="btn-shortpos" class="sidebar-btn" title="Posición Corta (Short R:R)">🔴</button>
         <button id="btn-ruler" class="sidebar-btn" title="Regla de Medición">📏</button>
+        <button id="btn-avwap" class="sidebar-btn" title="Anchored VWAP (Anclar en 1 vela)" style="font-size: 9px; font-weight: 800;">AVWAP</button>
         <button id="btn-borrar" class="sidebar-btn" title="Borrar Todos los Dibujos">🗑️</button>
       </div>
 
       <!-- ÁREA DE GRÁFICOS Y DIVISOR REAJUSTABLE -->
       <div id="chart-container">
+        <!-- PROP FIRM RISK SENTINEL HUD FLOTANTE -->
+        <div id="propfirm-sentinel-hud" class="sentinel-hud" style="display: none;">
+          <div class="sentinel-header">
+            <div class="sentinel-title-wrap">
+              <span class="sentinel-dot"></span>
+              <span class="sentinel-title">RISK SENTINEL</span>
+              <span id="sentinel-badge-status" class="sentinel-badge normal">NORMAL</span>
+            </div>
+            <div class="sentinel-header-actions">
+              <button id="btn-sentinel-mute" class="sentinel-icon-btn" title="Silenciar Alertas">🔊</button>
+              <button id="btn-sentinel-close" class="sentinel-icon-btn" title="Cerrar Sentinel">✕</button>
+            </div>
+          </div>
+          <div class="sentinel-body">
+            <!-- DAILY DRAWDOWN GAUGE -->
+            <div class="sentinel-metric-row">
+              <div class="sentinel-metric-labels">
+                <span class="sentinel-lbl">Pérdida Diaria:</span>
+                <span id="sentinel-val-daily" class="sentinel-val">-0.00% / -4.00%</span>
+              </div>
+              <div class="sentinel-progress-bg">
+                <div id="sentinel-bar-daily" class="sentinel-progress-bar normal" style="width: 0%;"></div>
+              </div>
+            </div>
+            <!-- MAX DRAWDOWN GAUGE -->
+            <div class="sentinel-metric-row">
+              <div class="sentinel-metric-labels">
+                <span class="sentinel-lbl">Max Drawdown Total:</span>
+                <span id="sentinel-val-maxdd" class="sentinel-val">-0.00% / -10.00%</span>
+              </div>
+              <div class="sentinel-progress-bg">
+                <div id="sentinel-bar-maxdd" class="sentinel-progress-bar normal" style="width: 0%;"></div>
+              </div>
+            </div>
+            <!-- PROFIT TARGET GAUGE -->
+            <div class="sentinel-metric-row">
+              <div class="sentinel-metric-labels">
+                <span class="sentinel-lbl">Objetivo Profit:</span>
+                <span id="sentinel-val-target" class="sentinel-val">+0.00% / +10.00%</span>
+              </div>
+              <div class="sentinel-progress-bg">
+                <div id="sentinel-bar-target" class="sentinel-progress-bar profit" style="width: 0%;"></div>
+              </div>
+            </div>
+            <!-- FINANCIAL STATS -->
+            <div class="sentinel-stats-grid">
+              <div class="sentinel-stat-box">
+                <span class="sentinel-stat-title">Equity</span>
+                <span id="sentinel-val-equity" class="sentinel-stat-num">$10,000.00</span>
+              </div>
+              <div class="sentinel-stat-box">
+                <span class="sentinel-stat-title">Flotante</span>
+                <span id="sentinel-val-floating" class="sentinel-stat-num">$0.00</span>
+              </div>
+            </div>
+            <!-- NOTICIA ECONÓMICA PRÓXIMA -->
+            <div class="sentinel-news-alert">
+              <span class="sentinel-news-tag">MACRO:</span>
+              <span id="sentinel-next-news" class="sentinel-news-text">Sin eventos críticos en la próxima hora</span>
+            </div>
+            <!-- EMERGENCY KILL SWITCH -->
+            <button id="btn-sentinel-killswitch" class="sentinel-killswitch-btn" title="Cerrar de inmediato todas las órdenes abiertas y suspender trading">
+              KILL-SWITCH EMERGENCIA
+            </button>
+          </div>
+        </div>
+
         <!-- BARRA FLOTANTE DE CONTROL DE BAR REPLAY -->
         <div id="replay-control-bar" class="replay-bar" style="display: none;">
           <div class="replay-drag-handle" title="Barra de repetición">⋮⋮</div>
@@ -2899,8 +3169,10 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
             <button class="tester-tab-btn" data-tab="tab-curva">Curva de Capital & DD</button>
             <button class="tester-tab-btn" data-tab="tab-operaciones">Registro de Operaciones (Blotter)</button>
             <button class="tester-tab-btn" data-tab="tab-propiedades">Propiedades & Entradas</button>
+            <button class="tester-tab-btn" data-tab="tab-montecarlo">Simulación Monte Carlo</button>
           </div>
           <div class="tester-controls">
+            <button id="btn-export-tearsheet" class="tester-ctrl-btn" title="Exportar Reporte Tear Sheet Autónomo">Exportar Tear Sheet</button>
             <button id="btn-tester-maximize" class="tester-ctrl-btn" title="Maximizar / Restaurar Panel">🗖</button>
             <button id="btn-tester-close" class="tester-ctrl-btn" title="Colapsar Panel">▼</button>
           </div>
@@ -3014,6 +3286,71 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
             <div class="props-actions">
               <button id="btn-save-properties" class="bt-btn primary">Guardar Parámetros y Recalcular</button>
               <button id="btn-reset-properties" class="bt-btn">Restablecer Valores por Defecto</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: SIMULACIÓN MONTE CARLO INSTITUCIONAL -->
+        <div id="tab-montecarlo" class="tester-tab-content">
+          <div class="montecarlo-toolbar">
+            <div class="montecarlo-controls">
+              <div class="mc-param-item">
+                <label>Iteraciones:</label>
+                <input type="number" id="mc-input-iterations" value="1000" min="100" max="5000" step="100">
+              </div>
+              <div class="mc-param-item">
+                <label>Límite Ruina (%):</label>
+                <input type="number" id="mc-input-ruin" value="10.0" min="1.0" max="50.0" step="0.5">
+              </div>
+              <div class="mc-param-item">
+                <label>Target Fase (%):</label>
+                <input type="number" id="mc-input-target" value="10.0" min="1.0" max="50.0" step="0.5">
+              </div>
+              <button id="btn-run-montecarlo" class="bt-btn primary" style="font-weight: 700;">Ejecutar Simulación</button>
+            </div>
+          </div>
+          
+          <!-- TARJETAS DE KPIS MONTE CARLO -->
+          <div class="mc-kpi-grid">
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Riesgo de Ruina (Stop-Out)</span>
+              <span id="mc-kpi-ruin" class="mc-kpi-value" style="color: #089981;">0.00%</span>
+              <span class="mc-kpi-sub">Límite de capital superado</span>
+            </div>
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Probabilidad Target (Fase 1)</span>
+              <span id="mc-kpi-pass" class="mc-kpi-value" style="color: #2962ff;">0.00%</span>
+              <span class="mc-kpi-sub">Objetivo alcanzado</span>
+            </div>
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Percentil 5% (Worst Case)</span>
+              <span id="mc-kpi-p5" class="mc-kpi-value">$10,000.00</span>
+              <span class="mc-kpi-sub">Escenario pesimista (95% sup.)</span>
+            </div>
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Percentil 50% (Mediana)</span>
+              <span id="mc-kpi-p50" class="mc-kpi-value">$10,000.00</span>
+              <span class="mc-kpi-sub">Resultado más probable</span>
+            </div>
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Percentil 95% (Best Case)</span>
+              <span id="mc-kpi-p95" class="mc-kpi-value">$10,000.00</span>
+              <span class="mc-kpi-sub">Escenario optimista</span>
+            </div>
+            <div class="mc-kpi-card">
+              <span class="mc-kpi-title">Max Drawdown 95% CI</span>
+              <span id="mc-kpi-maxdd" class="mc-kpi-value" style="color: #f23645;">0.00%</span>
+              <span class="mc-kpi-sub">Drawdown máximo esperado</span>
+            </div>
+          </div>
+
+          <!-- GRÁFICO DE ABANICO (FAN CHART) -->
+          <div class="mc-chart-wrap" style="position: relative; width: 100%; height: 260px; margin-top: 10px; background: #131722; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
+            <canvas id="mc-fan-chart" style="width: 100%; height: 100%; display: block;"></canvas>
+            <div id="mc-chart-legend" style="position: absolute; top: 8px; right: 12px; font-size: 11px; display: flex; gap: 12px; pointer-events: none;">
+              <span style="color: #ffb74d;">● Mediana (P50)</span>
+              <span style="color: rgba(41, 98, 255, 0.6);">■ Rango 5% - 95%</span>
+              <span style="color: #f23645;">-- Límite Ruina</span>
             </div>
           </div>
         </div>

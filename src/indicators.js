@@ -529,21 +529,74 @@ function calcularSupertrend(candles, period = 10, mult = 3.0) {
     return res;
 }
 
-// VWAP
-function calcularVWAP(candles) {
+// VWAP (Volume Weighted Average Price con Desviaciones Estándar Institucionales)
+function calcularVWAP(candles, stdDevMults = [1.0, 2.0]) {
     if (!candles || candles.length === 0) return [];
     const res = [];
     let cumVol = 0;
-    let cumPriceVol = 0;
+    let cumPV = 0;
+    let cumP2V = 0;
 
     for (let i = 0; i < candles.length; i++) {
-        const tp = (candles[i].high + candles[i].low + candles[i].close) / 3;
-        const vol = candles[i].volume || 1;
+        const c = candles[i];
+        const tp = (c.high + c.low + c.close) / 3;
+        const vol = (c.volume && c.volume > 0) ? c.volume : 1;
 
-        cumPriceVol += tp * vol;
+        cumPV += tp * vol;
         cumVol += vol;
+        cumP2V += tp * tp * vol;
 
-        res.push({ time: candles[i].time, value: cumVol === 0 ? tp : cumPriceVol / cumVol });
+        const vwapVal = cumVol === 0 ? tp : cumPV / cumVol;
+        const variance = Math.max(0, (cumP2V / cumVol) - (vwapVal * vwapVal));
+        const stdDev = Math.sqrt(variance);
+
+        res.push({
+            time: c.time,
+            value: vwapVal,
+            upper1: vwapVal + (stdDevMults[0] || 1.0) * stdDev,
+            lower1: vwapVal - (stdDevMults[0] || 1.0) * stdDev,
+            upper2: vwapVal + (stdDevMults[1] || 2.0) * stdDev,
+            lower2: vwapVal - (stdDevMults[1] || 2.0) * stdDev
+        });
+    }
+    return res;
+}
+
+// ANCHORED VWAP (AVWAP - Brian Shannon / Wall Street Institutional Standard)
+function calcularAnchoredVWAP(candles, anchorTime, stdDevMults = [1.0, 2.0]) {
+    if (!candles || candles.length === 0) return [];
+    const res = [];
+    let cumVol = 0;
+    let cumPV = 0;
+    let cumP2V = 0;
+    let started = false;
+
+    for (let i = 0; i < candles.length; i++) {
+        const c = candles[i];
+        if (!started && c.time >= anchorTime) {
+            started = true;
+        }
+        if (!started) continue;
+
+        const tp = (c.high + c.low + c.close) / 3;
+        const vol = (c.volume && c.volume > 0) ? c.volume : 1;
+
+        cumPV += tp * vol;
+        cumVol += vol;
+        cumP2V += tp * tp * vol;
+
+        const vwapVal = cumVol === 0 ? tp : cumPV / cumVol;
+        const variance = Math.max(0, (cumP2V / cumVol) - (vwapVal * vwapVal));
+        const stdDev = Math.sqrt(variance);
+
+        res.push({
+            time: c.time,
+            value: vwapVal,
+            upper1: vwapVal + (stdDevMults[0] || 1.0) * stdDev,
+            lower1: vwapVal - (stdDevMults[0] || 1.0) * stdDev,
+            upper2: vwapVal + (stdDevMults[1] || 2.0) * stdDev,
+            lower2: vwapVal - (stdDevMults[1] || 2.0) * stdDev
+        });
     }
     return res;
 }
@@ -717,6 +770,7 @@ const IndicatorsEngine = {
     calcularATR,
     calcularSupertrend,
     calcularVWAP,
+    calcularAnchoredVWAP,
     calcularCCI,
     calcularROC,
     calcularMFI,

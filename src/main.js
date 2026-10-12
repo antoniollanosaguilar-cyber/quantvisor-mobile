@@ -1102,7 +1102,27 @@ function recalcularYRenderizarIndicadores() {
             else if (ind.type === 'VWAP') {
                 const data = window.IndicatorsEngine.calcularVWAP(historialVelas);
                 const s = chart.addLineSeries({ color: ind.params?.color || '#e91e63', lineWidth: 2, title: `VWAP` });
-                s.setData(data); ind.seriesList.push(s);
+                s.setData(data.map(d => ({ time: d.time, value: d.value })));
+                ind.seriesList.push(s);
+
+                // Bandas institucionales de desviación estándar
+                if (data.length > 0 && data[0].upper1 !== undefined) {
+                    const sUp1 = chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.45)', lineWidth: 1, lineStyle: 2, title: `+1σ` });
+                    sUp1.setData(data.map(d => ({ time: d.time, value: d.upper1 })));
+                    ind.seriesList.push(sUp1);
+
+                    const sLo1 = chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.45)', lineWidth: 1, lineStyle: 2, title: `-1σ` });
+                    sLo1.setData(data.map(d => ({ time: d.time, value: d.lower1 })));
+                    ind.seriesList.push(sLo1);
+
+                    const sUp2 = chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.25)', lineWidth: 1, lineStyle: 1, title: `+2σ` });
+                    sUp2.setData(data.map(d => ({ time: d.time, value: d.upper2 })));
+                    ind.seriesList.push(sUp2);
+
+                    const sLo2 = chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.25)', lineWidth: 1, lineStyle: 1, title: `-2σ` });
+                    sLo2.setData(data.map(d => ({ time: d.time, value: d.lower2 })));
+                    ind.seriesList.push(sLo2);
+                }
             }
             else if (ind.type === 'CCI') {
                 hayOscilador = true;
@@ -2128,6 +2148,7 @@ function inicializarEventosUI() {
         'btn-longpos': 'longpos',
         'btn-shortpos': 'shortpos',
         'btn-ruler': 'ruler',
+        'btn-avwap': 'avwap',
     };
 
     Object.keys(toolMap).forEach(btnId => {
@@ -2913,6 +2934,10 @@ function inicializarEventosUI() {
         inicializarEventosReplayYMultiChart();
     }
 
+    if (typeof inicializarPropFirmSentinelYCalendario === 'function') {
+        inicializarPropFirmSentinelYCalendario();
+    }
+
     window.addEventListener('orientationchange', () => {
         if (typeof resizeGraficos === 'function') setTimeout(resizeGraficos, 200);
     });
@@ -3694,8 +3719,26 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
             else if (ind.type === 'VWAP') {
                 const data = window.IndicatorsEngine.calcularVWAP(cData);
                 const s = config.chart.addLineSeries({ color: ind.params?.color || '#e91e63', lineWidth: 2, title: `VWAP` });
-                s.setData(data);
+                s.setData(data.map(d => ({ time: d.time, value: d.value })));
                 config.indicatorSeriesList.push(s);
+
+                if (data.length > 0 && data[0].upper1 !== undefined) {
+                    const sUp1 = config.chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.45)', lineWidth: 1, lineStyle: 2, title: `+1σ` });
+                    sUp1.setData(data.map(d => ({ time: d.time, value: d.upper1 })));
+                    config.indicatorSeriesList.push(sUp1);
+
+                    const sLo1 = config.chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.45)', lineWidth: 1, lineStyle: 2, title: `-1σ` });
+                    sLo1.setData(data.map(d => ({ time: d.time, value: d.lower1 })));
+                    config.indicatorSeriesList.push(sLo1);
+
+                    const sUp2 = config.chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.25)', lineWidth: 1, lineStyle: 1, title: `+2σ` });
+                    sUp2.setData(data.map(d => ({ time: d.time, value: d.upper2 })));
+                    config.indicatorSeriesList.push(sUp2);
+
+                    const sLo2 = config.chart.addLineSeries({ color: 'rgba(233, 30, 99, 0.25)', lineWidth: 1, lineStyle: 1, title: `-2σ` });
+                    sLo2.setData(data.map(d => ({ time: d.time, value: d.lower2 })));
+                    config.indicatorSeriesList.push(sLo2);
+                }
             }
             else if (ind.type === 'SQZMOM' && oscChart) {
                 const { histogram, dots } = window.IndicatorsEngine.calcularSqueezeMomentum(
@@ -4120,6 +4163,257 @@ function inicializarEventosReplayYMultiChart() {
             setChartLayout(nextL);
         });
     }
+// =========================================================================
+// MÓDULO PROP FIRM RISK SENTINEL & ALARMAS WEB AUDIO API
+// =========================================================================
+let audioCtxSentinel = null;
+let sentinelMuted = false;
+let lastAlertTimestamp = 0;
+
+function emitirAlertaSonoraSentinel(tipo = 'warning') {
+    if (sentinelMuted) return;
+    try {
+        if (!audioCtxSentinel) {
+            audioCtxSentinel = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtxSentinel && audioCtxSentinel.state === 'suspended') {
+            audioCtxSentinel.resume();
+        }
+        const now = audioCtxSentinel.currentTime;
+        const osc = audioCtxSentinel.createOscillator();
+        const gain = audioCtxSentinel.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtxSentinel.destination);
+
+        if (tipo === 'danger') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.setValueAtTime(440, now + 0.15);
+            osc.frequency.setValueAtTime(880, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        } else {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(520, now);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        }
+    } catch (e) {}
+}
+
+function actualizarPropFirmSentinel() {
+    const hud = document.getElementById('propfirm-sentinel-hud');
+    if (!hud || hud.style.display === 'none') return;
+    if (!window.MT5Emulator) return;
+
+    const emu = window.MT5Emulator;
+    const acc = emu.account || {};
+    const cfg = emu.challengeConfig || { dailyLossLimitPct: 4.0, maxTotalLossPct: 10.0, profitTargetPct: 10.0 };
+
+    const initialBal = acc.initialBalance || 10000;
+    const currentEquity = acc.equity || initialBal;
+    const startEquity = acc.dailyStartEquity || initialBal;
+    const floatingProfit = acc.floatingProfit || 0;
+
+    const dailyLossDollars = Math.max(0, startEquity - currentEquity);
+    const dailyLossPct = (dailyLossDollars / startEquity) * 100;
+    const dailyLimit = cfg.dailyLossLimitPct || 4.0;
+
+    const totalLossDollars = Math.max(0, initialBal - currentEquity);
+    const totalLossPct = (totalLossDollars / initialBal) * 100;
+    const totalLimit = cfg.maxTotalLossPct || 10.0;
+
+    const profitDollars = Math.max(0, currentEquity - initialBal);
+    const profitPct = (profitDollars / initialBal) * 100;
+    const targetLimit = cfg.profitTargetPct || 10.0;
+
+    const valDaily = document.getElementById('sentinel-val-daily');
+    const barDaily = document.getElementById('sentinel-bar-daily');
+    const valMaxdd = document.getElementById('sentinel-val-maxdd');
+    const barMaxdd = document.getElementById('sentinel-bar-maxdd');
+    const valTarget = document.getElementById('sentinel-val-target');
+    const barTarget = document.getElementById('sentinel-bar-target');
+    const valEquity = document.getElementById('sentinel-val-equity');
+    const valFloating = document.getElementById('sentinel-val-floating');
+    const badgeStatus = document.getElementById('sentinel-badge-status');
+
+    if (valDaily) valDaily.textContent = `-${dailyLossPct.toFixed(2)}% / -${dailyLimit.toFixed(2)}%`;
+    if (barDaily) {
+        const pctFill = Math.min(100, (dailyLossPct / dailyLimit) * 100);
+        barDaily.style.width = `${pctFill}%`;
+        barDaily.className = `sentinel-progress-bar ${pctFill >= 85 ? 'danger' : pctFill >= 60 ? 'warning' : 'normal'}`;
+    }
+
+    if (valMaxdd) valMaxdd.textContent = `-${totalLossPct.toFixed(2)}% / -${totalLimit.toFixed(2)}%`;
+    if (barMaxdd) {
+        const pctFill = Math.min(100, (totalLossPct / totalLimit) * 100);
+        barMaxdd.style.width = `${pctFill}%`;
+        barMaxdd.className = `sentinel-progress-bar ${pctFill >= 85 ? 'danger' : pctFill >= 60 ? 'warning' : 'normal'}`;
+    }
+
+    if (valTarget) valTarget.textContent = `+${profitPct.toFixed(2)}% / +${targetLimit.toFixed(2)}%`;
+    if (barTarget) {
+        const pctFill = Math.min(100, (profitPct / targetLimit) * 100);
+        barTarget.style.width = `${pctFill}%`;
+    }
+
+    if (valEquity) valEquity.textContent = `$${currentEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (valFloating) {
+        valFloating.textContent = `${floatingProfit >= 0 ? '+' : ''}$${floatingProfit.toFixed(2)}`;
+        valFloating.style.color = floatingProfit >= 0 ? '#089981' : '#f23645';
+    }
+
+    const nowTime = Date.now();
+    if (acc.status === 'VIOLATED' || dailyLossPct >= dailyLimit || totalLossPct >= totalLimit) {
+        if (badgeStatus) {
+            badgeStatus.textContent = 'INFRINGIDO';
+            badgeStatus.className = 'sentinel-badge danger';
+        }
+        if (nowTime - lastAlertTimestamp > 30000) {
+            emitirAlertaSonoraSentinel('danger');
+            lastAlertTimestamp = nowTime;
+        }
+    } else if (dailyLossPct >= dailyLimit * 0.85 || totalLossPct >= totalLimit * 0.85) {
+        if (badgeStatus) {
+            badgeStatus.textContent = 'PELIGRO (85%)';
+            badgeStatus.className = 'sentinel-badge danger';
+        }
+        if (nowTime - lastAlertTimestamp > 45000) {
+            emitirAlertaSonoraSentinel('danger');
+            lastAlertTimestamp = nowTime;
+        }
+    } else if (dailyLossPct >= dailyLimit * 0.60 || totalLossPct >= totalLimit * 0.60) {
+        if (badgeStatus) {
+            badgeStatus.textContent = 'PRECAUCIÓN';
+            badgeStatus.className = 'sentinel-badge warning';
+        }
+        if (nowTime - lastAlertTimestamp > 60000) {
+            emitirAlertaSonoraSentinel('warning');
+            lastAlertTimestamp = nowTime;
+        }
+    } else {
+        if (badgeStatus) {
+            badgeStatus.textContent = 'NORMAL';
+            badgeStatus.className = 'sentinel-badge normal';
+        }
+    }
+}
+
+// =========================================================================
+// MÓDULO CALENDARIO ECONÓMICO INSTITUCIONAL EN EL GRÁFICO
+// =========================================================================
+let economicNewsVisible = false;
+
+const EVENTOS_MACRO_INSTITUCIONALES = [
+    { title: 'US Non-Farm Payrolls (NFP)', impact: 'HIGH', currency: 'USD' },
+    { title: 'US CPI YoY (Inflación)', impact: 'HIGH', currency: 'USD' },
+    { title: 'FOMC Interest Rate Decision', impact: 'HIGH', currency: 'USD' },
+    { title: 'ECB Monetary Policy Statement', impact: 'HIGH', currency: 'EUR' },
+    { title: 'US Prelim GDP QoQ', impact: 'MEDIUM', currency: 'USD' }
+];
+
+function toggleCalendarioEconomico() {
+    economicNewsVisible = !economicNewsVisible;
+    const btnNews = document.getElementById('btn-toggle-news');
+    if (btnNews) {
+        btnNews.classList.toggle('active', economicNewsVisible);
+    }
+    actualizarMarcadoresEconomicos();
+}
+
+function actualizarMarcadoresEconomicos() {
+    if (!candleSeries || !historialVelas || historialVelas.length === 0) return;
+
+    if (!economicNewsVisible) {
+        candleSeries.setMarkers([]);
+        return;
+    }
+
+    const markers = [];
+    const step = Math.max(15, Math.floor(historialVelas.length / (EVENTOS_MACRO_INSTITUCIONALES.length + 1)));
+
+    EVENTOS_MACRO_INSTITUCIONALES.forEach((ev, idx) => {
+        const candleIdx = Math.min(historialVelas.length - 2, (idx + 1) * step);
+        const candle = historialVelas[candleIdx];
+        if (candle) {
+            markers.push({
+                time: candle.time,
+                position: 'aboveBar',
+                color: ev.impact === 'HIGH' ? '#f23645' : '#ff9800',
+                shape: 'arrowDown',
+                text: `[${ev.impact}] ${ev.title}`
+            });
+        }
+    });
+
+    candleSeries.setMarkers(markers);
+
+    const nextNewsEl = document.getElementById('sentinel-next-news');
+    if (nextNewsEl) {
+        nextNewsEl.textContent = `Próximo: ${EVENTOS_MACRO_INSTITUCIONALES[0].title} (${EVENTOS_MACRO_INSTITUCIONALES[0].currency})`;
+    }
+}
+
+function inicializarPropFirmSentinelYCalendario() {
+    const btnToggleSentinel = document.getElementById('btn-toggle-sentinel');
+    const hudSentinel = document.getElementById('propfirm-sentinel-hud');
+    if (btnToggleSentinel && hudSentinel) {
+        btnToggleSentinel.addEventListener('click', () => {
+            const isVisible = hudSentinel.style.display !== 'none';
+            hudSentinel.style.display = isVisible ? 'none' : 'block';
+            btnToggleSentinel.classList.toggle('active', !isVisible);
+            if (!isVisible) actualizarPropFirmSentinel();
+        });
+    }
+
+    const btnSentinelClose = document.getElementById('btn-sentinel-close');
+    if (btnSentinelClose && hudSentinel) {
+        btnSentinelClose.addEventListener('click', () => {
+            hudSentinel.style.display = 'none';
+            if (btnToggleSentinel) btnToggleSentinel.classList.remove('active');
+        });
+    }
+
+    const btnSentinelMute = document.getElementById('btn-sentinel-mute');
+    if (btnSentinelMute) {
+        btnSentinelMute.addEventListener('click', () => {
+            sentinelMuted = !sentinelMuted;
+            btnSentinelMute.textContent = sentinelMuted ? '🔇' : '🔊';
+        });
+    }
+
+    const btnSentinelKillSwitch = document.getElementById('btn-sentinel-killswitch');
+    if (btnSentinelKillSwitch) {
+        btnSentinelKillSwitch.addEventListener('click', () => {
+            if (confirm("🚨 ¿ACTIVAR EMERGENCY KILL-SWITCH?\n\nEsto cerrará de inmediato TODAS las posiciones abiertas en el mercado y suspenderá todo Algo Trading preventivamente.")) {
+                if (window.MT5Emulator) {
+                    window.MT5Emulator.cerrarTodasLasPosiciones('Emergency Kill-Switch activado por el operador');
+                    window.MT5Emulator.isRunning = false;
+                    const btnRun = document.getElementById('btn-mt5-toggle-run');
+                    if (btnRun) {
+                        btnRun.textContent = 'Iniciar Bot en Vivo';
+                        btnRun.classList.remove('active');
+                    }
+                }
+                emitirAlertaSonoraSentinel('danger');
+                actualizarPropFirmSentinel();
+                alert("✅ KILL-SWITCH EJECUTADO: Todas las posiciones han sido cerradas y los bots suspendidos.");
+            }
+        });
+    }
+
+    const btnToggleNews = document.getElementById('btn-toggle-news');
+    if (btnToggleNews) {
+        btnToggleNews.addEventListener('click', () => {
+            toggleCalendarioEconomico();
+        });
+    }
+
+    setInterval(actualizarPropFirmSentinel, 1000);
 }
 
 // Exportaciones globales para depuración y tests automatizados
@@ -4133,5 +4427,8 @@ if (typeof window !== 'undefined') {
     window.setChartLayout = setChartLayout;
     window.panelesSecundarios = panelesSecundarios;
     window.inicializarEventosReplayYMultiChart = inicializarEventosReplayYMultiChart;
+    window.actualizarPropFirmSentinel = actualizarPropFirmSentinel;
+    window.toggleCalendarioEconomico = toggleCalendarioEconomico;
+    window.emitirAlertaSonoraSentinel = emitirAlertaSonoraSentinel;
 }
 

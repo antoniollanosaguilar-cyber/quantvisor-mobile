@@ -277,11 +277,25 @@ class StrategyTester {
             blotterPaginationInfo: document.getElementById('blotter-pagination-info'),
             blotterPaginationControls: document.getElementById('blotter-pagination-controls'),
             btnExportCsv: document.getElementById('btn-export-csv'),
+            btnExportTearSheet: document.getElementById('btn-export-tearsheet'),
             
             // Tab 4 (Propiedades)
             dynamicParamsContainer: document.getElementById('strategy-dynamic-params'),
             btnSaveProps: document.getElementById('btn-save-properties'),
             btnResetProps: document.getElementById('btn-reset-properties'),
+
+            // Tab 5 (Monte Carlo)
+            btnRunMonteCarlo: document.getElementById('btn-run-montecarlo'),
+            mcInputIterations: document.getElementById('mc-input-iterations'),
+            mcInputRuin: document.getElementById('mc-input-ruin'),
+            mcInputTarget: document.getElementById('mc-input-target'),
+            mcKpiRuin: document.getElementById('mc-kpi-ruin'),
+            mcKpiPass: document.getElementById('mc-kpi-pass'),
+            mcKpiP5: document.getElementById('mc-kpi-p5'),
+            mcKpiP50: document.getElementById('mc-kpi-p50'),
+            mcKpiP95: document.getElementById('mc-kpi-p95'),
+            mcKpiMaxDd: document.getElementById('mc-kpi-maxdd'),
+            mcFanChartCanvas: document.getElementById('mc-fan-chart'),
 
             // Controles de Modo Mono / Multi-Activo
             btModeSelect: document.getElementById('bt-mode-select'),
@@ -343,6 +357,16 @@ class StrategyTester {
         // Botón Ejecutar Backtest
         if (this.dom.btnRunBacktest) {
             this.dom.btnRunBacktest.addEventListener('click', () => this.ejecutarBacktest());
+        }
+
+        // Botón Ejecutar Simulación Monte Carlo
+        if (this.dom.btnRunMonteCarlo) {
+            this.dom.btnRunMonteCarlo.addEventListener('click', () => this.ejecutarMonteCarlo());
+        }
+
+        // Botón Exportar Tear Sheet Autónomo
+        if (this.dom.btnExportTearSheet) {
+            this.dom.btnExportTearSheet.addEventListener('click', () => this.exportarTearSheetHTML());
         }
 
         // Cambio de Símbolo y Temporalidad en Backtester
@@ -559,6 +583,8 @@ class StrategyTester {
             setTimeout(() => this.garantizarChartsCurvaCapital(), 50);
         } else if (tabId === 'tab-operaciones') {
             this.renderizarTradeBlotter();
+        } else if (tabId === 'tab-montecarlo') {
+            setTimeout(() => this.renderizarMonteCarlo(), 50);
         }
     }
 
@@ -3694,6 +3720,456 @@ class StrategyTester {
         if (absP < 0.01) return price.toFixed(6);
         if (absP < 1) return price.toFixed(4);
         return price.toFixed(2);
+    }
+
+    // =========================================================================
+    // SIMULACIÓN MONTE CARLO & FAN CHART (WALL STREET RISK SUITE)
+    // =========================================================================
+    renderizarMonteCarlo() {
+        if (!this.monteCarloResult && this.lastBacktestResult?.trades?.length >= 3) {
+            this.ejecutarMonteCarlo();
+        } else if (this.monteCarloResult) {
+            this.renderizarFanChart();
+        }
+    }
+
+    ejecutarMonteCarlo() {
+        const trades = this.lastBacktestResult?.trades || [];
+        if (!trades || trades.length < 3) {
+            alert("⚠️ Se requieren al menos 3 operaciones ejecutadas en el Strategy Tester para correr la simulación Monte Carlo.");
+            return;
+        }
+
+        const numIterations = parseInt(this.dom.mcInputIterations?.value) || 1000;
+        const ruinLimitPct = parseFloat(this.dom.mcInputRuin?.value) || 10.0;
+        const targetGoalPct = parseFloat(this.dom.mcInputTarget?.value) || 10.0;
+        const initialCapital = this.executionProps.initialCapital || 10000;
+
+        const ruinCapitalThreshold = initialCapital * (1 - ruinLimitPct / 100);
+        const targetCapitalThreshold = initialCapital * (1 + targetGoalPct / 100);
+
+        const pnlSamples = trades.map(t => Number(t.profit) || 0);
+        const nSteps = pnlSamples.length;
+
+        const allPaths = [];
+        const finalEquities = [];
+        const maxDrawdowns = [];
+        let hitRuinCount = 0;
+        let hitTargetCount = 0;
+
+        const stepEquities = Array.from({ length: nSteps + 1 }, () => []);
+
+        for (let iter = 0; iter < numIterations; iter++) {
+            let currentEquity = initialCapital;
+            let peakEquity = initialCapital;
+            let maxDD = 0;
+            let hitRuin = false;
+            let hitTarget = false;
+
+            const path = [currentEquity];
+            stepEquities[0].push(currentEquity);
+
+            for (let s = 0; s < nSteps; s++) {
+                const randIdx = Math.floor(Math.random() * nSteps);
+                currentEquity += pnlSamples[randIdx];
+                path.push(currentEquity);
+                stepEquities[s + 1].push(currentEquity);
+
+                if (currentEquity > peakEquity) peakEquity = currentEquity;
+                const dd = peakEquity > 0 ? ((peakEquity - currentEquity) / peakEquity) * 100 : 0;
+                if (dd > maxDD) maxDD = dd;
+
+                if (currentEquity <= ruinCapitalThreshold) hitRuin = true;
+                if (currentEquity >= targetCapitalThreshold) hitTarget = true;
+            }
+
+            finalEquities.push(currentEquity);
+            maxDrawdowns.push(maxDD);
+            if (hitRuin) hitRuinCount++;
+            if (hitTarget) hitTargetCount++;
+
+            if (iter < 80) {
+                allPaths.push(path);
+            }
+        }
+
+        finalEquities.sort((a, b) => a - b);
+        maxDrawdowns.sort((a, b) => a - b);
+
+        const getPercentile = (arr, p) => {
+            const idx = Math.min(arr.length - 1, Math.max(0, Math.floor(arr.length * (p / 100))));
+            return arr[idx];
+        };
+
+        const p5Final = getPercentile(finalEquities, 5);
+        const p50Final = getPercentile(finalEquities, 50);
+        const p95Final = getPercentile(finalEquities, 95);
+        const maxDD95 = getPercentile(maxDrawdowns, 95);
+
+        const riskOfRuinPct = (hitRuinCount / numIterations) * 100;
+        const passTargetPct = (hitTargetCount / numIterations) * 100;
+
+        const p5Curve = [];
+        const p25Curve = [];
+        const p50Curve = [];
+        const p75Curve = [];
+        const p95Curve = [];
+
+        for (let s = 0; s <= nSteps; s++) {
+            const col = stepEquities[s].sort((a, b) => a - b);
+            p5Curve.push(getPercentile(col, 5));
+            p25Curve.push(getPercentile(col, 25));
+            p50Curve.push(getPercentile(col, 50));
+            p75Curve.push(getPercentile(col, 75));
+            p95Curve.push(getPercentile(col, 95));
+        }
+
+        this.monteCarloResult = {
+            numIterations,
+            initialCapital,
+            ruinCapitalThreshold,
+            targetCapitalThreshold,
+            nSteps,
+            allPaths,
+            p5Final,
+            p50Final,
+            p95Final,
+            maxDD95,
+            riskOfRuinPct,
+            passTargetPct,
+            p5Curve,
+            p25Curve,
+            p50Curve,
+            p75Curve,
+            p95Curve
+        };
+
+        this.actualizarDOMMonteCarlo();
+        this.renderizarFanChart();
+    }
+
+    actualizarDOMMonteCarlo() {
+        if (!this.monteCarloResult) return;
+        const res = this.monteCarloResult;
+
+        if (this.dom.mcKpiRuin) {
+            this.dom.mcKpiRuin.textContent = `${res.riskOfRuinPct.toFixed(2)}%`;
+            this.dom.mcKpiRuin.style.color = res.riskOfRuinPct > 5 ? '#f23645' : res.riskOfRuinPct > 2 ? '#ff9800' : '#089981';
+        }
+        if (this.dom.mcKpiPass) {
+            this.dom.mcKpiPass.textContent = `${res.passTargetPct.toFixed(2)}%`;
+        }
+        if (this.dom.mcKpiP5) {
+            this.dom.mcKpiP5.textContent = `$${res.p5Final.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            this.dom.mcKpiP5.style.color = res.p5Final < res.initialCapital ? '#f23645' : '#fff';
+        }
+        if (this.dom.mcKpiP50) {
+            this.dom.mcKpiP50.textContent = `$${res.p50Final.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            this.dom.mcKpiP50.style.color = res.p50Final >= res.initialCapital ? '#089981' : '#f23645';
+        }
+        if (this.dom.mcKpiP95) {
+            this.dom.mcKpiP95.textContent = `$${res.p95Final.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (this.dom.mcKpiMaxDd) {
+            this.dom.mcKpiMaxDd.textContent = `${res.maxDD95.toFixed(2)}%`;
+        }
+    }
+
+    renderizarFanChart() {
+        const canvas = this.dom.mcFanChartCanvas;
+        if (!canvas || !this.monteCarloResult) return;
+        const res = this.monteCarloResult;
+
+        const parent = canvas.parentElement;
+        const width = parent.clientWidth || 800;
+        const height = parent.clientHeight || 260;
+        const dpr = window.devicePixelRatio || 1;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.fillStyle = '#131722';
+        ctx.fillRect(0, 0, width, height);
+
+        const padLeft = 65;
+        const padRight = 20;
+        const padTop = 25;
+        const padBottom = 25;
+        const plotW = width - padLeft - padRight;
+        const plotH = height - padTop - padBottom;
+
+        if (plotW <= 0 || plotH <= 0) return;
+
+        let minY = Math.min(res.ruinCapitalThreshold, ...res.p5Curve);
+        let maxY = Math.max(res.targetCapitalThreshold, ...res.p95Curve);
+        const yRange = (maxY - minY) || 1;
+        minY -= yRange * 0.05;
+        maxY += yRange * 0.05;
+
+        const nSteps = res.nSteps;
+        const mapX = (step) => padLeft + (step / nSteps) * plotW;
+        const mapY = (val) => padTop + plotH - ((val - minY) / (maxY - minY)) * plotH;
+
+        ctx.strokeStyle = '#2a2e39';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#787b86';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+
+        const yTicks = 5;
+        for (let i = 0; i <= yTicks; i++) {
+            const val = minY + (i / yTicks) * (maxY - minY);
+            const y = mapY(val);
+            ctx.beginPath();
+            ctx.moveTo(padLeft, y);
+            ctx.lineTo(width - padRight, y);
+            ctx.stroke();
+            ctx.fillText(`$${val.toFixed(0)}`, padLeft - 6, y + 3);
+        }
+
+        ctx.textAlign = 'center';
+        const xTicks = Math.min(10, nSteps);
+        for (let i = 0; i <= xTicks; i++) {
+            const step = Math.round((i / xTicks) * nSteps);
+            const x = mapX(step);
+            ctx.beginPath();
+            ctx.moveTo(x, padTop);
+            ctx.lineTo(x, padTop + plotH);
+            ctx.stroke();
+            ctx.fillText(`${step}`, x, height - 8);
+        }
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(41, 98, 255, 0.05)';
+        res.allPaths.forEach(path => {
+            ctx.beginPath();
+            ctx.moveTo(mapX(0), mapY(path[0]));
+            for (let s = 1; s <= nSteps; s++) {
+                ctx.lineTo(mapX(s), mapY(path[s]));
+            }
+            ctx.stroke();
+        });
+
+        ctx.fillStyle = 'rgba(41, 98, 255, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(mapX(0), mapY(res.p95Curve[0]));
+        for (let s = 1; s <= nSteps; s++) ctx.lineTo(mapX(s), mapY(res.p95Curve[s]));
+        for (let s = nSteps; s >= 0; s--) ctx.lineTo(mapX(s), mapY(res.p5Curve[s]));
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(41, 98, 255, 0.22)';
+        ctx.beginPath();
+        ctx.moveTo(mapX(0), mapY(res.p75Curve[0]));
+        for (let s = 1; s <= nSteps; s++) ctx.lineTo(mapX(s), mapY(res.p75Curve[s]));
+        for (let s = nSteps; s >= 0; s--) ctx.lineTo(mapX(s), mapY(res.p25Curve[s]));
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, mapY(res.initialCapital));
+        ctx.lineTo(width - padRight, mapY(res.initialCapital));
+        ctx.stroke();
+
+        ctx.strokeStyle = '#f23645';
+        ctx.beginPath();
+        ctx.moveTo(padLeft, mapY(res.ruinCapitalThreshold));
+        ctx.lineTo(width - padRight, mapY(res.ruinCapitalThreshold));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = '#ffb74d';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(mapX(0), mapY(res.p50Curve[0]));
+        for (let s = 1; s <= nSteps; s++) {
+            ctx.lineTo(mapX(s), mapY(res.p50Curve[s]));
+        }
+        ctx.stroke();
+    }
+
+    // =========================================================================
+    // GENERADOR DE TEAR SHEET INSTITUCIONAL AUTÓNOMO (HTML)
+    // =========================================================================
+    exportarTearSheetHTML() {
+        const result = this.lastBacktestResult;
+        if (!result || !result.trades || result.trades.length === 0) {
+            alert("⚠️ Primero debe ejecutar un backtest para poder exportar un reporte Tear Sheet.");
+            return;
+        }
+
+        const stratName = result.strategy?.name || "Estrategia Cuantitativa";
+        const symbol = result.symbol || (result.symbols ? result.symbols.join(', ') : "MULTI");
+        const m = result.metrics || {};
+        const trades = result.trades || [];
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+        const initialCap = this.executionProps.initialCapital || 10000;
+        let runningCap = initialCap;
+        const equityPoints = [{ x: 0, y: initialCap }];
+
+        trades.forEach((t, i) => {
+            runningCap += (Number(t.profit) || 0);
+            equityPoints.push({ x: i + 1, y: runningCap });
+        });
+
+        const svgWidth = 800;
+        const svgHeight = 220;
+        const minE = Math.min(...equityPoints.map(p => p.y));
+        const maxE = Math.max(...equityPoints.map(p => p.y));
+        const eRange = (maxE - minE) || 1;
+
+        const ptsPolyline = equityPoints.map(p => {
+            const x = 40 + (p.x / equityPoints.length) * (svgWidth - 60);
+            const y = svgHeight - 20 - ((p.y - minE) / eRange) * (svgHeight - 40);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+
+        const tradesRows = trades.slice(0, 200).map((t, idx) => `
+            <tr>
+                <td>${idx + 1}</td>
+                <td><span class="badge ${t.direction === 'long' ? 'buy' : 'sell'}">${(t.direction || 'BUY').toUpperCase()}</span></td>
+                <td>${t.symbol || symbol}</td>
+                <td>${t.entryTime ? new Date(t.entryTime * 1000).toLocaleString() : '-'}</td>
+                <td>${Number(t.entryPrice || 0).toFixed(2)}</td>
+                <td>${Number(t.exitPrice || 0).toFixed(2)}</td>
+                <td style="font-weight:bold; color:${(t.profit || 0) >= 0 ? '#089981' : '#f23645'};">
+                    ${(t.profit || 0) >= 0 ? '+' : ''}$${Number(t.profit || 0).toFixed(2)}
+                </td>
+            </tr>
+        `).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>QuantFactory Tear Sheet - ${stratName}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #0e1117; color: #d1d4dc; margin: 0; padding: 24px; }
+        .sheet-container { max-width: 1000px; margin: 0 auto; background: #131722; border: 1px solid #2a2e39; border-radius: 8px; padding: 28px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
+        .sheet-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2962ff; padding-bottom: 16px; margin-bottom: 20px; }
+        .sheet-title h1 { margin: 0; font-size: 22px; color: #fff; letter-spacing: 0.5px; }
+        .sheet-title p { margin: 4px 0 0; font-size: 13px; color: #787b86; }
+        .btn-print { background: #2962ff; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-print:hover { background: #1e4bd8; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .kpi-card { background: #181c27; border: 1px solid #2a2e39; border-radius: 6px; padding: 12px 14px; }
+        .kpi-title { font-size: 11px; text-transform: uppercase; color: #787b86; margin-bottom: 4px; }
+        .kpi-val { font-size: 18px; font-weight: bold; font-family: monospace; color: #fff; }
+        .chart-box { background: #181c27; border: 1px solid #2a2e39; border-radius: 6px; padding: 16px; margin-bottom: 24px; }
+        .chart-title { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #2a2e39; }
+        th { background: #1c2130; color: #787b86; font-size: 10px; text-transform: uppercase; }
+        .badge { padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+        .badge.buy { background: rgba(8,153,129,0.2); color: #089981; }
+        .badge.sell { background: rgba(242,54,69,0.2); color: #f23645; }
+        @media print {
+            body { background: #fff; color: #000; padding: 0; }
+            .sheet-container { border: none; box-shadow: none; padding: 0; }
+            .btn-print { display: none; }
+            .kpi-card, .chart-box { border: 1px solid #ccc; background: #fafafa; }
+            .kpi-val, .sheet-title h1, .chart-title { color: #000; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sheet-container">
+        <div class="sheet-header">
+            <div class="sheet-title">
+                <h1>📊 QuantFactory Institutional Tear Sheet</h1>
+                <p>Estrategia: <strong>${stratName}</strong> | Símbolo: <strong>${symbol}</strong> | Generado: ${new Date().toLocaleString()}</p>
+            </div>
+            <button class="btn-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-title">Ganancia Neta</div>
+                <div class="kpi-val" style="color: ${(m.netProfit || 0) >= 0 ? '#089981' : '#f23645'};">
+                    ${(m.netProfit || 0) >= 0 ? '+' : ''}$${Number(m.netProfit || 0).toFixed(2)} (${Number(m.returnPct || 0).toFixed(2)}%)
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Profit Factor</div>
+                <div class="kpi-val">${Number(m.profitFactor || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Sharpe Ratio</div>
+                <div class="kpi-val">${Number(m.sharpeRatio || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Sortino Ratio</div>
+                <div class="kpi-val">${Number(m.sortinoRatio || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Max Drawdown</div>
+                <div class="kpi-val" style="color: #f23645;">
+                    -${Number(m.maxDrawdownPct || 0).toFixed(2)}% ($${Number(m.maxDrawdown || 0).toFixed(2)})
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Win Rate</div>
+                <div class="kpi-val">${Number(m.winRate || 0).toFixed(1)}% (${m.winTrades || 0}/${m.totalTrades || trades.length})</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Expectancy</div>
+                <div class="kpi-val">$${Number(m.expectancy || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Total Operaciones</div>
+                <div class="kpi-val">${trades.length}</div>
+            </div>
+        </div>
+
+        <div class="chart-box">
+            <div class="chart-title">Curva de Capital (Cumulative Equity)</div>
+            <svg viewBox="0 0 ${svgWidth} ${svgHeight}" style="width: 100%; height: auto; display: block;">
+                <polyline fill="none" stroke="#2962ff" stroke-width="2.5" points="${ptsPolyline}" />
+            </svg>
+        </div>
+
+        <div class="chart-box">
+            <div class="chart-title">Trade Blotter (Operaciones Ejecutadas)</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tipo</th>
+                        <th>Símbolo</th>
+                        <th>Fecha Entrada</th>
+                        <th>Precio Entrada</th>
+                        <th>Precio Salida</th>
+                        <th>PnL ($)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tradesRows}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>`;
+
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `TearSheet_${stratName.replace(/\s+/g, '_')}_${timestamp}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
