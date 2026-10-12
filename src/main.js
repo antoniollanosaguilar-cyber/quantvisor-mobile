@@ -97,6 +97,7 @@ if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof w
 // Estado Global de la Aplicación
 let chart = null;
 let oscillatorChart = null;
+let oscTimeAnchorSeries = null;
 let mainSeries = null;
 let activePriceSeries = null;
 let volumeSeries = null;
@@ -185,7 +186,8 @@ function inicializarGraficos() {
         },
         grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.2 } },
+        leftPriceScale: { visible: false, minimumWidth: 0 },
+        rightPriceScale: { minimumWidth: 75, borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.2 } },
         timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 15 },
     });
 
@@ -225,11 +227,19 @@ function inicializarGraficos() {
             if (historialVelas.length > 0) {
                 mostrarLeyendaOHLCV(historialVelas[historialVelas.length - 1]);
             }
+            if (oscillatorChart) {
+                try { oscillatorChart.clearCrosshairPosition(); } catch (e) {}
+            }
             return;
         }
         const data = param.seriesData.get(activePriceSeries);
         if (data) {
             mostrarLeyendaOHLCV(data);
+        }
+        if (oscillatorChart && oscTimeAnchorSeries) {
+            try {
+                oscillatorChart.setCrosshairPosition(0, param.time, oscTimeAnchorSeries);
+            } catch (e) {}
         }
     });
 
@@ -250,6 +260,28 @@ function inicializarGraficos() {
 
 let isSyncingMain = false;
 let isSyncingOsc = false;
+
+function sincronizarAnchosEscalas() {
+    if (!chart) return;
+    try {
+        let maxW = 75;
+        const wMain = chart.priceScale('right')?.width() || 0;
+        if (wMain > maxW) maxW = wMain;
+
+        if (oscillatorChart) {
+            const wOsc = oscillatorChart.priceScale('right')?.width() || 0;
+            if (wOsc > maxW) maxW = wOsc;
+            oscillatorChart.applyOptions({
+                rightPriceScale: { minimumWidth: maxW, visible: true },
+                leftPriceScale: { visible: false, minimumWidth: 0 }
+            });
+        }
+        chart.applyOptions({
+            rightPriceScale: { minimumWidth: maxW, visible: true },
+            leftPriceScale: { visible: false, minimumWidth: 0 }
+        });
+    } catch (e) {}
+}
 
 function garantizarOscilador() {
     const oscContainer = document.getElementById('oscillator-chart-container');
@@ -281,12 +313,12 @@ function garantizarOscilador() {
                 horzLines: { color: 'rgba(42, 46, 57, 0.4)' }
             },
             leftPriceScale: {
-                visible: true,
-                borderColor: '#2a2e39',
-                scaleMargins: { top: 0.1, bottom: 0.1 }
+                visible: false,
+                minimumWidth: 0
             },
             rightPriceScale: {
                 visible: true,
+                minimumWidth: 75,
                 borderColor: '#2a2e39',
                 scaleMargins: { top: 0.1, bottom: 0.1 }
             },
@@ -297,6 +329,19 @@ function garantizarOscilador() {
                 rightOffset: 15
             },
         });
+
+        // Serie ancla invisible con todos los timestamps del dataset para garantizar paridad absoluta de TimeScale
+        oscTimeAnchorSeries = oscillatorChart.addLineSeries({
+            priceScaleId: '',
+            color: 'rgba(0, 0, 0, 0)',
+            lineWidth: 1,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false
+        });
+        if (historialVelas && historialVelas.length > 0) {
+            oscTimeAnchorSeries.setData(historialVelas.map(c => ({ time: c.time, value: 0 })));
+        }
 
         // Sincronización bidireccional protegida contra bucles infinitos
         chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -317,6 +362,22 @@ function garantizarOscilador() {
             isSyncingOsc = false;
         });
 
+        // Sincronización de Crosshair desde el Oscilador hacia el Gráfico Principal
+        oscillatorChart.subscribeCrosshairMove(param => {
+            if (!chart || !activePriceSeries) return;
+            if (param && param.time) {
+                try {
+                    const candle = (window.historialVelas || []).find(c => c.time === param.time);
+                    if (candle) {
+                        chart.setCrosshairPosition(candle.close, param.time, activePriceSeries);
+                        mostrarLeyendaOHLCV(candle);
+                    }
+                } catch (e) {}
+            } else {
+                try { chart.clearCrosshairPosition(); } catch (e) {}
+            }
+        });
+
         if (chart && chart.timeScale()) {
             try {
                 const initRange = chart.timeScale().getVisibleLogicalRange();
@@ -329,8 +390,18 @@ function garantizarOscilador() {
         oscContainer.style.display = 'block';
         const resizer = document.getElementById('chart-resizer');
         if (resizer) resizer.style.display = 'block';
+        if (oscTimeAnchorSeries && historialVelas && historialVelas.length > 0) {
+            oscTimeAnchorSeries.setData(historialVelas.map(c => ({ time: c.time, value: 0 })));
+        }
+        if (chart && chart.timeScale()) {
+            try {
+                const initRange = chart.timeScale().getVisibleLogicalRange();
+                if (initRange) oscillatorChart.timeScale().setVisibleLogicalRange(initRange);
+            } catch (e) {}
+        }
     }
 
+    sincronizarAnchosEscalas();
     return oscillatorChart;
 }
 
@@ -354,6 +425,8 @@ function resizeGraficos() {
             height: oscH,
         });
     }
+
+    sincronizarAnchosEscalas();
 
     if (drawingEngine) {
         drawingEngine.resize();
@@ -833,6 +906,17 @@ async function cargarDatosVelas(candles) {
         }
     }
 
+    if (oscTimeAnchorSeries && historialVelas && historialVelas.length > 0) {
+        oscTimeAnchorSeries.setData(historialVelas.map(c => ({ time: c.time, value: 0 })));
+    }
+    if (oscillatorChart && chart && chart.timeScale()) {
+        try {
+            const rng = chart.timeScale().getVisibleLogicalRange();
+            if (rng) oscillatorChart.timeScale().setVisibleLogicalRange(rng);
+        } catch (e) {}
+    }
+    sincronizarAnchosEscalas();
+
     if (drawingEngine) {
         drawingEngine.redraw();
     }
@@ -852,6 +936,9 @@ function recalcularYRenderizarIndicadores() {
 
     let hayOscilador = false;
     const oscContainer = document.getElementById('oscillator-chart-container');
+    if (oscillatorChart && oscTimeAnchorSeries && historialVelas && historialVelas.length > 0) {
+        oscTimeAnchorSeries.setData(historialVelas.map(c => ({ time: c.time, value: 0 })));
+    }
 
     // Limpiar series previas de indicadores
     indicadoresActivos.forEach(ind => {
@@ -3402,6 +3489,10 @@ async function cargarDatosPanelSecundario(panelId) {
             config.chart.timeScale().fitContent();
         }
 
+        if (config.oscTimeAnchorSeries && rawList.length > 0) {
+            config.oscTimeAnchorSeries.setData(rawList.map(c => ({ time: c.time, value: 0 })));
+        }
+
         if (rawList.length > 0) {
             actualizarLeyendaPanelSecundario(panelId, { seriesData: new Map([[config.series, rawList[rawList.length - 1]]]) });
         }
@@ -3441,10 +3532,22 @@ function garantizarOsciladorPanelSecundario(panelId) {
             },
             grid: { vertLines: { color: '#1a1e29' }, horzLines: { color: '#1a1e29' } },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-            rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.1 } },
-            leftPriceScale: { borderColor: '#2a2e39', visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+            leftPriceScale: { visible: false, minimumWidth: 0 },
+            rightPriceScale: { minimumWidth: 75, borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.1 } },
             timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false, rightOffset: 15 },
         });
+
+        config.oscTimeAnchorSeries = config.oscChart.addLineSeries({
+            priceScaleId: '',
+            color: 'rgba(0, 0, 0, 0)',
+            lineWidth: 1,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false
+        });
+        if (config.data && config.data.length > 0) {
+            config.oscTimeAnchorSeries.setData(config.data.map(c => ({ time: c.time, value: 0 })));
+        }
 
         if (config.chart && config.chart.timeScale()) {
             config.chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -3462,6 +3565,9 @@ function garantizarOsciladorPanelSecundario(panelId) {
         const w = oscContainer.clientWidth > 0 ? oscContainer.clientWidth : 400;
         const h = oscContainer.clientHeight > 0 ? oscContainer.clientHeight : targetHeight;
         config.oscChart.applyOptions({ width: w, height: h });
+        if (config.oscTimeAnchorSeries && config.data && config.data.length > 0) {
+            config.oscTimeAnchorSeries.setData(config.data.map(c => ({ time: c.time, value: 0 })));
+        }
     }
 
     return config.oscChart;
@@ -3501,6 +3607,9 @@ function renderizarIndicadoresEnPanelSecundario(panelId) {
         if (oscContainer) oscContainer.style.display = 'block';
         if (oscResizer) oscResizer.style.display = 'block';
         oscChart = garantizarOsciladorPanelSecundario(panelId);
+        if (config.oscTimeAnchorSeries && config.data && config.data.length > 0) {
+            config.oscTimeAnchorSeries.setData(config.data.map(c => ({ time: c.time, value: 0 })));
+        }
     } else {
         if (oscContainer) oscContainer.style.display = 'none';
         if (oscResizer) oscResizer.style.display = 'none';
