@@ -4163,6 +4163,8 @@ function inicializarEventosReplayYMultiChart() {
             setChartLayout(nextL);
         });
     }
+}
+
 // =========================================================================
 // MÓDULO PROP FIRM RISK SENTINEL & ALARMAS WEB AUDIO API
 // =========================================================================
