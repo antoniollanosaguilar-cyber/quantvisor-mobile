@@ -1242,6 +1242,8 @@ class StrategyTester {
         const mapB = new Map(Array.isArray(seriesB) ? seriesB.map(p => [p.time, p.value]) : []);
         const mapC = new Map(Array.isArray(seriesC) ? seriesC.map(p => [p.time, p.value]) : []);
         const mapATR = (seriesC && seriesC.atr && Array.isArray(seriesC.atr)) ? new Map(seriesC.atr.map(p => [p.time, p.value])) : null;
+        const mapExitUpper = (seriesC && seriesC.exitUpper && Array.isArray(seriesC.exitUpper)) ? new Map(seriesC.exitUpper.map(p => [p.time, p.value])) : null;
+        const mapExitLower = (seriesC && seriesC.exitLower && Array.isArray(seriesC.exitLower)) ? new Map(seriesC.exitLower.map(p => [p.time, p.value])) : null;
         let pendingOrder = null;
 
         const slippagePct = (props.slippageTicks * 0.0001); // aproximación
@@ -1294,12 +1296,12 @@ class StrategyTester {
                         } else if (posicionActual.type === 'SHORT' && prevFast <= prevSlow && fast > slow) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Cruce Alcista EMA';
                         }
-                    } else if (stType === 'donchian_breakout' && seriesC && seriesC.exitLower) {
-                        const exitLow = (seriesC.exitLower.find(p => p.time === t) || {}).value;
-                        const exitUp = (seriesC.exitUpper.find(p => p.time === t) || {}).value;
-                        if (posicionActual.type === 'LONG' && exitLow && c.close < exitLow) {
+                    } else if (stType === 'donchian_breakout' && mapExitLower) {
+                        const exitLow = mapExitLower.get(prevT);
+                        const exitUp = mapExitUpper ? mapExitUpper.get(prevT) : null;
+                        if (posicionActual.type === 'LONG' && exitLow !== undefined && c.close < exitLow) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Ruptura Salida Donchian';
-                        } else if (posicionActual.type === 'SHORT' && exitUp && c.close > exitUp) {
+                        } else if (posicionActual.type === 'SHORT' && exitUp !== undefined && c.close > exitUp) {
                             cerrar = true; exitPrice = c.close; exitReason = 'Ruptura Salida Donchian';
                         }
                     } else if (stType === 'bollinger_bounce') {

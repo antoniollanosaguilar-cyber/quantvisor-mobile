@@ -432,7 +432,7 @@ export class ServerMT5Daemon {
     }
 
     toggleBot(botId, enabled, options = {}) {
-        if (!this.botsCatalog[botId]) return false;
+        if (!botId || botId === '__proto__' || botId === 'constructor' || botId === 'prototype' || !Object.hasOwn(this.botsCatalog, botId)) return false;
         this.botsCatalog[botId].enabled = !!enabled;
         if (options.riskMode) this.botsCatalog[botId].riskMode = options.riskMode;
         if (options.riskValue !== undefined) this.botsCatalog[botId].riskValue = parseFloat(options.riskValue);
@@ -450,7 +450,7 @@ export class ServerMT5Daemon {
     }
 
     setBotRisk(botId, riskMode, riskValue) {
-        if (!this.botsCatalog[botId]) return false;
+        if (!botId || botId === '__proto__' || botId === 'constructor' || botId === 'prototype' || !Object.hasOwn(this.botsCatalog, botId)) return false;
         if (riskMode) this.botsCatalog[botId].riskMode = riskMode;
         if (riskValue !== undefined) this.botsCatalog[botId].riskValue = parseFloat(riskValue);
         this.guardarEstadoPersistente();
@@ -527,6 +527,7 @@ export class ServerMT5Daemon {
     setBot(botConfig) {
         if (!botConfig || !botConfig.name) return;
         const id = botConfig.id || `custom_bot_${Date.now()}`;
+        if (id === '__proto__' || id === 'constructor' || id === 'prototype') return;
         botConfig.id = id;
         if (botConfig.enabled === undefined) botConfig.enabled = true;
         this.botsCatalog[id] = botConfig;

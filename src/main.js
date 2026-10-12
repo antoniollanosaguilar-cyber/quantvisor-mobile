@@ -479,6 +479,12 @@ async function cargarDibujosSimbolo(simbolo) {
 
 // INGESTA DE DATOS Y MOTOR EN VIVO
 async function cambiarSimboloYTemporalidad(simbolo, temporalidad) {
+    if (isReplayMode) {
+        salirModoReplay();
+    } else if (isReplayWaitingForClick) {
+        cancelarSeleccionReplay();
+    }
+
     const nuevoSimbolo = simbolo.toUpperCase();
 
     // Guardar dibujos del símbolo saliente antes de conmutar
@@ -617,6 +623,7 @@ function iniciarMotorEnVivoYahoo() {
     // 1. Polling rápido para el símbolo activo (cada 4 segundos)
     livePollingTimer = setInterval(async () => {
         try {
+            if (isReplayMode || isReplayWaitingForClick) return;
             const invoke = (window.__TAURI__ && window.__TAURI__.core) 
                 ? window.__TAURI__.core.invoke 
                 : (window.__TAURI__ ? window.__TAURI__.invoke : null);
@@ -2859,7 +2866,7 @@ function activarModoSeleccionReplay() {
     if (btnReplay) btnReplay.classList.add('active');
 
     if (drawingEngine) {
-        drawingEngine.setActiveTool(null);
+        drawingEngine.setTool(null);
         if (drawingEngine.canvas) drawingEngine.canvas.style.pointerEvents = 'none';
     }
 }
@@ -2963,6 +2970,7 @@ function iniciarSimulacionReplayEnIndice(cutIdx) {
     }
 
     historialVelas = historialVelasCompleto.slice(0, replayCutIndex + 1);
+    window.historialVelas = historialVelas;
 
     if (activePriceSeries) {
         activePriceSeries.setData(historialVelas);
@@ -3035,6 +3043,7 @@ function avanzarVelaReplay() {
     replayCurrentIndex++;
     const nextCandle = historialVelasCompleto[replayCurrentIndex];
     historialVelas.push(nextCandle);
+    window.historialVelas = historialVelas;
 
     if (activePriceSeries) {
         activePriceSeries.update(nextCandle);
@@ -3062,6 +3071,7 @@ function reiniciarReplayAlCorte() {
     if (!historialVelasCompleto || historialVelasCompleto.length === 0) return;
     replayCurrentIndex = replayCutIndex;
     historialVelas = historialVelasCompleto.slice(0, replayCutIndex + 1);
+    window.historialVelas = historialVelas;
 
     if (activePriceSeries) activePriceSeries.setData(historialVelas);
     if (volumeSeries) {
@@ -3101,6 +3111,7 @@ function salirModoReplay() {
 
     if (historialVelasCompleto && historialVelasCompleto.length > 0) {
         historialVelas = [...historialVelasCompleto];
+        window.historialVelas = historialVelas;
         if (activePriceSeries) activePriceSeries.setData(historialVelas);
         if (volumeSeries) {
             const volData = historialVelas.map(c => ({

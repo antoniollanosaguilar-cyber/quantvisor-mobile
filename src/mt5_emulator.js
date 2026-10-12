@@ -2089,7 +2089,7 @@ class MT5VirtualEmulator {
                     tpPrice = curPrice + (atr * tpAtrMult);
                 } else if (curBar.low <= minLow && curBar.close < lastBar.close) {
                     signal = 'SELL';
-                    slPrice = curPrice - (atr * slAtrMult);
+                    slPrice = curPrice + (atr * slAtrMult);
                     tpPrice = curPrice - (atr * tpAtrMult);
                 }
             }
@@ -2195,6 +2195,14 @@ class MT5VirtualEmulator {
         const isBuy = type === 'BUY';
         const spreadOffset = isBuy ? (spec.spread * 0.5) : (-spec.spread * 0.5);
         const execPrice = parseFloat((price + spreadOffset).toFixed(spec.digits));
+
+        // Guardia direccional: SL y TP deben estar del lado correcto de la entrada
+        const slBad = sl > 0 && (isBuy ? sl >= execPrice : sl <= execPrice);
+        const tpBad = tp > 0 && (isBuy ? tp <= execPrice : tp >= execPrice);
+        if (slBad || tpBad || !Number.isFinite(execPrice) || !(lots > 0)) {
+            this.logJournal(`[OrderSend REJECTED] Niveles inválidos para ${type} ${symbol} @ ${execPrice} | SL: ${sl} TP: ${tp} | Lotes: ${lots}`);
+            return null;
+        }
 
         // Margen requerido: (Lotes * ContractSize * Precio) / Leverage
         const requiredMargin = (lots * spec.contractSize * execPrice) / this.challengeConfig.leverage;
@@ -2356,37 +2364,42 @@ class MT5VirtualEmulator {
     // PROP FIRM COMPLIANCE GUARDIAN (FTMO / FUNDING PIPS RULES)
     // =========================================================================
     evaluarReglasPropFirm() {
+        // VIOLATED es terminal: solo un reinicio explícito del challenge lo revierte
+        if (this.account.status === 'VIOLATED') return;
+
         const initial = this.account.initialBalance;
         const dayStart = this.account.dayStartEquity;
         const currentEquity = this.account.equity;
 
-        // 1. Pérdida Diaria Máxima (5.0%)
+        // 1. Pérdida Diaria Máxima
         const dailyLossUSD = Math.max(0, dayStart - currentEquity);
-        const dailyLossPct = (dailyLossUSD / dayStart) * 100;
-        const maxDailyUSD = (this.challengeConfig.dailyLossLimitPct / 100) * dayStart;
+        const dailyLossPct = dayStart > 0 ? (dailyLossUSD / dayStart) * 100 : 0;
+        const maxDailyUSD = (this.challengeConfig.dailyLossLimitPct / 100) * (dayStart > 0 ? dayStart : 1);
 
-        // 2. Pérdida Total Máxima (10.0%)
+        // 2. Pérdida Total Máxima
         const totalLossUSD = Math.max(0, initial - currentEquity);
-        const totalLossPct = (totalLossUSD / initial) * 100;
-        const maxTotalUSD = (this.challengeConfig.maxTotalLossPct / 100) * initial;
+        const totalLossPct = initial > 0 ? (totalLossUSD / initial) * 100 : 0;
+        const maxTotalUSD = (this.challengeConfig.maxTotalLossPct / 100) * (initial > 0 ? initial : 1);
 
-        // 3. Profit Target (8.0%)
+        // 3. Profit Target
         const profitUSD = Math.max(0, currentEquity - initial);
-        const profitPct = (profitUSD / initial) * 100;
-        const targetUSD = (this.challengeConfig.profitTargetPct / 100) * initial;
+        const profitPct = initial > 0 ? (profitUSD / initial) * 100 : 0;
+        const targetUSD = (this.challengeConfig.profitTargetPct / 100) * (initial > 0 ? initial : 1);
 
         // Evaluar violaciones o aprobaciones
         if (dailyLossPct >= this.challengeConfig.dailyLossLimitPct) {
             this.account.status = 'VIOLATED';
             this.isRunning = false;
-            this.cerrarTodasLasPosiciones('Prop Firm Rule: Pérdida Diaria Superada (5%)');
-            this.logJournal(`🚨 [ACCOUNT VIOLATED] Has alcanzado el límite de pérdida diaria (${dailyLossPct.toFixed(2)}% >= 5%). Challenge Fallido.`);
+            this.cerrarTodasLasPosiciones(`Prop Firm Rule: Pérdida Diaria Superada (${this.challengeConfig.dailyLossLimitPct}%)`);
+            this.logJournal(`🚨 [ACCOUNT VIOLATED] Has alcanzado el límite de pérdida diaria (${dailyLossPct.toFixed(2)}% >= ${this.challengeConfig.dailyLossLimitPct}%). Challenge Fallido.`);
         } else if (totalLossPct >= this.challengeConfig.maxTotalLossPct) {
             this.account.status = 'VIOLATED';
             this.isRunning = false;
-            this.cerrarTodasLasPosiciones('Prop Firm Rule: Max Drawdown Total Superado (10%)');
-            this.logJournal(`🚨 [ACCOUNT VIOLATED] Has alcanzado el Drawdown Máximo Total (${totalLossPct.toFixed(2)}% >= 10%). Challenge Fallido.`);
-        } else if (profitPct >= this.challengeConfig.profitTargetPct && this.account.status !== 'PASSED') {
+            this.cerrarTodasLasPosiciones(`Prop Firm Rule: Max Drawdown Total Superado (${this.challengeConfig.maxTotalLossPct}%)`);
+            this.logJournal(`🚨 [ACCOUNT VIOLATED] Has alcanzado el Drawdown Máximo Total (${totalLossPct.toFixed(2)}% >= ${this.challengeConfig.maxTotalLossPct}%). Challenge Fallido.`);
+        } else if (this.account.status === 'PASSED') {
+            // Objetivo ya alcanzado: se mantiene PASSED
+        } else if (profitPct >= this.challengeConfig.profitTargetPct) {
             this.account.status = 'PASSED';
             this.logJournal(`🏆 [CHALLENGE PASSED!] ¡Felicidades! Has alcanzado el objetivo de ganancia del ${profitPct.toFixed(2)}%. Fase 1 Aprobada.`);
         } else if (dailyLossPct >= 3.8 || totalLossPct >= 8.0) {
@@ -3102,7 +3115,7 @@ class MT5VirtualEmulator {
                             tpPrice = curPrice + (atr * tpMult);
                         } else if (curBar.low <= minL && curBar.close < lastBar.close) {
                             signal = 'SELL';
-                            slPrice = curPrice - (atr * slMult);
+                            slPrice = curPrice + (atr * slMult);
                             tpPrice = curPrice - (atr * tpMult);
                         }
                     }
@@ -3123,7 +3136,7 @@ class MT5VirtualEmulator {
                             tpPrice = curPrice + (atr * tpMult);
                         } else if (curPrice < emaVal && curBar.low <= minL) {
                             signal = 'SELL';
-                            slPrice = curPrice - (atr * slMult);
+                            slPrice = curPrice + (atr * slMult);
                             tpPrice = curPrice - (atr * tpMult);
                         }
                     }
@@ -3161,7 +3174,7 @@ class MT5VirtualEmulator {
                         tpPrice = curPrice + (atr * tpMult);
                     } else if (emaFastPrev >= emaSlowPrev && emaFastCur < emaSlowCur) {
                         signal = 'SELL';
-                        slPrice = curPrice - (atr * slMult);
+                        slPrice = curPrice + (atr * slMult);
                         tpPrice = curPrice - (atr * tpMult);
                     }
                 }

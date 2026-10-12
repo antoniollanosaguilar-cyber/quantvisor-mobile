@@ -310,9 +310,9 @@ function calcularRSI(candles, period = 14) {
     let avgGain = gains / period;
     let avgLoss = losses / period;
 
-    let rsi0 = (avgLoss === 0 && avgGain === 0)
-        ? 50
-        : (avgLoss === 0 ? 100 : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss)))));
+    let rsi0 = (avgLoss === 0)
+        ? 100
+        : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss))));
     res.push({ time: candles[period].time, value: rsi0 });
 
     for (let i = period + 1; i < candles.length; i++) {
@@ -323,9 +323,9 @@ function calcularRSI(candles, period = 14) {
         avgGain = (avgGain * (period - 1) + gain) / period;
         avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-        let rsiVal = (avgLoss === 0 && avgGain === 0)
-            ? 50
-            : (avgLoss === 0 ? 100 : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss)))));
+        let rsiVal = (avgLoss === 0)
+            ? 100
+            : (avgGain === 0 ? 0 : 100 - (100 / (1 + (avgGain / avgLoss))));
         res.push({ time: candles[i].time, value: rsiVal });
     }
     return res;

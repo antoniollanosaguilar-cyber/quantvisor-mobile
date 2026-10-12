@@ -301,8 +301,30 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(req.url, 'http://localhost');
+    } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'URL inválida' }));
+        return;
+    }
+    const query = Object.fromEntries(parsedUrl.searchParams);
     const pathname = parsedUrl.pathname;
+
+    // Límite de tamaño de body (1 MB) para todos los POST: evita agotar memoria
+    req.on('error', () => {});
+    if (req.method === 'POST') {
+        let received = 0;
+        req.on('data', chunk => {
+            received += chunk.length;
+            if (received > 1048576 && !res.headersSent) {
+                res.writeHead(413, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Body demasiado grande (máx 1 MB)' }));
+                req.destroy();
+            }
+        });
+    }
 
     // Control de acceso (Basic Auth + anti-CSRF). /health y /api/ping quedan públicos para keep-alive.
     if (!guardRequest(req, res, pathname, 'cloud')) return;
@@ -571,7 +593,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/backtest/read_csv') {
         try {
             const fileName = (query.file || '').trim();
-            if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+            if (!fileName || !/\.csv$/i.test(fileName) || fileName !== path.basename(fileName) || fileName.includes('..')) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Nombre de archivo no válido o prohibido' }));
                 return;
@@ -600,7 +622,7 @@ const server = http.createServer(async (req, res) => {
             }
 
             const content = fs.readFileSync(targetPath, 'utf8');
-            const limit = parseInt(query.limit, 10) || 50000;
+            const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50000, 1), 500000);
             const lines = content.split(/\r?\n/);
             const truncated = lines.slice(0, limit).join('\n');
 
@@ -700,15 +722,24 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Rutas /api/* desconocidas: 404 JSON (no caer al fallback SPA)
+    if (pathname.startsWith('/api/')) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Endpoint no encontrado' }));
+        return;
+    }
+
     // Static Files
     let filePath = path.join(SRC_DIR, pathname === '/' ? 'index.html' : pathname);
-    if (!filePath.startsWith(SRC_DIR)) {
+    if (filePath !== SRC_DIR && !filePath.startsWith(SRC_DIR + path.sep)) {
         res.writeHead(403);
         res.end('Acceso denegado');
         return;
     }
 
-    if (!fs.existsSync(filePath)) {
+    let isFile = false;
+    try { isFile = fs.statSync(filePath).isFile(); } catch (e) { isFile = false; }
+    if (!isFile) {
         filePath = path.join(SRC_DIR, 'index.html');
     }
 

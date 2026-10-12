@@ -108,13 +108,15 @@ window.PineEditor = class PineEditor {
         }
 
         const btnSave = document.getElementById('btn-modal-save-pine');
-        if (btnSave) {
+        if (btnSave && !btnSave.dataset.busy) {
+            btnSave.dataset.busy = 'true';
             const originalHTML = btnSave.innerHTML;
             btnSave.innerHTML = '¡Guardado en Lista!';
             btnSave.style.backgroundColor = '#2962ff';
             setTimeout(() => {
                 btnSave.innerHTML = originalHTML;
                 btnSave.style.backgroundColor = '#089981';
+                delete btnSave.dataset.busy;
             }, 2000);
         }
 
@@ -124,7 +126,9 @@ window.PineEditor = class PineEditor {
     }
 
     async aplicarScriptAlGrafico() {
-        const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : null;
+        const invoke = (window.__TAURI__ && window.__TAURI__.core) 
+            ? window.__TAURI__.core.invoke 
+            : (window.__TAURI__ ? window.__TAURI__.invoke : null);
         const historialVelas = window.historialVelas || [];
         
         if (!historialVelas.length) {
