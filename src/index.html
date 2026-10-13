@@ -3993,8 +3993,29 @@ if (ta.crossunder(ta.ema(close, 20), ta.sma(close, 50)))
     <script src="./mt5_emulator.js"></script>
     <script src="./main.js"></script>
     <script>
-      // 1. Registro de Service Worker para PWA
-      if ('serviceWorker' in navigator) {
+      // 1. Control de Service Worker: Exclusivo para PWA Móvil / Web, NUNCA en Tauri Desktop
+      const isTauriApp = !!(window.__TAURI_INTERNALS__ || window.__TAURI__ || window.location.hostname === 'tauri.localhost' || window.location.protocol === 'tauri:');
+      
+      if (isTauriApp) {
+        // En escritorio Tauri: Desregistrar cualquier Service Worker residual y purgar CacheStorage
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (const reg of registrations) {
+              reg.unregister();
+              console.log('[Tauri] Service Worker residual desregistrado');
+            }
+          }).catch(() => {});
+        }
+        if (window.caches) {
+          caches.keys().then(keys => {
+            for (const key of keys) {
+              caches.delete(key);
+              console.log('[Tauri] CacheStorage residual eliminado:', key);
+            }
+          }).catch(() => {});
+        }
+      } else if ('serviceWorker' in navigator) {
+        // En navegador Web / PWA móvil: registrar Service Worker normalmente
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js', { scope: '/' })
             .then(reg => {
